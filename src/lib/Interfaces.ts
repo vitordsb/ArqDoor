@@ -15,7 +15,6 @@ export interface RegisterInterface {
   profession?: string;
   confirmPassword: string;
   termos_aceitos: boolean;
-
 }
 export interface User {
   id: number;
@@ -128,7 +127,6 @@ export interface CreateStepRequest {
   price: number;
 }
 
-// INTERFACE PARA ATUALIZAR STEP
 export interface UpdateStepRequest {
   title?: string;
   price?: number;

@@ -41,7 +41,7 @@ export const AuthModals: React.FC<{
   onSuccess,
 }) => {
     const { toast } = useToast();
-    const { login, registerUser } = useAuth();
+    const { login, register } = useAuth();
     const [loginLoading, setLoginLoading] = useState(false);
     const [registerLoading, setRegisterLoading] = useState(false);
 
@@ -66,12 +66,11 @@ export const AuthModals: React.FC<{
       setIsPrestador(checked);
       registerForm.setValue("type", checked ? "prestador" : "contratante");
     };
+
     async function handleLogin(data: LoginInterface) {
       setLoginLoading(true);
       try {
         await login(data);
-        loginForm.reset();
-        onLoginClose();
         onSuccess?.();
       } catch (err) {
         toast({
@@ -92,7 +91,6 @@ export const AuthModals: React.FC<{
 
       setRegisterLoading(true);
       try {
-        // Enviando os dados informados pelo usuário no cadastro
         const registerData: any = {
           name: d.name,
           email: d.email,
@@ -103,10 +101,8 @@ export const AuthModals: React.FC<{
           termos_aceitos: d.termos_aceitos,
         };
 
-        await registerUser(registerData);
-        registerForm.reset();
+        await register(registerData);
         setIsPrestador(false);
-        onRegisterClose();
         onSuccess?.();
       } catch (err) {
         toast({

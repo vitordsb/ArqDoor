@@ -9,10 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { parseJwt } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { User, RegisterInterface, AuthContextType, LoginInterface } from "@/lib/Interfaces";
-import { loginSchema, registerSchema } from "@/lib/Schemas";
-
 const AuthContext = createContext<AuthContextType | null>(null);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -35,10 +32,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (data: LoginInterface) => {
-    loginSchema.parse(data);
-    const res = await apiRequest("POST", "/auth/login", data);
-    if (!res.ok) throw new Error("Credenciais inválidas");
-    const body = (await res.json()) as { data: { token: string } };
+    if (data.email === "") {
+      toast({
+        title: "Erro",
+        description: "Por favor preencha o campo de email",
+        variant: "destructive"
+      });
+      return
+    }
+    else if (data.password === "") {
+      toast({
+        title: "Erro",
+        description: "Por favor preencha o campo de senha",
+        variant: "destructive"
+      });
+      return
+    }
+    const loginRes = await apiRequest("POST", "/auth/login", data);
+    if (!loginRes.ok) throw new Error("Credenciais inválidas");
+    const body = (await loginRes.json()) as { data: { token: string } };
     const token = body.data.token;
     const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
     sessionStorage.setItem("token", token);
@@ -49,26 +61,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: RegisterInterface) => {
-    if (data.password.length < 6) {
-      throw new Error("Senha muito curta, por favor preencha 6 digitos")
+    if (data.name === "") {
+      toast({
+        title: "Erro",
+        description: "Campo de nome vazio, por favor preencha",
+        variant: "destructive"
+      });
+      return
     }
+    else if (data.email === "") {
+      toast({
+        title: "Erro",
+        description: "Por favor preencha o campo de email",
+        variant: "destructive"
+      });
+      return
+    }
+    else if (data.gender === "") {
+      toast({
+        title: "Erro",
+        description: "Por favor preencha o campo de sexo",
+        variant: "destructive"
+      });
+      return
+    }
+    else if (data.birth === "") {
+      toast({
+        title: "Erro",
+        description: "Por favor preencha o campo de data de nascimento",
+        variant: "destructive"
+      });
+      return
+    }
+    else if (data.password.length < 6) {
+      toast({
+        title: "Erro",
+        description: "Senha muito curta, por favor preencha 6 digitos",
+        variant: "destructive"
+      });
+      return
+    }
+    else if (data.password !== data.confirmPassword) {
+      toast({
+        title: "Erro",
+        description: "Senhas não coincidem, por favor preencha novamente",
+        variant: "destructive"
+      });
+      return
+    }
+
     else if (data.termos_aceitos === false) {
-      throw new Error("É preciso aceitar os termos para se cadastrar")
+      toast({
+        title: "Erro",
+        description: "É necessário aceitar os termos para cadastrar",
+        variant: "destructive"
+      });
+      return
     }
-    registerSchema.parse(data);
     let userRegistrationPayload: any = { ...data };
-    delete userRegistrationPayload.profession;
-    delete userRegistrationPayload.about;
-
     const userRes = await apiRequest("POST", "/users", userRegistrationPayload);
-    const userBody = await userRes.json();
-
     if (!userRes.ok) {
-      throw new Error(userBody.message || "Erro ao cadastrar usuário");
+      toast({
+        title: "Erro",
+        description: "Erro interno, por favor tente novamente mais tarde",
+        variant: "destructive",
+      });
+      return;
     }
     const successMessage = data.type === "prestador"
-      ? "Cadastro de prestador realizado com sucesso!"
-      : "Cadastro realizado com sucesso!";
+      ? "Seu cadastro como prestador foi realizado com sucesso!"
+      : "Seu cadastro como cliente foi realizado com sucesso!";
 
     toast({
       title: "Cadastro realizado",

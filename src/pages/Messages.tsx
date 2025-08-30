@@ -738,16 +738,14 @@ export default function Messages() {
               Detalhes
             </Button>
 
-            {hasPdf && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewPdf(ticket)}
-                className="flex-1 min-w-[120px]"
-              >
-                Ver PDF
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleViewPdf(ticket)}
+              className="flex-1 min-w-[120px]"
+            >
+              Ver PDF
+            </Button>
 
             {canInteract && (
               <>
@@ -787,7 +785,6 @@ export default function Messages() {
     );
   };
 
-  // COMPONENTE DE VISUALIZAÇÃO DE PDF MELHORADO
   const PdfViewer = () => {
     if (!showPdfViewer) return null;
 
@@ -1056,7 +1053,7 @@ export default function Messages() {
                     </h3>
                   </div>
 
-                  <ScrollArea className=" p-4">
+                  <ScrollArea className="p-4">
                     {loadingTickets ? (
                       <div className="text-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
@@ -1101,7 +1098,6 @@ export default function Messages() {
         </div>
       </div>
 
-      {/* Modal de Nova Proposta */}
       <Dialog open={showProposalModal} onOpenChange={setShowProposalModal}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
