@@ -7,12 +7,8 @@ export interface RegisterInterface {
   email: string;
   gender: string;
   birth: string;
-  cpf?: string;
-  cnpj?: string;
   type: "contratante" | "prestador";
   password: string;
-  about?: string;
-  profession?: string;
   confirmPassword: string;
   termos_aceitos: boolean;
 }
@@ -21,12 +17,11 @@ export interface User {
   name: string;
   email: string;
   cpf?: string;
-  payload: string;
+  cnpj?: string;
   birth: string;
   gender: string;
-  cnpj?: string;
   provider_id?: number;
-  cidade_id: number;
+  payload: string;
   type: "contratante" | "prestador";
   termos_aceitos: boolean;
 }

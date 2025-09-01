@@ -9,7 +9,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { parseJwt } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { User, RegisterInterface, AuthContextType, LoginInterface } from "@/lib/Interfaces";
+
 const AuthContext = createContext<AuthContextType | null>(null);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
@@ -32,110 +34,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (data: LoginInterface) => {
-    if (data.email === "") {
-      toast({
-        title: "Erro",
-        description: "Por favor preencha o campo de email",
-        variant: "destructive"
-      });
-      return
-    }
-    else if (data.password === "") {
-      toast({
-        title: "Erro",
-        description: "Por favor preencha o campo de senha",
-        variant: "destructive"
-      });
-      return
-    }
     const loginRes = await apiRequest("POST", "/auth/login", data);
-    if (!loginRes.ok) throw new Error("Credenciais inválidas");
-    const body = (await loginRes.json()) as { data: { token: string } };
-    const token = body.data.token;
-    const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
-    sessionStorage.setItem("token", token);
-    sessionStorage.setItem("tokenExpiry", expiresAt.toString());
-    const payload = parseJwt<User>(token);
-    setUser(payload);
-    toast({ title: "Bem-vindo!", description: "Login realizado com sucesso." });
-  };
-
-  const register = async (data: RegisterInterface) => {
-    if (data.name === "") {
+    if (!loginRes.ok) {
       toast({
-        title: "Erro",
-        description: "Campo de nome vazio, por favor preencha",
-        variant: "destructive"
-      });
-      return
-    }
-    else if (data.email === "") {
-      toast({
-        title: "Erro",
-        description: "Por favor preencha o campo de email",
-        variant: "destructive"
-      });
-      return
-    }
-    else if (data.gender === "") {
-      toast({
-        title: "Erro",
-        description: "Por favor preencha o campo de sexo",
-        variant: "destructive"
-      });
-      return
-    }
-    else if (data.birth === "") {
-      toast({
-        title: "Erro",
-        description: "Por favor preencha o campo de data de nascimento",
-        variant: "destructive"
-      });
-      return
-    }
-    else if (data.password.length < 6) {
-      toast({
-        title: "Erro",
-        description: "Senha muito curta, por favor preencha 6 digitos",
-        variant: "destructive"
-      });
-      return
-    }
-    else if (data.password !== data.confirmPassword) {
-      toast({
-        title: "Erro",
-        description: "Senhas não coincidem, por favor preencha novamente",
-        variant: "destructive"
-      });
-      return
-    }
-
-    else if (data.termos_aceitos === false) {
-      toast({
-        title: "Erro",
-        description: "É necessário aceitar os termos para cadastrar",
-        variant: "destructive"
-      });
-      return
-    }
-    let userRegistrationPayload: any = { ...data };
-    const userRes = await apiRequest("POST", "/users", userRegistrationPayload);
-    if (!userRes.ok) {
-      toast({
-        title: "Erro",
+        title: "Erro no login",
         description: "Erro interno, por favor tente novamente mais tarde",
         variant: "destructive",
       });
       return;
     }
-    const successMessage = data.type === "prestador"
-      ? "Seu cadastro como prestador foi realizado com sucesso!"
-      : "Seu cadastro como cliente foi realizado com sucesso!";
+    const body = await loginRes.json() as { data: { token: string } };
+    console.log(body);
+    const token = body.data.token;
+    console.log(token)
+    const payload = parseJwt<User>(token);
+    const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
+    sessionStorage.setItem("token", token);
+    sessionStorage.setItem("tokenExpiry", expiresAt.toString());
 
-    toast({
-      title: "Cadastro realizado",
-      description: successMessage
-    });
+    setUser(payload);
+  };
+
+  const register = async (data: RegisterInterface) => {
+    try {
+      const userRes = await apiRequest("POST", "/users", data);
+
+      switch (userRes.status) {
+        case 409:
+          toast({
+            title: "Usuário já cadastrado",
+            description: "Email ou CPF ja cadastrado",
+            variant: "destructive",
+          });
+          return
+        case 500:
+          toast({
+            title: "Erro no cadastro",
+            description: "Erro interno, por favor tente novamente mais tarde",
+            variant: "destructive",
+          });
+          return
+      }
+      const userResponse = await userRes.json();
+      console.log(userResponse)
+      const successMessage = data.type === "prestador"
+        ? "Seu cadastro como prestador foi realizado com sucesso!"
+        : "Seu cadastro como cliente foi realizado com sucesso!";
+      toast({
+        title: "Cadastro realizado",
+        description: successMessage,
+        variant: "default",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro interno, por favor tente novamente mais tarde",
+        variant: "destructive",
+      });
+    }
   };
 
   const logout = async () => {

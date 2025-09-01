@@ -10,15 +10,15 @@ export default function AuthPage() {
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const { isLoggedIn } = useAuth();
   const [location, navigate] = useLocation();
-  const [justLoggedIn, setJustLoggedIn] = useState(false); 
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
 
   useEffect(() => {
-  if (isLoggedIn && justLoggedIn) {
-    const lastRoute = sessionStorage.getItem("last_route");
-    const shouldGo = !lastRoute || lastRoute === "/auth" ? "/home" : lastRoute;
-    navigate(shouldGo);
-  }
-}, [isLoggedIn, justLoggedIn, navigate]);  const handleSwitchToRegister = () => {
+    if (isLoggedIn && justLoggedIn) {
+      const lastRoute = sessionStorage.getItem("last_route");
+      const shouldGo = !lastRoute || lastRoute === "/auth" ? "/home" : lastRoute;
+      navigate(shouldGo);
+    }
+  }, [isLoggedIn, justLoggedIn, navigate]); const handleSwitchToRegister = () => {
     setIsLoginOpen(false);
     setIsRegisterOpen(true);
   };
@@ -31,37 +31,33 @@ export default function AuthPage() {
   const handleAuthSuccess = () => {
     setJustLoggedIn(true);
   };
-
-  const handleGuest = () => {
-    navigate("/home");
-  }
   return (
     <div className="flex min-h-screen">
-      <Navbar/>
+      <Navbar />
       <div className="w-full lg:w-1/2 p-8 flex flex-col justify-center items-center bg-white">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
             <h1 className="text-4xl font-bold mb-2">Bem vindo ArqDoor!</h1>
             <p className="text-gray-600 mb-8">
-              Por favor, faça login ou crie uma conta para continuar.
+              Faça login ou crie uma conta para começar na plataforma.
             </p>
           </div>
 
           <div className="space-y-4">
-            <Button 
-              onClick={() => setIsLoginOpen(true)} 
-              className="w-full" 
+            <Button
+              onClick={() => setIsLoginOpen(true)}
+              className="w-full"
               size="lg"
             >
-            Entrar
+              Entrar
             </Button>
-            <Button 
-              onClick={() => setIsRegisterOpen(true)} 
-              variant="outline" 
-              className="w-full" 
+            <Button
+              onClick={() => setIsRegisterOpen(true)}
+              variant="outline"
+              className="w-full"
               size="lg"
             >
-            Criar conta
+              Criar conta
             </Button>
           </div>
         </div>
