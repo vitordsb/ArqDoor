@@ -143,8 +143,8 @@ export interface Demand {
   description: string;
   price: number;
   status: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface UserData {
   id: number;

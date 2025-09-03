@@ -1,7 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
-export const API_BASE_URL = "https://zameed-backend.onrender.com";
+export const API_BASE_URL = "http://89.116.225.129:8080";
 
-export async function apiRequest(method: string, path: string, data?: unknown): Promise<Response> {
+export async function apiRequest(
+  method: string,
+  path: string,
+  data?: unknown): Promise<Response> {
   const url = API_BASE_URL + path;
   const token = sessionStorage.getItem("token");
   const headers: Record<string, string> = {};

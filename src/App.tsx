@@ -27,9 +27,9 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/profile" component={Profile} />
       <Route path="/home" component={SocialFeed} />
-      <Route path="/home/demands" component={DemandsFeed} />
-      <Route path="/home/viewService" component={ServicePage} />
-      <Route path="/home/services" component={ServicesFeed} />
+      <Route path="/demands" component={DemandsFeed} />
+      <Route path="/services/viewService" component={ServicePage} />
+      <Route path="/services" component={ServicesFeed} />
       <Route path="/providers/:provider_id" component={ProviderProfile} />
       <Route path="/user/:user_id" component={ClientProfile} />
       <Route path="/messages/:userId?" component={Messages} />
@@ -64,7 +64,7 @@ function AppContent() {
   );
 }
 function App() {
-    return (
+  return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppContent />

@@ -1,4 +1,3 @@
-
 // src/pages/DemandsPage.tsx
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
@@ -12,34 +11,20 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft,
   ChevronRight,
-  List,
-  Grid3X3,
-  SortAsc,
-  SortDesc,
   Search,
   User,
   Star,
   Clock,
   DollarSign,
-  Filter,
-  TrendingUp,
-  Award,
   Briefcase,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { Demand, UserData, EnrichedDemand } from "@/lib/Interfaces";
-
-const getInitials = (name: string) => {
-  if (!name) return "";
-  const parts = name.split(" ");
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-};
+import { Demand, EnrichedDemand } from "@/lib/Interfaces";
+import { getInitials } from "@/lib/utils";
 
 export default function DemandsPage() {
   const [demands, setDemands] = useState<EnrichedDemand[]>([]);
@@ -55,10 +40,11 @@ export default function DemandsPage() {
   useEffect(() => {
     (async () => {
       try {
-        // 1) busca demandas
         const demandRes = await apiRequest("GET", "/demands/getall");
+        console.log(demandRes)
         if (!demandRes.ok) throw new Error("Erro ao buscar demandas");
         const body = await demandRes.json();
+        console.log(body)
         const fetchedDemands: Demand[] = Array.isArray(body.demand) ? body.demand : [];
 
         const enriched: EnrichedDemand[] = fetchedDemands.map(d => {
@@ -130,31 +116,6 @@ export default function DemandsPage() {
   const totalPages = Math.ceil(filtered.length / perPage);
   const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
 
-  const getSortLabel = () => {
-    switch (sortBy) {
-      case "newest": return "Mais recentes";
-      case "priceAsc": return "Menor preço";
-      case "priceDesc": return "Maior preço";
-      default: return "Ordenar";
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const isNewDemand = (dateString: string) => {
-    const demandDate = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - demandDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 3; // Considera nova se foi criada nos últimos 3 dias
-  };
-
   return (
     <ApplicationLayout>
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 scroll-smooth">
@@ -207,12 +168,6 @@ export default function DemandsPage() {
                             </CardDescription>
                           </div>
                         </div>
-                        {isNewDemand(demand.created_at) && (
-                          <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 transition-all duration-200 hover:scale-105 hover:shadow-lg">
-                            <Star className="h-3 w-3 mr-1" />
-                            Nova
-                          </Badge>
-                        )}
                       </div>
                     </CardHeader>
 
@@ -222,8 +177,8 @@ export default function DemandsPage() {
                       </p>
 
                       <div className="flex items-center space-x-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-300/50">
-                          <User className="h-6 w-6 text-white" />
+                        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-300/50">
+                          {getInitials(demand.userName)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-800 truncate text-lg">{demand.userName}</p>
@@ -233,19 +188,19 @@ export default function DemandsPage() {
 
                       <div className="flex items-center text-sm text-slate-500">
                         <Clock className="h-4 w-4 mr-2" />
-                        Publicada em {formatDate(demand.created_at)}
+                        Publicada em {demand.createdAt.split("T")[0].split("-").reverse().join("/")}
                       </div>
                     </CardContent>
 
-                    <CardFooter className="flex justify-between pt-6 border-t border-white/20 relative z-10">
+                    <CardFooter className="flex justify-between pt-2">
                       <Link href={`/user/${demand.id_user}`}>
                         <Button
                           size="lg"
-                          variant="outline"
-                          className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-amber-400 hover:bg-amber-50/50 transition-all duration-300 rounded-xl hover:scale-105 hover:shadow-lg focus:ring-2 focus:ring-amber-300"
+                          variant="secondary"
+                          className="text-slate-600 hover:text-amber-600"
                         >
                           <Briefcase className="h-4 w-4 mr-2" />
-                          Ver Detalhes
+                          Ver perfil
                         </Button>
                       </Link>
                     </CardFooter>
@@ -259,12 +214,6 @@ export default function DemandsPage() {
                             <h3 className="text-2xl font-bold text-slate-800 group-hover:text-blue-600 transition-colors duration-300">
                               {demand.title}
                             </h3>
-                            {isNewDemand(demand.created_at) && (
-                              <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white transition-all duration-200 hover:scale-105 hover:shadow-lg">
-                                <Star className="h-3 w-3 mr-1" />
-                                Nova
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-slate-600 line-clamp-2 mb-6 text-lg leading-relaxed">
                             {demand.description}
@@ -282,12 +231,11 @@ export default function DemandsPage() {
                               </div>
                               <div>
                                 <span className="font-semibold text-slate-700">{demand.userName}</span>
-                                <p className="text-sm text-slate-500">{demand.userEmail}</p>
                               </div>
                             </div>
                             <div className="flex items-center space-x-2 text-slate-500">
                               <Clock className="h-4 w-4" />
-                              <span>{formatDate(demand.created_at)}</span>
+                              <span>{demand.createdAt.split("T")[0].split("-").reverse().join("/")}</span>
                             </div>
                           </div>
                         </div>
@@ -295,7 +243,7 @@ export default function DemandsPage() {
                           <Link href={`/users/${demand.id_user}`}>
                             <Button
                               size="lg"
-                              variant="outline"
+                              variant="default"
                               className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-amber-400 hover:bg-amber-50/50 transition-all duration-300 rounded-xl hover:scale-105 hover:shadow-lg focus:ring-2 focus:ring-amber-300"
                             >
                               Ver Contratante
@@ -304,6 +252,7 @@ export default function DemandsPage() {
                           <Link href={`/demand/${demand.id_demand}`}>
                             <Button
                               size="lg"
+                              variant="default"
                               className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1 focus:ring-2 focus:ring-amber-300"
                             >
                               <Briefcase className="h-4 w-4 mr-2" />

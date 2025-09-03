@@ -18,7 +18,9 @@ export default function AuthPage() {
       const shouldGo = !lastRoute || lastRoute === "/auth" ? "/home" : lastRoute;
       navigate(shouldGo);
     }
-  }, [isLoggedIn, justLoggedIn, navigate]); const handleSwitchToRegister = () => {
+  }, [isLoggedIn, justLoggedIn, navigate]);
+
+  const handleSwitchToRegister = () => {
     setIsLoginOpen(false);
     setIsRegisterOpen(true);
   };

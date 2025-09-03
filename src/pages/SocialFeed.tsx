@@ -43,7 +43,7 @@ import {
   DollarSign,
   Eye,
 } from "lucide-react";
-import { apiRequest} from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useMessaging } from "@/hooks/use-messaging";
@@ -144,14 +144,14 @@ const UserBanner = ({ userId, className = '' }: { userId: number; className?: st
         setLoading(true);
         setError(false);
 
-       const response = await apiRequest("GET", `/users/images/${userId}`); 
+        const response = await apiRequest("GET", `/users/images/${userId}`);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        
+
         if (data.success && data.images && data.images.length > 0) {
           const firstImage = data.images[0];
           if (firstImage.image_url) {
@@ -189,7 +189,7 @@ const UserBanner = ({ userId, className = '' }: { userId: number; className?: st
 
   if (loading) {
     return (
-      <div className={`${className}`} style={{...bannerStyle, backgroundColor: '#f3f4f6'}}>
+      <div className={`${className}`} style={{ ...bannerStyle, backgroundColor: '#f3f4f6' }}>
         <div className="text-gray-500 text-xs">Carregando...</div>
       </div>
     );
@@ -222,14 +222,14 @@ const UserAvatar = ({ userId, className = '', size = 'md' }: { userId: number; c
         setLoading(true);
         setError(false);
 
-       const response = await apiRequest("GET", `/users/images/${userId}`); 
+        const response = await apiRequest("GET", `/users/images/${userId}`);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        
+
         if (data.success && data.images && data.images.length > 0) {
           const firstImage = data.images[0];
           if (firstImage.image_url) {
@@ -276,9 +276,9 @@ const UserAvatar = ({ userId, className = '', size = 'md' }: { userId: number; c
 
   return (
     <div className={`${sizeClasses[size]} rounded-full overflow-hidden border-4 border-white shadow-lg ${className}`}>
-      <img 
-        src={imageUrl} 
-        alt="Avatar do usuário" 
+      <img
+        src={imageUrl}
+        alt="Avatar do usuário"
         className="w-full h-full object-cover"
       />
     </div>
@@ -308,13 +308,13 @@ const carouselImages = [
     subtitle: "Conecte-se com os melhores arquitetos freelancers"
   },
   {
-    src: "/bannerImages/02.webp", 
+    src: "/bannerImages/02.webp",
     title: "Qualidade profissional garantida",
     subtitle: "Todos os nossos profissionais são verificados"
   },
   {
     src: "/bannerImages/03.webp",
-    title: "Projetos únicos e personalizados", 
+    title: "Projetos únicos e personalizados",
     subtitle: "Encontre o especialista perfeito para seu projeto"
   }
 ];
@@ -424,7 +424,7 @@ export default function SocialFeed() {
 
   const { displayList, showOnlyCurrentUser } = useMemo(() => {
     if (!currentUser) {
-      return { 
+      return {
         displayList: allProvidersData.filter(item => {
           const matchSearch =
             item.user.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -432,8 +432,8 @@ export default function SocialFeed() {
           const matchService = !serviceFilter || item.provider.profession === serviceFilter;
           const matchLocation = !locationFilter || (item.user.cidade_id && locations.find(loc => loc.value === locationFilter && item.user.cidade_id.toString() === loc.value));
           return matchSearch && matchService && matchLocation;
-        }), 
-        showOnlyCurrentUser: false 
+        }),
+        showOnlyCurrentUser: false
       };
     }
 
@@ -462,9 +462,9 @@ export default function SocialFeed() {
       };
     }
 
-    return { 
-      displayList: [], 
-      showOnlyCurrentUser: true 
+    return {
+      displayList: [],
+      showOnlyCurrentUser: true
     };
   }, [allProvidersData, allClientsData, currentUser, search, serviceFilter, locationFilter]);
 
@@ -559,7 +559,7 @@ export default function SocialFeed() {
               <h3 className="text-xl font-semibold text-slate-700">Erro ao carregar dados</h3>
               <p className="text-slate-500">Não foi possível carregar os perfis. Tente novamente mais tarde.</p>
             </div>
-            <Button 
+            <Button
               onClick={() => window.location.reload()}
               className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
             >
@@ -578,9 +578,8 @@ export default function SocialFeed() {
           {carouselImages.map((image, index) => (
             <div
               key={index}
-              className={`absolute inset-0 transition-opacity duration-1000 ${
-                index === currentSlide ? "opacity-100" : "opacity-0"
-              }`}
+              className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? "opacity-100" : "opacity-0"
+                }`}
             >
               <div
                 className="w-full h-full bg-cover bg-center bg-no-repeat"
@@ -612,7 +611,7 @@ export default function SocialFeed() {
               </div>
             </div>
           ))}
-          
+
           {/* Controles do carrossel */}
           <button
             onClick={prevSlide}
@@ -626,16 +625,15 @@ export default function SocialFeed() {
           >
             <ChevronRight className="h-6 w-6" />
           </button>
-          
+
           {/* Indicadores */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
             {carouselImages.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  index === currentSlide ? "bg-white" : "bg-white/50"
-                }`}
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${index === currentSlide ? "bg-white" : "bg-white/50"
+                  }`}
               />
             ))}
           </div>
@@ -663,7 +661,7 @@ export default function SocialFeed() {
                       className="border-gray-200 focus:border-amber-500 focus:ring-amber-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">
                       Localização
@@ -681,7 +679,7 @@ export default function SocialFeed() {
                       ))}
                     </select>
                   </div>
-                  
+
                   {currentUser?.type !== "prestador" && (
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-2 block">
@@ -704,81 +702,85 @@ export default function SocialFeed() {
                 </CardContent>
               </Card>
 
-              
+
               {currentUser?.type === "contratante" && (
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Zap className="h-5 w-5 text-amber-600" />
-                    Últimas Ofertas
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {loadingServices ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
-                    </div>
-                  ) : recentServices.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">
-                      Nenhuma oferta disponível no momento.
-                    </p>
-                  ) : (
-                    recentServices.map((service) => (
-                      <div key={service.id_serviceFreelancer} className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
-                        <h4 className="font-semibold text-sm text-gray-900 mb-1">
-                          {service.title}
-                        </h4>
-                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                          {service.description}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-green-600">
-                            {formatPrice(service.price)}
-                          </span>
-                        </div>
+                <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Zap className="h-5 w-5 text-amber-600" />
+                      Últimas Ofertas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {loadingServices ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                    ) : recentServices.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">
+                        Nenhuma oferta disponível no momento.
+                      </p>
+                    ) : (
+                      recentServices.map((service) => (
+                        <div key={service.id_serviceFreelancer} className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
+                          <h4 className="font-semibold text-sm text-gray-900 mb-1">
+                            {service.title}
+                          </h4>
+                          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                            {service.description}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-green-600">
+                              {formatPrice(service.price)}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
               )}
 
               {currentUser?.type === "prestador" && (
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-amber-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <TrendingUp className="h-5 w-5 text-amber-600" />
-                  Últimas Demandas 
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {loadingDemands ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
-                    </div>
-                  ) : recentDemands.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">
-                      Nenhuma demanda disponível no momento.
-                    </p>
-                  ) : (
-                    recentDemands.map((demand) => (
-                      <div key={demand.id_demand} className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
-                        <h4 className="font-semibold text-sm text-gray-900 mb-1">
-                          {demand.title}
-                        </h4>
-                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                          {demand.description}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-green-600">
-                            {formatPrice(demand.price)}
-                          </span>
-                        </div>
+                <Card className="border-0 shadow-lg bg-white/80 backdrop-amber-sm">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <TrendingUp className="h-5 w-5 text-amber-600" />
+                      Últimas Demandas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {loadingDemands ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                    ) : recentDemands.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">
+                        Nenhuma demanda disponível no momento.
+                      </p>
+                    ) : (
+                      recentDemands.map((demand: any) => (
+                        <div key={demand.id_demand} className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
+                          <h4 className="font-semibold text-sm text-gray-900 mb-1">
+                            {demand.title}
+                          </h4>
+                          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                            {demand.description}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-green-600">
+                              {formatPrice(demand.price)}
+                            </span>
+                            <Link>
+                              Ver Perfil
+                            </Link>
+                          </div>
+
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
               )}
             </div>
 
@@ -786,11 +788,11 @@ export default function SocialFeed() {
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  {currentUser?.type === "prestador" 
-                    ? "Clientes Disponíveis" 
+                  {currentUser?.type === "prestador"
+                    ? "Clientes Disponíveis"
                     : currentUser?.type === "contratante"
-                    ? "Prestadores Disponíveis"
-                    : "Prestadores Disponíveis"
+                      ? "Prestadores Disponíveis"
+                      : "Prestadores Disponíveis"
                   }
                 </h2>
                 <Badge variant="outline" className="text-sm">
@@ -823,35 +825,34 @@ export default function SocialFeed() {
                         <UserBanner userId={item.user.id} />
                         <CardContent className="relative p-4">
                           <div className="flex justify-center -mt-10 mb-4">
-                            <UserAvatar 
-                              userId={item.user.id} 
+                            <UserAvatar
+                              userId={item.user.id}
                               size="lg"
                               className="ring-4 ring-white"
                             />
                           </div>
-                          
+
                           <div className="text-center space-y-3">
                             <div>
                               <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
                                 {item.user.name}
                               </h3>
-                              
+
                               {item.provider && (
                                 <>
                                   <p className="text-amber-600 font-medium text-sm sm:text-base mb-2">
                                     {item.provider.profession || "Ainda não informou"}
                                   </p>
-                                  
+
                                   <div className="flex items-center justify-center gap-1 mb-3">
                                     <div className="flex">
                                       {[...Array(5)].map((_, i) => (
                                         <Star
                                           key={i}
-                                          className={`h-4 w-4 ${
-                                            i < Math.floor(item.provider.rating_mid)
-                                              ? "text-yellow-400 fill-current"
-                                              : "text-gray-300"
-                                          }`}
+                                          className={`h-4 w-4 ${i < Math.floor(item.provider.rating_mid)
+                                            ? "text-yellow-400 fill-current"
+                                            : "text-gray-300"
+                                            }`}
                                         />
                                       ))}
                                     </div>
@@ -861,14 +862,14 @@ export default function SocialFeed() {
                                 </>
                               )}
                             </div>
-                            
+
                             {/* Badges e informações */}
                             <div className="flex flex-wrap justify-center gap-2 mb-4">
                               <Badge variant="secondary" className="text-xs">
                                 <User className="h-3 w-3 mr-1" />
                                 {item.user.type === "prestador" ? "Prestador" : "Cliente"}
                               </Badge>
-                              
+
                               {item.provider && (
                                 <Badge variant="outline" className="text-xs">
                                   <Eye className="h-3 w-3 mr-1" />
@@ -876,8 +877,8 @@ export default function SocialFeed() {
                                 </Badge>
                               )}
                             </div>
-                            
-                            
+
+
                             {/* Botões de ação centralizados com link condicional */}
                             <div className="flex flex-col sm:flex-row gap-2 pt-2">
                               <Button
@@ -891,7 +892,7 @@ export default function SocialFeed() {
                                   Ver Perfil
                                 </Link>
                               </Button>
-                              
+
                               {isLoggedIn && currentUser?.id !== item.user.id && (
                                 <Button
                                   size="sm"
@@ -914,7 +915,7 @@ export default function SocialFeed() {
           </div>
         </div>
       </div>
-    </ApplicationLayout>
+    </ApplicationLayout >
   );
 }
 
