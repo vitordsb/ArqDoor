@@ -8,6 +8,7 @@ import React, {
 import { parseJwt } from "@/lib/utils";
 import { User, AuthContextType } from "@/lib/Interfaces";
 import { register, login, logout } from "@/hooks/requests/AuthRequests";
+import { logFunc } from "@/lib/logFunc"
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
