@@ -34,7 +34,6 @@ function DialogShell({
 }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <div className="relative overflow-hidden rounded-3xl border bg-background shadow-xl">
-      {/* gradient header */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-44" />
 
       <div className="relative p-7 sm:p-8">
@@ -214,18 +213,15 @@ export const AuthModals: React.FC<{
         };
         await register(registerData);
         onSuccess?.();
-        if (onSuccess) {
-          onSwitchToLogin();
-          toast({
-            title: "Horá do login!!",
-            description: "Agora efetue o login no cadastro realizado!",
-            variant: "default"
-          });
-        }
       } catch (err) {
-        toast({ title: "Erro no cadastro", description: (err as Error).message, variant: "destructive" });
+        toast({
+          title: "Erro no cadastro",
+          description: (err as Error).message,
+          variant: "destructive"
+        });
       } finally {
         setRegisterLoading(false);
+        onSwitchToLogin();
       }
     }
 
