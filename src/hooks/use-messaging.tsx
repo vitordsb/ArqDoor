@@ -4,7 +4,18 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { Conversation, Message, CreateMessageRequest, Ticket, Step, CreateConversationRequest, CreateStepRequest, CreateTicketRequest, SignDocumentRequest, UpdateStepRequest } from '@/lib/Interfaces';
+import {
+  Conversation,
+  Message,
+  CreateMessageRequest,
+  Ticket,
+  Step,
+  CreateConversationRequest,
+  CreateStepRequest,
+  CreateTicketRequest,
+  SignDocumentRequest,
+  UpdateStepRequest
+} from '@/lib/Interfaces';
 
 export function useMessaging(initialPartnerId?: string | null) {
   const { user, isLoggedIn } = useAuth();
@@ -498,16 +509,15 @@ export function useMessaging(initialPartnerId?: string | null) {
       return null;
     }
   };
+  // helpers
+  const makeAbsolute = (path: string) => {
+    const base = (import.meta.env.VITE_API_BASE_URL || "http://89.116.225.129:8080").replace(/\/+$/, "");
+    return `${base}/${path.replace(/^\/+/, "")}`;
+  };
 
-  function parseFilenameFromDisposition(disposition?: string | null) {
-    if (!disposition) return null;
-    // filename*=UTF-8''nome.pdf OU filename="nome.pdf"
-    const m = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
-    return m ? decodeURIComponent(m[1]) : null;
-  }
+
   const buscarPDF = async (ticketId: number) => {
     try {
-      // 1) Buscar a lista de anexos (JSON)
       const listRes = await apiRequest("GET", `/attchment/ticket/${ticketId}`);
       if (!listRes.ok) {
         const t = await listRes.text();
@@ -516,7 +526,9 @@ export function useMessaging(initialPartnerId?: string | null) {
 
       const listJson = await listRes.json();
       const attachments: Array<{ id: number; ticket_id: number; pdf_path: string; date?: string }> =
-        listJson?.attachments || [];
+        (Array.isArray(listJson?.attachments) && listJson.attachments) ||
+        (Array.isArray(listJson?.attchments) && listJson.attchments) ||
+        [];
 
       if (!attachments.length) {
         throw new Error("Nenhum PDF anexado a este ticket.");
@@ -526,10 +538,8 @@ export function useMessaging(initialPartnerId?: string | null) {
         attachments
           .slice()
           .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())[0];
-      const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") || "";
-      const pdfUrlAbs = `${base}/${chosen.pdf_path.replace(/^\/+/, "")}`;
+      const pdfUrlAbs = makeAbsolute(chosen.pdf_path);
 
-      // 4) Buscar o PDF real
       const fileRes = await fetch(pdfUrlAbs, {
         method: "GET",
       });
@@ -541,7 +551,6 @@ export function useMessaging(initialPartnerId?: string | null) {
       const blob = await fileRes.blob();
       const blobUrl = URL.createObjectURL(blob);
 
-      // tenta extrair filename (se houver header; com estático pode não ter)
       const disp = fileRes.headers.get("Content-Disposition") || "";
       const m = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disp);
       const filename =
@@ -553,25 +562,19 @@ export function useMessaging(initialPartnerId?: string | null) {
       console.error("❌ Erro ao buscar PDF:", error);
       return null;
     }
-  }; // Função para buscar e PDF do ticket ativo da conversa atual
+  };
   const openTicketPdfInNewTab = async (ticketId: number) => {
-    const res = await fetchTicketPDF(ticketId);
+    const res = await buscarPDF(ticketId);
     if (!res) return false;
-
     const { blobUrl } = res;
-    // abrir imediatamente em resposta a clique de usuário evita bloqueio de popup
     window.open(blobUrl, "_blank", "noopener,noreferrer");
-
-    // libera memória depois de um tempo
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     return true;
   };
 
-  // ✅ baixar com nome correto
   const downloadTicketPdf = async (ticketId: number) => {
-    const res = await fetchTicketPDF(ticketId);
+    const res = await buscarPDF(ticketId);
     if (!res) return false;
-
     const { blobUrl, filename } = res;
     const a = document.createElement("a");
     a.href = blobUrl;
@@ -582,6 +585,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     URL.revokeObjectURL(blobUrl);
     return true;
   };
+
   const getActiveTicket = useCallback(() => {
     if (!currentConversation || !tickets) return null;
     const activeTicket = tickets.find(ticket =>
@@ -593,54 +597,48 @@ export function useMessaging(initialPartnerId?: string | null) {
   }, [currentConversation, tickets]);
 
   // FUNÇÃO MELHORADA PARA CRIAR PROPOSTA COMO MENSAGEM
-  const createProposal = useCallback(async (steps: Omit<CreateStepRequest, 'ticket_id'>[], contractFile?: string) => {
-    if (!currentConversation) {
-      toast({
-        title: 'Erro',
-        description: 'Nenhuma conversa selecionada.',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    if (!user || user.type !== 'prestador') {
-      toast({
-        title: 'Erro',
-        description: 'Apenas prestadores podem enviar propostas.',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    let ticketId: number;
-
-    try {
-      const existingActiveTicket = getActiveTicket();
-      if (existingActiveTicket) {
-        ticketId = existingActiveTicket.id;
-        console.log(ticketId)
-      } else {
-        console.log('🎫 Criando novo ticket...');
-        const ticketResponse = await apiRequest('POST', '/ticket', {
-          conversation_id: currentConversation.id
-        });
-        if (!ticketResponse.ok) {
-          const errorText = await ticketResponse.text();
-          console.error('❌ Erro ao criar ticket:', errorText);
-          throw new Error(`Erro ao criar ticket: ${errorText}`);
-        }
-        const ticketResult = await ticketResponse.json();
-        ticketId = ticketResult.ticketService?.id || ticketResult.ticket?.id;
-        if (!ticketId) {
-          throw new Error('ID do ticket não retornado pela API');
-        }
+  const createProposal = useCallback(
+    async (steps: Omit<CreateStepRequest, 'ticket_id'>[], contractFile?: File | Blob) => {
+      if (!currentConversation) {
+        toast({ title: 'Erro', description: 'Nenhuma conversa selecionada.', variant: 'destructive' });
+        return false;
       }
 
-      const createdSteps = [];
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
+      if (!user || user.type !== 'prestador') {
+        toast({ title: 'Erro', description: 'Apenas prestadores podem enviar propostas.', variant: 'destructive' });
+        return false;
+      }
 
-        try {
+      let ticketId: number;
+
+      try {
+        // ✅ Reutiliza APENAS ticket "pendente" desta conversa; caso contrário cria um novo
+        const pendingTicket = tickets.find(
+          (t) => t.conversation_id === currentConversation.id && t.status === 'pendente'
+        );
+
+        if (pendingTicket) {
+          ticketId = pendingTicket.id;
+        } else {
+          const ticketResponse = await apiRequest('POST', '/ticket', {
+            conversation_id: currentConversation.id,
+          });
+          if (!ticketResponse.ok) {
+            const errorText = await ticketResponse.text();
+            console.error('❌ Erro ao criar ticket:', errorText);
+            throw new Error(`Erro ao criar ticket: ${errorText}`);
+          }
+          const ticketResult = await ticketResponse.json();
+          ticketId = ticketResult.ticketService?.id || ticketResult.ticket?.id;
+          if (!ticketId) throw new Error('ID do ticket não retornado pela API');
+        }
+
+        // ✅ Backend só permite criar steps se o ticket estiver "pendente"
+        const createdSteps: Array<{ id: number; title: string; price: number; status: 'pendente' }> = [];
+
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+
           const stepResponse = await apiRequest('POST', '/step', {
             ticket_id: ticketId,
             title: step.title,
@@ -654,74 +652,69 @@ export function useMessaging(initialPartnerId?: string | null) {
           }
 
           const stepResult = await stepResponse.json();
-          console.log(`✅ Step ${i + 1} criado com sucesso:`, stepResult);
           createdSteps.push({
             id: stepResult.step?.id || stepResult.id,
             title: step.title,
             price: step.price,
-            status: 'pending'
+            status: 'pendente',
           });
-        } catch (stepError) {
-          console.error(`❌ Erro ao criar step ${i + 1}:`, stepError);
-          throw new Error(`Falha ao criar etapa ${i + 1}: ${step.title}`);
         }
-      }
 
-      // Upload do PDF APÓS criar o ticket e steps
-      let uploadSuccess = true;
-      if (contractFile) {
-        console.log('📎 Fazendo upload do contrato...');
-        const uploadResult = await uploadPDF(ticketId, contractFile);
-        uploadSuccess = !!uploadResult;
-
-        if (!uploadSuccess) {
-          console.warn('⚠️ Upload do PDF falhou, mas continuando com a proposta...');
+        // 📎 Upload do contrato (opcional)
+        let uploadSuccess = true;
+        if (contractFile) {
+          const uploadResult = await uploadPDF(ticketId, contractFile);
+          uploadSuccess = !!uploadResult;
+          if (!uploadSuccess) console.warn('⚠️ Upload do PDF falhou, mas continuando com a proposta...');
         }
+
+        const totalPrice = steps.reduce((sum, s) => sum + s.price, 0);
+
+        const proposalData = {
+          ticket_id: ticketId,
+          steps: createdSteps,
+          total: totalPrice,
+          status: 'pendente' as const,
+        };
+
+        // 📨 Mensagem de proposta
+        await sendMessageMutation.mutateAsync({
+          conversation_id: currentConversation.id,
+          content: `📋 Nova proposta enviada! Ticket #${ticketId} - Total: R$ ${totalPrice.toFixed(2)}${contractFile ? (uploadSuccess ? ' (Contrato anexado)' : ' (Erro no upload do contrato)') : ''
+            }`,
+          type: 'proposal',
+          proposal_data: proposalData,
+        });
+
+        // 🔄 Atualizações
+        queryClient.invalidateQueries({ queryKey: ['tickets', currentConversation.id] });
+        queryClient.invalidateQueries({ queryKey: ['messages', currentConversation.id] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+        toast({
+          title: 'Proposta enviada',
+          description: contractFile && !uploadSuccess
+            ? 'Proposta enviada, mas houve erro no upload do contrato. Você pode tentar anexar novamente.'
+            : 'Sua proposta foi enviada com sucesso!',
+          variant: contractFile && !uploadSuccess ? 'destructive' : 'default',
+        });
+
+        return true;
+      } catch (error) {
+        console.error('❌ Erro ao criar proposta:', error);
+        toast({
+          title: 'Erro',
+          description: error instanceof Error ? error.message : 'Erro ao criar proposta',
+          variant: 'destructive',
+        });
+        return false;
       }
+    },
+    [currentConversation, user, tickets, uploadPDF, sendMessageMutation, queryClient, toast]
+  );
 
-      const totalPrice = steps.reduce((sum, s) => sum + s.price, 0);
-
-      const proposalData = {
-        ticket_id: ticketId,
-        steps: createdSteps,
-        total: totalPrice,
-        status: 'pending'
-      };
-
-      // Enviar mensagem de proposta
-      await sendMessageMutation.mutateAsync({
-        conversation_id: currentConversation.id,
-        content: `📋 Nova proposta enviada! Ticket #${ticketId} - Total: R$ ${totalPrice.toFixed(2)}${contractFile ? (uploadSuccess ? ' (Contrato anexado)' : ' (Erro no upload do contrato)') : ''}`,
-        type: 'proposal',
-        proposal_data: proposalData
-      });
-
-      // Invalidar queries para atualizar dados
-      queryClient.invalidateQueries({ queryKey: ['tickets', currentConversation.id] });
-      queryClient.invalidateQueries({ queryKey: ['messages', currentConversation.id] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-
-      toast({
-        title: 'Proposta enviada',
-        description: contractFile && !uploadSuccess
-          ? 'Proposta enviada, mas houve erro no upload do contrato. Você pode tentar anexar novamente.'
-          : 'Sua proposta foi enviada com sucesso!',
-        variant: contractFile && !uploadSuccess ? 'destructive' : 'default',
-      });
-
-      return true;
-    } catch (error) {
-      console.error('❌ Erro ao criar proposta:', error);
-      toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao criar proposta',
-        variant: 'destructive',
-      });
-      return false;
-    }
-  }, [currentConversation, user, getActiveTicket, uploadPDF, sendMessageMutation, queryClient, toast]);
-
-  const updateTicketStatus = useCallback(async (ticketId: number, status: 'accepted' | 'rejected' | 'signed') => {
+  const updateTicketStatus = useCallback(async (ticketId: number,
+    status: 'pendente' | 'em andamento' | 'concluída' | 'cancelada') => {
     if (!currentConversation) {
       toast({
         title: 'Erro',
@@ -734,8 +727,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     try {
       const updateData: any = { status: status };
 
-      // Se for assinatura, adicionar dados de assinatura
-      if (status === 'signed' && user) {
+      if (status === 'pendente' && user) {
         updateData.signed_at = new Date().toISOString();
         updateData.signed_by = user.id;
       }
@@ -749,7 +741,7 @@ export function useMessaging(initialPartnerId?: string | null) {
       }
 
       // Se a proposta foi aceita, iniciar o primeiro step
-      if (status === 'accepted') {
+      if (status === 'em andamento') {
         const steps = await getStepsForTicket(ticketId);
         if (steps.length > 0) {
           await updateStep(steps[0].id, { status: 'in_progress' });
@@ -761,20 +753,22 @@ export function useMessaging(initialPartnerId?: string | null) {
 
       let successMessage = '';
       switch (status) {
-        case 'accepted':
-          successMessage = 'A proposta foi aceita e o primeiro passo foi iniciado!';
+        case 'em andamento':
+          successMessage = 'Proposta aceita! Primeiro passo iniciado.';
           break;
-        case 'rejected':
-          successMessage = 'A proposta foi rejeitada.';
+        case 'cancelada':
+          successMessage = 'Proposta cancelada.';
           break;
-        case 'signed':
-          successMessage = 'O documento foi assinado digitalmente com sucesso!';
+        case 'concluída':
+          successMessage = 'Documento assinado com sucesso!';
           break;
+        case 'pendente':
+        default:
+          successMessage = 'Status atualizado.';
       }
-
       toast({
-        title: status === 'accepted' ? 'Proposta aceita' :
-          status === 'rejected' ? 'Proposta rejeitada' :
+        title: status === 'em andamento' ? 'Proposta aceita' :
+          status === 'cancelada' ? 'Proposta rejeitada' :
             'Documento assinado',
         description: successMessage,
       });
@@ -802,7 +796,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     }
 
     try {
-      const validateResponse = await apiRequest('POST', '/auth/validate-password', {
+      const validateResponse = await apiRequest('POST', '/auth/login', {
         email: user.email,
         password: password
       });
@@ -816,7 +810,7 @@ export function useMessaging(initialPartnerId?: string | null) {
         return false;
       }
 
-      const success = await updateTicketStatus(ticketId, 'signed');
+      const success = await updateTicketStatus(ticketId, 'concluída');
 
       if (success) {
         await sendMessageMutation.mutateAsync({

@@ -1,3 +1,8 @@
+export interface LogFunc {
+  (message?: any, ...optionalParams: any[]): void
+}
+
+
 export interface LoginInterface {
   email: string;
   password: string;
