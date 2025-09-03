@@ -245,13 +245,12 @@ export default function Messages() {
       const ticketId = ticket.id as number;
       setSelectedTicketForPdf(ticketId);
 
-      // helpers
 
       const toAbsolute = (maybeRelative: string) => {
-        const base = (import.meta.env.VITE_API_BASE_URL || '')
+        const base = ('http://89.116.225.129:8080')
           .trim()
           .replace(/\/+$/, '');
-        if (!base) throw new Error('VITE_API_BASE_URL não configurado.');
+        if (!base) throw new Error('Servidor não encontrado');
         return maybeRelative.startsWith('http')
           ? maybeRelative
           : `${base}/${maybeRelative.replace(/^\/+/, '')}`;
@@ -290,21 +289,21 @@ export default function Messages() {
       };
 
       // 0) tenta localmente (IndexedDB) antes de buscar na rede
-      try {
-        const localBlob = await getPdf(pdfLocalKey(ticketId));
-        if (localBlob) {
-          const localUrl = URL.createObjectURL(localBlob);
-          setPdfBlob(localBlob);
-          setPdfUrl(localUrl);
-          setPdfFilename(`contrato-ticket-${ticketId}.pdf`);
-          setShowPdfViewer(true);
-          setFullscreenPdf(true);
-          setLoadingPdf(false);
-          return;
-        }
-      } catch {
-        // se IndexedDB falhar, ignora e segue
-      }
+      // try {
+      //   const localBlob = await getPdf(pdfLocalKey(ticketId));
+      //   if (localBlob) {
+      //     const localUrl = URL.createObjectURL(localBlob);
+      //     setPdfBlob(localBlob);
+      //     setPdfUrl(localUrl);
+      //     setPdfFilename(`contrato-ticket-${ticketId}.pdf`);
+      //     setShowPdfViewer(true);
+      //     setFullscreenPdf(true);
+      //     setLoadingPdf(false);
+      //     return;
+      //   }
+      // } catch {
+      //   // ignore
+      // }
 
       let finalBlob: Blob | null = null;
       let finalFilename = `contrato-ticket-${ticketId}.pdf`;
