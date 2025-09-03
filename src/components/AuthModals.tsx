@@ -133,6 +133,8 @@ export const AuthModals: React.FC<{
   onLoginClose,
   onRegisterClose,
   onSuccess,
+  onSwitchToRegister,
+  onSwitchToLogin,
 }) => {
     const { toast } = useToast();
     const { login, register } = useAuth();
@@ -212,6 +214,14 @@ export const AuthModals: React.FC<{
         };
         await register(registerData);
         onSuccess?.();
+        if (onSuccess) {
+          onSwitchToLogin();
+          toast({
+            title: "Horá do login!!",
+            description: "Agora efetue o login no cadastro realizado!",
+            variant: "default"
+          });
+        }
       } catch (err) {
         toast({ title: "Erro no cadastro", description: (err as Error).message, variant: "destructive" });
       } finally {
@@ -267,10 +277,18 @@ export const AuthModals: React.FC<{
                       </FormItem>
                     )}
                   />
+                  <div className="text-left text-sm text-muted-foreground hover:underline">
+                    <a href="#">Esqueci minha senha</a>
+                  </div>
                   <Button type="submit" disabled={loginLoading} className="w-full">
                     {loginLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Entrar
                   </Button>
+                  <div className="text-center text-sm text-muted-foreground">
+                    <span className="cursor-pointer hover:underline" onClick={onSwitchToRegister}>
+                      Criar uma conta
+                    </span>
+                  </div>
                 </form>
               </Form>
             </DialogShell>
@@ -419,6 +437,7 @@ export const AuthModals: React.FC<{
                   <FormField
                     control={registerForm.control}
                     name="termos_aceitos"
+                    defaultValue={false}
                     render={({ field }) => (
                       <FormItem className="flex items-center gap-3">
                         <FormControl>
@@ -429,12 +448,12 @@ export const AuthModals: React.FC<{
                           />
                         </FormControl>
                         <div className="space-y-1">
-                          <FormLabel htmlFor="termos_aceitos" className="text-sm font-medium leading-none">
+                          <p className="text-sm font-medium leading-none">
                             Declaro que li e aceito os {" "}
                             <a href="/termos-de-uso" target="_blank" className="text-amber-600 underline">
                               Termos de uso
                             </a>
-                          </FormLabel>
+                          </p>
                         </div>
                       </FormItem>
                     )}
@@ -444,6 +463,14 @@ export const AuthModals: React.FC<{
                     {registerLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Cadastrar
                   </Button>
+                  <div className="text-center">
+                    <a
+                      onClick={onSwitchToLogin}
+                      className="text-sm text-muted-foreground hover:underline cursor-pointer"
+                    >
+                      Já tem cadastro? Faça login!
+                    </a>
+                  </div>
                 </form>
               </Form>
             </DialogShell>
