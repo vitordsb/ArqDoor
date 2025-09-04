@@ -63,7 +63,7 @@ const Navbar = () => {
   const textColor = isHomePage && !isScrolled ? "text-black" : "text-gray-900";
 
   return (
-    <nav className={`fixed top-0 w-full z-50 h-16 border-b border-zinc-200 bg-white/90 backdrop-blur shadow-sm transition-all`}>  
+    <nav className={`fixed top-0 w-full z-50 h-16 border-b border-zinc-200 bg-white/90 backdrop-blur shadow-sm transition-all`}>
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
         {/* Logo */}
         <Link href="/">
@@ -74,17 +74,17 @@ const Navbar = () => {
         </Link>
 
         <div className="hidden md:block w-full max-w-md mx-8">
-        {isLoggedIn && (
-            <SearchBar 
-              onSearch={(params) => console.log(params)} 
-              placeholder="Buscar designers ou serviços..." 
-              simpleNavbar 
+          {isLoggedIn && (
+            <SearchBar
+              onSearch={(params) => console.log(params)}
+              placeholder="Buscar designers ou serviços..."
+              simpleNavbar
             />
           )}
         </div>
-        
+
         <div className="hidden md:flex items-center space-x-6">
-          
+
           {isLoggedIn && (
             <>
               <Link href="/home">
@@ -92,14 +92,14 @@ const Navbar = () => {
                   <Home className="w-4 h-4" /> Início
                 </div>
               </Link>
-              <Link href="/home/services">
+              <Link href="/services">
                 <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <Newspaper className="w-4 h-4" /> Serviços 
+                  <Newspaper className="w-4 h-4" /> Serviços
                 </div>
               </Link>
-              <Link href="/home/demands">
+              <Link href="/demands">
                 <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <Image className="w-4 h-4" /> Demandas  
+                  <Image className="w-4 h-4" /> Demandas
                 </div>
               </Link>
             </>
@@ -110,8 +110,8 @@ const Navbar = () => {
                 <Button variant="ghost" size="icon" aria-label="Messages">
                   <MessageCircle className="h-5 w-5 text-gray-700" />
                   {unreadMessages > 0 && (
-                    <Badge 
-                      variant="destructive" 
+                    <Badge
+                      variant="destructive"
                       className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
                     >
                       {unreadMessages > 9 ? '9+' : unreadMessages}
@@ -150,9 +150,9 @@ const Navbar = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-              <>
-                <Button onClick={() => navigate("/auth")}>Login</Button>
-              </>
+            <>
+              <Button onClick={() => navigate("/auth")}>Login</Button>
+            </>
           )}
         </div>
 

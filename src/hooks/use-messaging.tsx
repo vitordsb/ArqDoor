@@ -142,19 +142,9 @@ export function useMessaging(initialPartnerId?: string | null) {
       setTimeout(async () => {
         await refetchConversations();
       }, 500);
-
-      toast({
-        title: 'Conversa criada',
-        description: 'Nova conversa iniciada com sucesso.',
-      });
     },
     onError: (error) => {
       console.error('❌ Erro ao criar conversa:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível criar a conversa. Tente novamente.',
-        variant: 'destructive',
-      });
     },
   });
   const sendMessageMutation = useMutation({
@@ -609,94 +599,99 @@ export function useMessaging(initialPartnerId?: string | null) {
         return false;
       }
 
+      // 1) Validar que há pelo menos 1 etapa "real"
+      const userSteps = steps.filter(s => s.title?.trim() && s.price > 0);
+      if (userSteps.length < 1) {
+        toast({
+          title: 'Erro',
+          description: 'Adicione pelo menos 1 etapa além da assinatura do contrato.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      // 2) Montar lista final de steps com a Etapa 1 (assinatura)
+      const SIGN_STEP: Omit<CreateStepRequest, 'ticket_id'> = {
+        title: 'Assinatura do contrato (PDF)',
+        price: 1,
+      };
+      const stepsToCreate = [SIGN_STEP, ...userSteps]; // garante total >= 2
+      const totalPrice = userSteps.reduce((sum, s) => sum + s.price, 0);
+
       let ticketId: number;
 
       try {
-        // ✅ Reutiliza APENAS ticket "pendente" desta conversa; caso contrário cria um novo
-        const pendingTicket = tickets.find(
-          (t) => t.conversation_id === currentConversation.id && t.status === 'pendente'
-        );
-
-        if (pendingTicket) {
-          ticketId = pendingTicket.id;
-        } else {
-          const ticketResponse = await apiRequest('POST', '/ticket', {
-            conversation_id: currentConversation.id,
-          });
-          if (!ticketResponse.ok) {
-            const errorText = await ticketResponse.text();
-            console.error('❌ Erro ao criar ticket:', errorText);
-            throw new Error(`Erro ao criar ticket: ${errorText}`);
-          }
-          const ticketResult = await ticketResponse.json();
-          ticketId = ticketResult.ticketService?.id || ticketResult.ticket?.id;
-          if (!ticketId) throw new Error('ID do ticket não retornado pela API');
+        // 3) NUNCA reutilize ticket “em andamento”; crie um novo (back exige criar steps com ticket pendente)
+        const ticketResponse = await apiRequest('POST', '/ticket', {
+          conversation_id: currentConversation.id,
+        });
+        if (!ticketResponse.ok) {
+          const errorText = await ticketResponse.text();
+          throw new Error(`Erro ao criar ticket: ${errorText}`);
         }
+        const ticketResult = await ticketResponse.json();
+        ticketId = ticketResult.ticketService?.id || ticketResult.ticket?.id;
+        if (!ticketId) throw new Error('ID do ticket não retornado pela API');
 
-        // ✅ Backend só permite criar steps se o ticket estiver "pendente"
-        const createdSteps: Array<{ id: number; title: string; price: number; status: 'pendente' }> = [];
-
-        for (let i = 0; i < steps.length; i++) {
-          const step = steps[i];
-
+        // 4) Criar steps (back valida que ticket está pendente)
+        const createdSteps: any[] = [];
+        for (let i = 0; i < stepsToCreate.length; i++) {
+          const s = stepsToCreate[i];
           const stepResponse = await apiRequest('POST', '/step', {
             ticket_id: ticketId,
-            title: step.title,
-            price: step.price,
+            title: s.title,
+            price: s.title.includes("Assinatura") ? 1 : s.price,
           });
-
           if (!stepResponse.ok) {
             const errorText = await stepResponse.text();
-            console.error(`❌ Erro ao criar step ${i + 1}:`, errorText);
             throw new Error(`Erro ao criar etapa ${i + 1}: ${errorText}`);
           }
-
           const stepResult = await stepResponse.json();
           createdSteps.push({
             id: stepResult.step?.id || stepResult.id,
-            title: step.title,
-            price: step.price,
-            status: 'pendente',
+            title: s.title,
+            price: s.price,
+            status: 'pending', // UI usa esses estados; o back pode ignorar
           });
         }
 
-        // 📎 Upload do contrato (opcional)
+        // 5) (Opcional) Upload do contrato base, se houver
         let uploadSuccess = true;
         if (contractFile) {
           const uploadResult = await uploadPDF(ticketId, contractFile);
           uploadSuccess = !!uploadResult;
-          if (!uploadSuccess) console.warn('⚠️ Upload do PDF falhou, mas continuando com a proposta...');
+          if (!uploadSuccess) {
+            console.warn('Upload do PDF falhou; o cliente poderá tentar depois.');
+          }
         }
 
-        const totalPrice = steps.reduce((sum, s) => sum + s.price, 0);
-
-        const proposalData = {
-          ticket_id: ticketId,
-          steps: createdSteps,
-          total: totalPrice,
-          status: 'pendente' as const,
-        };
-
-        // 📨 Mensagem de proposta
+        // 6) Mensagem-resumo
+        const totalPrice = userSteps.reduce((sum, s) => sum + s.price, 0);
         await sendMessageMutation.mutateAsync({
           conversation_id: currentConversation.id,
-          content: `📋 Nova proposta enviada! Ticket #${ticketId} - Total: R$ ${totalPrice.toFixed(2)}${contractFile ? (uploadSuccess ? ' (Contrato anexado)' : ' (Erro no upload do contrato)') : ''
-            }`,
+          content:
+            `📋 Nova proposta enviada! Ticket #${ticketId} ` +
+            `- Etapas: ${stepsToCreate.length} ` +
+            `- Total (sem assinatura): R$ ${totalPrice.toFixed(2)}` +
+            (contractFile ? (uploadSuccess ? ' (Contrato anexado)' : ' (Falha ao anexar contrato)') : ''),
           type: 'proposal',
-          proposal_data: proposalData,
+          proposal_data: {
+            ticket_id: ticketId,
+            steps: createdSteps,
+            total: totalPrice,
+            status: 'pendente',
+          },
         });
 
-        // 🔄 Atualizações
+        // 7) Atualizar caches
         queryClient.invalidateQueries({ queryKey: ['tickets', currentConversation.id] });
         queryClient.invalidateQueries({ queryKey: ['messages', currentConversation.id] });
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
 
         toast({
           title: 'Proposta enviada',
-          description: contractFile && !uploadSuccess
-            ? 'Proposta enviada, mas houve erro no upload do contrato. Você pode tentar anexar novamente.'
-            : 'Sua proposta foi enviada com sucesso!',
-          variant: contractFile && !uploadSuccess ? 'destructive' : 'default',
+          description: 'Etapa 1 (assinatura) foi adicionada automaticamente.',
+          variant: uploadSuccess ? 'default' : 'destructive',
         });
 
         return true;
@@ -710,7 +705,7 @@ export function useMessaging(initialPartnerId?: string | null) {
         return false;
       }
     },
-    [currentConversation, user, tickets, uploadPDF, sendMessageMutation, queryClient, toast]
+    [currentConversation, user, uploadPDF, sendMessageMutation, queryClient, toast]
   );
 
   const updateTicketStatus = useCallback(async (ticketId: number,
@@ -743,11 +738,11 @@ export function useMessaging(initialPartnerId?: string | null) {
       // Se a proposta foi aceita, iniciar o primeiro step
       if (status === 'em andamento') {
         const steps = await getStepsForTicket(ticketId);
-        if (steps.length > 0) {
-          await updateStep(steps[0].id, { status: 'in_progress' });
+        const firstRunnable = steps.find(s => s.status === 'pending' || s.status === 'awaiting_confirmation');
+        if (firstRunnable && firstRunnable.status !== 'in_progress') {
+          await updateStep(firstRunnable.id, { status: 'in_progress' });
         }
       }
-
       queryClient.invalidateQueries({ queryKey: ['tickets', currentConversation.id] });
       queryClient.invalidateQueries({ queryKey: ['messages', currentConversation.id] });
 
@@ -842,24 +837,41 @@ export function useMessaging(initialPartnerId?: string | null) {
 
   // FUNÇÃO PARA CONFIRMAR CONCLUSÃO DO STEP (CLIENTE)
   const confirmStepCompletion = useCallback(async (stepId: number, ticketId: number) => {
-    const success = await updateStep(stepId, {
-      client_confirmed: true,
-      status: 'completed'
-    });
+    const ok = await updateStep(stepId, { client_confirmed: true, status: 'completed' });
+    if (!ok) return false;
 
-    if (success) {
-      // Verificar se há próximo step para iniciar
-      const steps = await getStepsForTicket(ticketId);
-      const currentStepIndex = steps.findIndex(s => s.id === stepId);
-      const nextStep = steps[currentStepIndex + 1];
+    const steps = await getStepsForTicket(ticketId);
+    const idx = steps.findIndex(s => s.id === stepId);
+    const isLast = idx === steps.length - 1;
 
-      if (nextStep && nextStep.status !== 'in_progress') {
-        await updateStep(nextStep.id, { status: 'in_progress' });
+    if (isLast) {
+      await updateTicketStatus(ticketId, 'concluída');
+    } else {
+      const next = steps[idx + 1];
+      if (next && next.status !== 'in_progress') {
+        await updateStep(next.id, { status: 'in_progress' });
+        await updateTicketStatus(ticketId, 'em andamento');
       }
     }
 
-    return success;
-  }, [updateStep, getStepsForTicket]);
+    return true;
+  }, [updateStep, getStepsForTicket, updateTicketStatus]);
+
+  const rejectStep = useCallback(async (stepId: number, ticketId: number, reason?: string) => {
+    await updateStep(stepId, { status: 'rejected' as any, client_confirmed: false });
+    await updateTicketStatus(ticketId, 'cancelada');
+
+    try {
+      if (currentConversation?.id) {
+        await sendMessageMutation.mutateAsync({
+          conversation_id: currentConversation.id,
+          content: `❌ Cliente recusou a etapa #${stepId}${reason ? `: ${reason}` : ''}`,
+          type: 'text',
+        });
+      }
+    } catch { }
+    return true;
+  }, [updateStep, updateTicketStatus, currentConversation, sendMessageMutation]);
 
   return {
     // Estados
@@ -887,6 +899,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     getActiveTicket,
     updateTicketStatus,
     updateStep,
+    rejectStep,
     deleteStep,
     uploadPDF,
     buscarPDF,        // retorna { blobUrl, filename }

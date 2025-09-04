@@ -1,8 +1,6 @@
 export interface LogFunc {
   (message?: any, ...optionalParams: any[]): void
 }
-
-
 export interface LoginInterface {
   email: string;
   password: string;
@@ -69,6 +67,7 @@ export interface Message {
   content: string;
   created_at: string;
   updated_at: string;
+  tempId?: string;
   type?: 'text' | 'proposal'; // Novo campo para tipo de mensagem
   proposal_data?: {
     ticket_id: number;

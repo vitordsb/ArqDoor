@@ -15,7 +15,6 @@ import {
   X,
   AlertCircle,
   FileText,
-  DollarSign,
   Plus,
   Save,
 } from "lucide-react";
