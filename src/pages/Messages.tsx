@@ -1045,6 +1045,66 @@ export default function Messages() {
           )}
         </div>
       </div>
+      {/* Modal: Nova Proposta */}
+      <Dialog open={showProposalModal} onOpenChange={setShowProposalModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Criar Nova Proposta</DialogTitle>
+            <DialogDescription>
+              Defina as etapas e anexe o contrato em PDF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {proposalSteps.map((step, idx) => (
+              <div key={step.id} className="flex items-center gap-2">
+                <Input
+                  placeholder={`Etapa ${idx + 1}`}
+                  value={step.title}
+                  onChange={(e) => updateProposalStep(step.id, 'title', e.target.value)}
+                />
+                <Input
+                  type="number"
+                  placeholder="Valor (R$)"
+                  value={step.price}
+                  onChange={(e) => updateProposalStep(step.id, 'price', parseFloat(e.target.value) || 0)}
+                />
+                {proposalSteps.length > 1 && (
+                  <Button variant="destructive" size="icon" onClick={() => removeProposalStep(step.id)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+
+            <Button variant="outline" onClick={addProposalStep}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Etapa
+            </Button>
+
+            <div>
+              <Label>Contrato (PDF)</Label>
+              <Input type="file" accept="application/pdf" onChange={handleContractFileChange} />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowProposalModal(false)}>Cancelar</Button>
+              <Button
+                onClick={handleSendProposal}
+                disabled={sendingProposal}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {sendingProposal ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Enviar Proposta
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Modal: Contratos anteriores */}
       <Dialog open={showOlderTickets} onOpenChange={setShowOlderTickets}>
         <DialogContent className="max-w-3xl">
