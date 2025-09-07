@@ -105,7 +105,7 @@ export default function DemandsPage() {
 
   if (sortBy === "newest") {
     filtered.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   } else if (sortBy === "priceAsc") {
     filtered.sort((a, b) => a.price - b.price);

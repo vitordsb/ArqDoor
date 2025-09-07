@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Send, Users, MessageCircle, FileText, CheckCircle, XCircle, Plus, Minus, Clock, Shield, AlertTriangle, Sparkles, Eye, Edit2, Trash2, Check, X, Maximize2, Loader2, Download } from 'lucide-react';
+import { Send, Users, MessageCircle, FileText, CheckCircle, XCircle, Plus, Minus, Clock, Shield, AlertTriangle, Eye, Edit2, Trash2, Check, X, Maximize2, Loader2, Download, Divide } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import MessagesLayout from '@/components/layouts/MessagesLayout';
@@ -37,14 +37,12 @@ export default function Messages() {
     tickets,
     unreadMessageCount,
     loadingConversations,
-    loadingMessages,
     loadingTickets,
     sendingMessage,
     setNewMessage,
     sendMessage,
     selectConversation,
     conversationsError,
-    messagesError,
     createProposal,
     buscarPDF,
     getStepsForTicket,
@@ -55,6 +53,14 @@ export default function Messages() {
     confirmStepCompletion,
     signDocument,
   } = useMessaging(initialPartnerId);
+
+  // --- utils: ordenação sempre do mais recente para o mais antigo
+  const sortTicketsDesc = (a: any, b: any) => {
+    const aT = new Date(a?.updated_at || a?.created_at || 0).getTime();
+    const bT = new Date(b?.updated_at || b?.created_at || 0).getTime();
+    if (!isNaN(aT) && !isNaN(bT) && aT !== bT) return bT - aT;
+    return (b?.id || 0) - (a?.id || 0);
+  };
 
   // Estados para modal de proposta
   const [showProposalModal, setShowProposalModal] = useState(false);
@@ -91,10 +97,8 @@ export default function Messages() {
   const [signingDocument, setSigningDocument] = useState(false);
   const [showPasswordField, setShowPasswordField] = useState(false);
 
-  // Estados para aceitar/rejeitar proposta
-  const [showProposalActionModal, setShowProposalActionModal] = useState(false);
-  const [selectedTicketForAction, setSelectedTicketForAction] = useState<any>(null);
-  const [proposalAction, setProposalAction] = useState<'accept' | 'reject' | null>(null);
+  // (antigas ações em nível de ticket foram removidas)
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const canCreateProposal = () => {
     return user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
@@ -103,8 +107,6 @@ export default function Messages() {
   // helpers
   const norm = (s?: string) => (s ?? '').toLowerCase().trim();
   const isPending = (s?: string) => ['pending', 'pendente'].includes(norm(s));
-  const isAccepted = (s?: string) => ['accepted', 'aceita', 'aceito'].includes(norm(s));
-  const isSigned = (s?: string) => ['signed', 'assinado'].includes(norm(s));
 
   useEffect(() => {
     const loadAllTicketSteps = async () => {
@@ -216,13 +218,13 @@ export default function Messages() {
     );
 
     const res = await apiRequest('POST', `/upload/pdf/${ticketId}`, fd);
-    console.log(res)
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
       throw new Error(`Falha no upload do PDF assinado (${res.status}): ${txt}`);
     }
     return res.json().catch(() => ({}));
   }
+
   // -------- PDF: buscar SOMENTE via API /attchment/ticket/:id ----------
   const handleViewPdf = async (ticketOrId: number | { id: number }) => {
     try {
@@ -245,7 +247,6 @@ export default function Messages() {
       setSelectedTicketForPdf(ticketId);
 
       const res = await buscarPDF(ticketId);
-      console.log(res)
       if (!res) {
         throw new Error('PDF não encontrado para este ticket.');
       }
@@ -348,9 +349,26 @@ export default function Messages() {
         });
         return;
       }
+
       const ticketId = selectedTicketForSignature.id as number;
       const ok = await signDocument(ticketId, signaturePassword);
       if (!ok) return;
+
+      // pós-assinatura: conclui step 1 (assinatura) e inicia step 2
+      try {
+        const steps = await getStepsForTicket(ticketId);
+        if (Array.isArray(steps) && steps.length > 0) {
+          const first = steps[0];
+          await updateStep(first.id, { status: 'completed', provider_completed: true, client_confirmed: true });
+
+          const next = steps[1];
+          if (next && next.status !== 'in_progress' && next.status !== 'completed' && next.status !== 'rejected') {
+            await updateStep(next.id, { status: 'in_progress' });
+          }
+        }
+      } catch (e) {
+        console.error('Pós-assinatura: erro ao preparar próximas etapas:', e);
+      }
 
       toast({
         title: 'Documento assinado',
@@ -376,34 +394,10 @@ export default function Messages() {
       setSigningDocument(false);
     }
   };
-  // -------- Ação aceitar/rejeitar ----------
-
-  const handleProposalAction = (ticket: any, action: 'accept' | 'reject') => {
-    setSelectedTicketForAction(ticket);
-    setProposalAction(action);
-    setShowProposalActionModal(true);
-  };
-
-  const handleConfirmProposalAction = async () => {
-    if (!selectedTicketForAction || !proposalAction) return;
-    try {
-      const success = await updateTicketStatus(
-        selectedTicketForAction.id,
-        proposalAction === 'accept' ? 'em andamento' : 'cancelada'
-      ); if (success) {
-        setShowProposalActionModal(false);
-        setSelectedTicketForAction(null);
-        setProposalAction(null);
-      }
-    } catch (error) {
-      console.error('Erro ao processar ação da proposta:', error);
-    }
-  };
 
   // -------- Proposta (prestador) ----------
   const addProposalStep = () => {
     setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0 }]);
-
   };
 
   const removeProposalStep = (stepId: string) => {
@@ -426,7 +420,7 @@ export default function Messages() {
   const handleSendProposal = async () => {
     if (!currentConversation || !user || !canCreateProposal()) return;
 
-    // ⚠️ Agora exigimos pelo menos 1 etapa "real" (a de assinatura será injetada)
+    // exige pelo menos 1 etapa "real" (a de assinatura será a #1)
     const validSteps = proposalSteps.filter(step => step.title.trim() && step.price > 0);
     if (validSteps.length < 1) {
       toast({
@@ -449,16 +443,24 @@ export default function Messages() {
       setSendingProposal(false);
     }
   };
+
   const handleViewProposalDetails = async (ticketId: number) => {
+    // abre o modal imediatamente (para UX responsiva)
+    setShowProposalDetails(true);
     setLoadingSteps(true);
+    setSelectedTicketSteps([]);
+
     try {
       const steps = await getStepsForTicket(ticketId);
-      setSelectedTicketSteps(steps);
-      setShowProposalDetails(true);
-    } catch (error) {
+      setSelectedTicketSteps(Array.isArray(steps) ? steps : []);
+      if (!steps || steps.length === 0) {
+        console.warn('[Detalhes] Nenhuma etapa retornada para o ticket', ticketId);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar detalhes da proposta:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível carregar os detalhes da proposta.',
+        description: error?.message || 'Não foi possível carregar os detalhes da proposta.',
         variant: 'destructive',
       });
     } finally {
@@ -499,6 +501,68 @@ export default function Messages() {
 
   const handleConfirmStepCompletion = async (stepId: number, ticketId: number) => {
     await confirmStepCompletion(stepId, ticketId);
+  };
+
+  const handleRejectContract = async (ticketId: number) => {
+    try {
+      await updateTicketStatus(ticketId, 'cancelada');
+      await apiRequest('DELETE', `/ticket/${ticketId}`);
+      toast({
+        title: 'Contrato recusado',
+        description: 'O contrato foi recusado e o ticket foi cancelado.',
+      });
+
+      setShowProposalDetails(false);
+    } catch (e: any) {
+      console.error('Erro ao recusar contrato:', e);
+      toast({
+        title: 'Erro',
+        description: e?.message || 'Não foi possível recusar o contrato.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Cliente REJEITA um step específico
+  const handleRejectStep = async (step: any) => {
+    try {
+      const ok = await updateStep(step.id, { status: 'rejected', client_confirmed: false });
+      if (!ok) return;
+
+      // se rejeitar a etapa 1 (assinatura), cancelamos o ticket
+      if (step.indexInTicket === 0 || step.isSignatureStep) {
+        await updateTicketStatus(step.ticket_id, 'cancelada');
+      }
+
+      const updated = await getStepsForTicket(step.ticket_id);
+      setSelectedTicketSteps(updated);
+      toast({ title: 'Etapa recusada', description: 'Você recusou esta etapa.' });
+    } catch (e: any) {
+      console.error('Erro ao recusar etapa:', e);
+      toast({ title: 'Erro', description: e?.message || 'Não foi possível recusar a etapa.', variant: 'destructive' });
+    }
+  };
+
+  // Cliente ACEITA um step (confirma)
+  const handleAcceptStep = async (step: any) => {
+    try {
+      const ok = await updateStep(step.id, { client_confirmed: true, status: 'completed' });
+      if (!ok) return;
+
+      const steps = await getStepsForTicket(step.ticket_id);
+      const idx = steps.findIndex((s: any) => s.id === step.id);
+      const next = steps[idx + 1];
+      if (next && next.status !== 'in_progress' && next.status !== 'completed' && next.status !== 'rejected') {
+        await updateStep(next.id, { status: 'in_progress' });
+      }
+
+      const updated = await getStepsForTicket(step.ticket_id);
+      setSelectedTicketSteps(updated);
+      toast({ title: 'Etapa aceita', description: 'A próxima etapa foi iniciada.' });
+    } catch (e: any) {
+      console.error('Erro ao aceitar etapa:', e);
+      toast({ title: 'Erro', description: e?.message || 'Não foi possível aceitar a etapa.', variant: 'destructive' });
+    }
   };
 
   // -------- Chat ----------
@@ -543,7 +607,6 @@ export default function Messages() {
     const total = calculateProposalTotal(steps);
     const statusConfig = getStatusConfig(ticket.status);
 
-    const canInteract = user?.type === 'contratante' && ticket.status === 'pendente';
     const isSigned = ticket.status === 'concluída' || ticket.status === 'concluida';
     const canSign = user?.type === 'contratante' && ticket.status === 'em andamento' && !isSigned;
 
@@ -579,19 +642,6 @@ export default function Messages() {
               Ver PDF
             </Button>
 
-            {canInteract && (
-              <>
-                <Button size="sm" onClick={() => handleProposalAction(ticket, 'accept')} className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 min-w-[100px]">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Aceitar
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleProposalAction(ticket, 'reject')} className="flex-1 min-w-[100px]">
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Rejeitar
-                </Button>
-              </>
-            )}
-
             {canSign && (
               <Button size="sm" onClick={() => handleStartSignature(ticket)} className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]">
                 <Shield className="h-4 w-4 mr-2" />
@@ -612,11 +662,6 @@ export default function Messages() {
       ? tickets.find((t) => t.id === selectedTicketForPdf)
       : null;
 
-    const canAcceptRejectHere =
-      !!currentTicket &&
-      user?.type === 'contratante' &&
-      isPending(currentTicket.status);
-
     const canSignHere =
       !!currentTicket && user?.type === 'contratante' && currentTicket.status === 'em andamento';
 
@@ -627,7 +672,6 @@ export default function Messages() {
 
     const reloadPdf = async () => {
       if (!selectedTicketForPdf) return;
-      // rebaixa o mais recente e reabre
       await handleViewPdf(selectedTicketForPdf);
     };
 
@@ -656,31 +700,8 @@ export default function Messages() {
                   Visualizador de PDF do contrato deste ticket.
                 </DialogDescription>
               </div>
-              {canAcceptRejectHere && (
-                <>
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => currentTicket && handleProposalAction(currentTicket, 'accept')}
-                    title="Aceitar proposta"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Aceitar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => currentTicket && handleProposalAction(currentTicket, 'reject')}
-                    title="Rejeitar proposta"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Rejeitar
-                  </Button>
-                </>
-              )}
 
               <div className="flex items-center gap-2">
-                {/* Assinar (quando cliente e ticket aceito) */}
                 {canSignHere && (
                   <Button
                     size="sm"
@@ -693,7 +714,6 @@ export default function Messages() {
                   </Button>
                 )}
 
-                {/* Recarregar PDF (puxa o mais recente da API) */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -705,7 +725,6 @@ export default function Messages() {
                   Recarregar
                 </Button>
 
-                {/* Abrir em nova aba (útil para impressão) */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -713,12 +732,10 @@ export default function Messages() {
                   disabled={!pdfUrl}
                   title="Abrir em nova aba"
                 >
-                  {/* Usa o mesmo ícone de Download para não poluir com muitos ícones diferentes */}
                   <Download className="h-4 w-4 mr-2" />
                   Nova aba
                 </Button>
 
-                {/* Download */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -730,7 +747,6 @@ export default function Messages() {
                   Baixar
                 </Button>
 
-                {/* Tela cheia */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -790,7 +806,6 @@ export default function Messages() {
       </Dialog>
     );
   };
-
 
   return (
     <MessagesLayout>
@@ -998,11 +1013,8 @@ export default function Messages() {
                     ) : (
                       <div className="space-y-4">
                         {tickets
-                          .sort(
-                            (a, b) =>
-                              new Date(b.created_at).getTime() -
-                              new Date(a.created_at).getTime()
-                          )
+                          .slice()
+                          .sort(sortTicketsDesc)
                           .slice(0, 2)
                           .map((ticket, index) => (
                             <ProposalCard
@@ -1045,6 +1057,154 @@ export default function Messages() {
           )}
         </div>
       </div>
+
+      {/* Modal: Detalhes da Proposta */}
+      <Dialog open={showProposalDetails} onOpenChange={setShowProposalDetails}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Proposta</DialogTitle>
+            <DialogDescription>
+              Veja o status e as ações disponíveis para cada etapa.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingSteps ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+              <p className="text-sm text-gray-600">Carregando detalhes...</p>
+            </div>
+          ) : selectedTicketSteps.length === 0 ? (
+            <div className="text-center py-8 text-sm text-gray-600">
+              Nenhuma etapa encontrada para este ticket.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {selectedTicketSteps.map((step: any, index: number) => {
+                const isSignatureStep = index === 0;
+                return (
+                  <div key={step.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">Etapa {index + 1}</h4>
+                      <Badge variant="outline">
+                        {step.status === 'completed' ? 'Concluída' :
+                          step.status === 'in_progress' ? 'Em Andamento' :
+                            step.status === 'awaiting_confirmation' ? 'Aguardando Confirmação' :
+                              step.status === 'rejected' ? 'Recusada' :
+                                'Pendente'}
+                      </Badge>
+                    </div>
+
+                    <p className="text-gray-700 mb-2">{step.title}</p>
+                    <p className="font-semibold text-lg">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(step.price || 0)}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {/* Prestador marca como concluído quando em progresso */}
+                      {user?.type === 'prestador' && step.status === 'in_progress' && !step.provider_completed && (
+                        <Button size="sm" onClick={() => handleMarkStepCompleted(step.id)}>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Marcar como concluído
+                        </Button>
+                      )}
+
+                      {/* Cliente aceita/recusa quando o prestador marcou concluído */}
+                      {user?.type === 'contratante' && step.provider_completed && !step.client_confirmed && step.status === 'awaiting_confirmation' && (
+                        <>
+                          <Button size="sm" onClick={() => handleAcceptStep({ ...step, indexInTicket: index, isSignatureStep })}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Aceitar etapa
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleRejectStep({ ...step, indexInTicket: index, isSignatureStep })}>
+                            <XCircle className="h-4 w-4 mr-2" /> Recusar etapa
+                          </Button>
+                        </>
+                      )}
+
+                      {/* Cliente: Step 1 (assinatura) ainda não concluído */}
+                      {user?.type === 'contratante' && isSignatureStep && step.status !== 'completed' && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            onClick={() => {
+                              const t = tickets.find((tk) => tk.id === step.ticket_id);
+                              if (t) handleStartSignature(t);
+                            }}
+                          >
+                            <Shield className="h-4 w-4 mr-2" />
+                            Assinar contrato
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRejectContract(step.ticket_id)}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Recusar contrato
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Prestador pode editar/excluir etapas (opcional) */}
+                      {user?.type === 'prestador' && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => handleEditStep(step)}>
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Editar
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteStep(step.id)}>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Edição inline */}
+                    {editingStep === step.id && (
+                      <div className="mt-3 space-y-2">
+                        <Input
+                          value={editStepData.title}
+                          onChange={(e) => setEditStepData({ ...editStepData, title: e.target.value })}
+                          placeholder="Título da etapa"
+                        />
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editStepData.price}
+                          onChange={(e) => setEditStepData({ ...editStepData, price: parseFloat(e.target.value) || 0 })}
+                          placeholder="Valor"
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleSaveStep}>
+                            <Check className="h-4 w-4 mr-2" /> Salvar
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingStep(null)}>
+                            <X className="h-4 w-4 mr-2" /> Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Total:</span>
+                  <span className="text-xl font-bold">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+                      .format(selectedTicketSteps.reduce((sum, s) => sum + (s.price || 0), 0))}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Modal: Nova Proposta */}
       <Dialog open={showProposalModal} onOpenChange={setShowProposalModal}>
         <DialogContent className="max-w-2xl">
@@ -1105,6 +1265,7 @@ export default function Messages() {
           </div>
         </DialogContent>
       </Dialog>
+
       {/* Modal: Contratos anteriores */}
       <Dialog open={showOlderTickets} onOpenChange={setShowOlderTickets}>
         <DialogContent className="max-w-3xl">
@@ -1117,7 +1278,8 @@ export default function Messages() {
 
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             {tickets
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice()
+              .sort(sortTicketsDesc)
               .slice(2) // do 3º em diante
               .map((ticket, index) => (
                 <ProposalCard
@@ -1135,11 +1297,98 @@ export default function Messages() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Modal: Assinatura Digital */}
+      <Dialog open={showSignatureModal} onOpenChange={setShowSignatureModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assinatura Digital</DialogTitle>
+            <DialogDescription>
+              Para assinar o contrato, confirme os termos e insira sua senha de acesso.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Termos */}
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Shield className="h-5 w-5 text-purple-600 mt-0.5" />
+                <div>
+                  <p className="text-sm text-purple-800">
+                    Ao assinar, seu nome será inserido no documento e o registro ficará associado à sua conta.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Aceite dos termos */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="ack"
+                checked={ackChecked}
+                onCheckedChange={(checked) => setAckChecked(!!checked)}
+              />
+              <Label htmlFor="ack" className="text-sm">
+                Eu assino e confirmo os termos desse contrato.
+              </Label>
+            </div>
+
+            {/* Fluxo em 2 passos: Prosseguir -> pedir senha */}
+            {!showPasswordField ? (
+              <Button
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                onClick={handleAgreeAndAskPassword}
+                disabled={!ackChecked}
+              >
+                Prosseguir
+              </Button>
+            ) : (
+              <>
+                <div>
+                  <Label htmlFor="signature-password">Sua senha</Label>
+                  <Input
+                    id="signature-password"
+                    type="password"
+                    value={signaturePassword}
+                    onChange={(e) => setSignaturePassword(e.target.value)}
+                    placeholder="Digite sua senha de acesso"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setShowSignatureModal(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                    onClick={handleConfirmSignature}
+                    disabled={signingDocument || !ackChecked || !signaturePassword.trim()}
+                  >
+                    {signingDocument ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Assinando...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="h-4 w-4 mr-2" />
+                        Assinar documento
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Viewer de PDF */}
       <PdfViewer />
     </MessagesLayout>
   );
-
 }
 
