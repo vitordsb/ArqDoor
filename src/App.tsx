@@ -11,7 +11,7 @@ import ClientProfile from "@/pages/ClientProfile";
 import DemandsFeed from "@/pages/DemandsFeed";
 import ProviderProfile from "@/pages/ProviderProfile";
 import AuthPage from "@/pages/auth-page";
-import Messages from "@/pages/Messages";
+import Messages from "@/pages/Messages2";
 import ServicePage from "@/pages/ServicePage";
 import LandingLayout from "@/components/layouts/LandingLayout";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";

@@ -1,3 +1,6 @@
+export type StepStatus = 'pending' | 'in_progress' | 'awaiting_confirmation' | 'completed' | 'rejected'
+export type TicketStatus = 'pendente' | 'em_andamento' | 'concluida' | 'concluída' | 'cancelada'
+
 export interface LogFunc {
   (message?: any, ...optionalParams: any[]): void
 }
@@ -79,29 +82,6 @@ export interface Message {
     }>;
     total: number;
   };
-}
-
-export interface Ticket {
-  id: number;
-  conversation_id: number;
-  created_at: string;
-  updated_at: string;
-  status?: string;
-  contract_pdf_url?: string; // Campo para PDF do contrato
-  signed_at?: string; // NOVO: Campo para data de assinatura
-  signed_by?: number; // NOVO: Campo para ID do usuário que assinou
-}
-
-export interface Step {
-  id: number;
-  ticket_id: number;
-  title: string;
-  price: number;
-  created_at: string;
-  updated_at: string;
-  status?: string;
-  provider_completed?: boolean; // Prestador marcou como concluído
-  client_confirmed?: boolean;   // Cliente confirmou conclusão
 }
 
 export interface CreateConversationRequest {
@@ -191,4 +171,23 @@ export interface EnrichedService extends ServiceFreelancer {
   userName: string;
   userEmail: string;
   userType: string;
+}
+export interface Step {
+  id: number
+  ticket_id: number
+  title: string
+  price: number
+  status: StepStatus
+  provider_completed?: boolean
+  client_confirmed?: boolean
+  confirm_contractor?: boolean
+  confirm_freelancer?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+export interface Ticket {
+  id: number
+  status: TicketStatus
+  created_at: string
+  updated_at?: string
 }
