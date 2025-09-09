@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import AplicationLayout from "@/components/layouts/ApplicationLayout"; 
+import AplicationLayout from "@/components/layouts/ApplicationLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import DemandsManager from "@/components/DemandsManager";
-import PortfolioModal from "@/components/PortfolioModal";
+import PortfolioModal from "@/components/modals/PortfolioModal";
 import {
   Loader2,
   Edit2,
@@ -89,7 +89,7 @@ interface PortfolioItem {
 interface ImageItem {
   id: number;
   user_id: number;
-  image_path: string; 
+  image_path: string;
   image_url: string;
   type: string;
   createdAt: string;
@@ -154,18 +154,18 @@ export default function Profile() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
-  
+
   // Estados para o modal do portfólio
   const [selectedPortfolioItem, setSelectedPortfolioItem] = useState<PortfolioItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // Estados para o processo de upload em duas etapas
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImageId, setUploadedImageId] = useState<number | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
+
   // Estados para criação do item do portfólio (segunda etapa)
   const [isCreatingPortfolioItem, setIsCreatingPortfolioItem] = useState(false);
   const [creatingPortfolioItem, setCreatingPortfolioItem] = useState(false);
@@ -286,7 +286,7 @@ export default function Profile() {
   // Função para buscar dados do provider
   const loadProviderData = async () => {
     if (!user || user.type !== "prestador") return;
-    
+
     setLoadingProvider(true);
     try {
       // Primeiro buscar todos os providers para encontrar o provider_id do usuário atual
@@ -294,10 +294,10 @@ export default function Profile() {
       if (!providersRes.ok) {
         throw new Error("Erro ao buscar providers");
       }
-      
+
       const providersData = await providersRes.json();
       const userProvider = providersData.providers?.find((p: Provider) => p.user_id === user.id);
-      
+
       if (userProvider) {
         setProviderData(userProvider);
       }
@@ -324,7 +324,7 @@ export default function Profile() {
 
     const filledFields = fields.filter(field => field && field.trim() !== "").length;
     const totalFields = fields.length;
-    
+
     return Math.round((filledFields / totalFields) * 100);
   };
 
@@ -371,7 +371,7 @@ export default function Profile() {
       {
         key: "endereco" as const,
         label: "Endereço Completo",
-        value: addressData.rua && addressData.numero 
+        value: addressData.rua && addressData.numero
           ? `${addressData.rua}, ${addressData.numero} - ${addressData.bairro}, ${addressData.cidade}/${addressData.estado}`
           : "Não informado",
         editable: false,
@@ -439,20 +439,20 @@ export default function Profile() {
   // Função para carregar portfólio
   const loadPortfolio = async () => {
     if (!user) return;
-    
+
     setLoadingPortfolio(true);
     try {
       console.log("Carregando portfólio para usuário:", user.id); // Debug
-      
+
       // Buscar portfólio
       const portfolioRes = await apiRequest("GET", `/portfolio?user=${user.id}`);
       console.log("Portfolio response status:", portfolioRes.status); // Debug
-      
+
       if (portfolioRes.ok) {
         try {
           const portfolioData = await portfolioRes.json();
           console.log("Portfolio data:", portfolioData); // Debug
-          
+
           // CORREÇÃO: Acessar portfolioData.posts em vez de portfolioData diretamente
           const portfolioItems = portfolioData.posts || portfolioData;
           setPortfolio(Array.isArray(portfolioItems) ? portfolioItems : []);
@@ -470,12 +470,12 @@ export default function Profile() {
       // Buscar imagens
       const imagesRes = await apiRequest("GET", `/upload/images?user=${user.id}`);
       console.log("Images response status:", imagesRes.status); // Debug
-      
+
       if (imagesRes.ok) {
         try {
           const imagesData = await imagesRes.json();
           console.log("Images data:", imagesData); // Debug
-          
+
           // Verificar se a resposta tem a estrutura esperada
           if (imagesData && imagesData.images && Array.isArray(imagesData.images)) {
             setImages(imagesData.images);
@@ -549,7 +549,7 @@ export default function Profile() {
       const result = await res.json();
       setUploadedImageId(result.image.id);
       setUploadedImageUrl(result.image.image_url);
-      
+
       toast({
         title: "Sucesso",
         description: "Imagem enviada com sucesso!",
@@ -853,15 +853,15 @@ export default function Profile() {
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {portfolio.map((item) => (
-                            <div 
-                              key={item.id} 
+                            <div
+                              key={item.id}
                               className="border rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
                               onClick={() => openPortfolioModal(item)}
                             >
                               <div className="aspect-video bg-slate-100 flex items-center justify-center">
                                 {getImageUrl(item.image_id) ? (
-                                  <img 
-                                    src={getImageUrl(item.image_id)} 
+                                  <img
+                                    src={getImageUrl(item.image_id)}
                                     alt={item.title}
                                     className="w-full h-full object-cover"
                                   />
@@ -998,7 +998,7 @@ export default function Profile() {
                       </Button>
                     )}
                   </div>
-                  
+
                   {editingField === field.key ? (
                     <div className="flex gap-2">
                       {field.key === "about" ? (
@@ -1044,7 +1044,7 @@ export default function Profile() {
                       <span className="text-slate-700">{field.value}</span>
                     </div>
                   )}
-                  
+
                   {index < profileFields.length - 1 && <Separator />}
                 </div>
               ))}
@@ -1058,16 +1058,16 @@ export default function Profile() {
             <Card className="w-full max-w-md p-6">
               <CardTitle className="mb-4">Upload de Imagem</CardTitle>
               <Input type="file" accept="image/*" onChange={handleImageChange} />
-              <Button 
-                onClick={handleUploadImage} 
+              <Button
+                onClick={handleUploadImage}
                 disabled={uploadingImage || !selectedFile}
                 className="mt-4 w-full"
               >
                 {uploadingImage ? "Enviando..." : "Upload Imagem"}
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsUploadingImage(false)} 
+              <Button
+                variant="outline"
+                onClick={() => setIsUploadingImage(false)}
                 className="mt-2 w-full"
               >
                 Cancelar
@@ -1093,16 +1093,16 @@ export default function Profile() {
                 onChange={(e) => setPortfolioItemData({ ...portfolioItemData, description: e.target.value })}
                 className="mb-4"
               />
-              <Button 
-                onClick={handleCreatePortfolioItem} 
+              <Button
+                onClick={handleCreatePortfolioItem}
                 disabled={creatingPortfolioItem}
                 className="w-full"
               >
                 {creatingPortfolioItem ? "Criando..." : "Salvar Destaque"}
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsCreatingPortfolioItem(false)} 
+              <Button
+                variant="outline"
+                onClick={() => setIsCreatingPortfolioItem(false)}
                 className="mt-2 w-full"
               >
                 Cancelar

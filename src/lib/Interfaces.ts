@@ -176,8 +176,8 @@ export interface Step {
   id: number
   ticket_id: number
   title: string
+  status: string
   price: number
-  status: StepStatus
   provider_completed?: boolean
   client_confirmed?: boolean
   confirm_contractor?: boolean
@@ -185,9 +185,12 @@ export interface Step {
   createdAt?: string
   updatedAt?: string
 }
+
 export interface Ticket {
   id: number
-  status: TicketStatus
+  conversation_id: number
+  status: 'pendente' | 'em_andamento' | 'concluida' | 'concluída' | 'cancelada'
   created_at: string
   updated_at?: string
 }
+

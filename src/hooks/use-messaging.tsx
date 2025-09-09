@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { signDocument as signRequest } from './requests/MessagesRequests';
 import {
   Conversation,
   Message,
@@ -12,8 +13,6 @@ import {
   Step,
   CreateConversationRequest,
   CreateStepRequest,
-  CreateTicketRequest,
-  SignDocumentRequest,
   UpdateStepRequest
 } from '@/lib/Interfaces';
 
@@ -35,6 +34,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     queryKey: ['conversations'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/conversation');
+      console.log(response)
       if (!response.ok) {
         throw new Error('Erro ao buscar conversas');
       }
@@ -356,7 +356,6 @@ export function useMessaging(initialPartnerId?: string | null) {
         throw new Error(`Erro ao buscar steps: ${response.status}`);
       }
       const data = await response.json();
-      console.log(data)
       return data.steps || [];
     } catch (error) {
       console.error('❌ Erro ao buscar steps:', error);
@@ -364,9 +363,29 @@ export function useMessaging(initialPartnerId?: string | null) {
     }
   }, []);
 
+  function mapStatusForBackend(status: string): string {
+    switch (status) {
+      case 'pending':
+      case 'in_progress':
+      case 'awaiting_confirmation':
+        return 'Pendente';
+      case 'completed':
+        return 'Concluido';
+      case 'rejected':
+        return 'Recusado';
+      default:
+        return status; // fallback
+    }
+  }
   const updateStep = useCallback(async (stepId: number, updateData: UpdateStepRequest) => {
     try {
-      const response = await apiRequest('PUT', `/step/${stepId}`, updateData);
+      // converte status se existir
+      const body = {
+        ...updateData,
+        status: updateData.status ? mapStatusForBackend(updateData.status as string) : undefined,
+      };
+
+      const response = await apiRequest('PATCH', `/step/${stepId}`, body);
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Erro ao atualizar step:', errorText);
@@ -376,11 +395,7 @@ export function useMessaging(initialPartnerId?: string | null) {
       console.log('✅ Step atualizado:', data);
       queryClient.invalidateQueries({ queryKey: ['tickets', currentConversation?.id] });
 
-      toast({
-        title: 'Step atualizado',
-        description: 'Step atualizado com sucesso!',
-      });
-
+      toast({ title: 'Step atualizado', description: 'Step atualizado com sucesso!' });
       return true;
     } catch (error) {
       console.error('❌ Erro ao atualizar step:', error);
@@ -392,6 +407,7 @@ export function useMessaging(initialPartnerId?: string | null) {
       return false;
     }
   }, [currentConversation, queryClient, toast]);
+
 
   const deleteStep = useCallback(async (stepId: number) => {
     try {
@@ -782,50 +798,34 @@ export function useMessaging(initialPartnerId?: string | null) {
 
   const signDocument = useCallback(async (ticketId: number, password: string) => {
     if (!user) {
-      toast({
-        title: 'Erro',
-        description: 'Usuário não autenticado.',
-        variant: 'destructive',
-      });
-      return false;
+      toast({ title: 'Erro', description: 'Usuário não autenticado.', variant: 'destructive' })
+      return false
     }
 
     try {
-      const validateResponse = await apiRequest('POST', '/auth/login', {
-        email: user.email,
-        password: password
-      });
-
-      if (!validateResponse.ok) {
-        toast({
-          title: 'Senha incorreta',
-          description: 'A senha informada não confere com a sua senha de login.',
-          variant: 'destructive',
-        });
-        return false;
+      const success = await signRequest(ticketId, password, user.email)
+      if (!success) {
+        toast({ title: 'Senha incorreta', description: 'Não foi possível validar a assinatura.', variant: 'destructive' })
+        return false
       }
 
-      const success = await updateTicketStatus(ticketId, 'concluída');
+      // Atualiza status local
+      await updateTicketStatus(ticketId, 'concluída')
 
-      if (success) {
-        await sendMessageMutation.mutateAsync({
-          conversation_id: currentConversation!.id,
-          content: `✅ Documento assinado digitalmente por ${user.name} em ${new Date().toLocaleString('pt-BR')}`,
-          type: 'text'
-        });
-      }
+      // Envia mensagem de log no chat
+      await sendMessageMutation.mutateAsync({
+        conversation_id: currentConversation!.id,
+        content: `✅ Documento assinado digitalmente por ${user.name} em ${new Date().toLocaleString('pt-BR')}`,
+        type: 'text'
+      })
 
-      return success;
-    } catch (error) {
-      console.error('❌ Erro ao assinar documento:', error);
-      toast({
-        title: 'Erro na assinatura',
-        description: 'Não foi possível assinar o documento. Tente novamente.',
-        variant: 'destructive',
-      });
-      return false;
+      return true
+    } catch (err) {
+      console.error('❌ Erro ao assinar documento:', err)
+      toast({ title: 'Erro', description: 'Não foi possível assinar o documento.', variant: 'destructive' })
+      return false
     }
-  }, [user, updateTicketStatus, sendMessageMutation, currentConversation, toast]);
+  }, [user, updateTicketStatus, sendMessageMutation, currentConversation, toast])
 
   // FUNÇÃO PARA MARCAR STEP COMO CONCLUÍDO (PRESTADOR)
   const markStepCompleted = useCallback(async (stepId: number) => {
@@ -857,21 +857,39 @@ export function useMessaging(initialPartnerId?: string | null) {
     return true;
   }, [updateStep, getStepsForTicket, updateTicketStatus]);
 
-  const rejectStep = useCallback(async (stepId: number, ticketId: number, reason?: string) => {
-    await updateStep(stepId, { status: 'rejected' as any, client_confirmed: false });
-    await updateTicketStatus(ticketId, 'cancelada');
+  const acceptStep = useCallback(async (stepId: number, ticketId: number, index: number) => {
+    const steps = await getStepsForTicket(ticketId);
+    const isLast = index === steps.length - 1;
 
-    try {
-      if (currentConversation?.id) {
-        await sendMessageMutation.mutateAsync({
-          conversation_id: currentConversation.id,
-          content: `❌ Cliente recusou a etapa #${stepId}${reason ? `: ${reason}` : ''}`,
-          type: 'text',
-        });
+    await updateStep(stepId, { status: 'completed' });
+
+    if (isLast) {
+      await updateTicketStatus(ticketId, 'concluída');
+    } else {
+      const next = steps[index + 1];
+      if (next) {
+        await updateStep(next.id, { status: 'in_progress' });
       }
-    } catch { }
-    return true;
-  }, [updateStep, updateTicketStatus, currentConversation, sendMessageMutation]);
+    }
+  }, [getStepsForTicket, updateStep, updateTicketStatus]);
+
+  // ❌ Recusar Step
+  const rejectStep = useCallback(async (stepId: number, ticketId: number, index: number) => {
+    const steps = await getStepsForTicket(ticketId);
+
+    await updateStep(stepId, { status: 'rejected' });
+
+    if (index === 0) {
+      // Step 1 (contrato)
+      await updateTicketStatus(ticketId, 'cancelada');
+      await deleteTicket(ticketId);
+    } else {
+      const prev = steps[index - 1];
+      if (prev) {
+        await updateStep(prev.id, { status: 'in_progress' });
+      }
+    }
+  }, [getStepsForTicket, updateStep, updateTicketStatus, deleteTicket]);
 
   return {
     // Estados
@@ -899,6 +917,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     getActiveTicket,
     updateTicketStatus,
     updateStep,
+    acceptStep,
     rejectStep,
     deleteStep,
     uploadPDF,
@@ -915,4 +934,4 @@ export function useMessaging(initialPartnerId?: string | null) {
   };
 }
 
-
+export default useMessaging;
