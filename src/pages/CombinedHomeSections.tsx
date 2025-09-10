@@ -56,7 +56,7 @@ const CombinedHomeSections = () => {
             <div className="flex items-start gap-6">
               <div className="bg-orange-500 rounded-lg p-6 flex-shrink-0">
                 {/* Ícone de aperto de mãos mais simples */}
-                <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M11,2A2,2 0 0,1 13,4V8H21A1,1 0 0,1 22,9V11A4,4 0 0,1 18,15H16L15,16V20A2,2 0 0,1 13,22H4A2,2 0 0,1 2,20V15A2,2 0 0,1 4,13H8V9A2,2 0 0,1 10,7H11V4A2,2 0 0,1 11,2M13,10V15H18A2,2 0 0,0 20,13V10H13M8,15V20H13V17L14,16H16V15H4V20H6V15H8Z" />
                 </svg>
               </div>
@@ -77,7 +77,7 @@ const CombinedHomeSections = () => {
             <div className="flex items-start gap-6">
               <div className="bg-orange-500 rounded-lg p-6 flex-shrink-0">
                 {/* Ícone de documento/clipboard mais simples */}
-                <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h0-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19,3H14.82C14.4,1.84 13.3,1 12,1C10.7,1 9.6,1.84 9.18,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M12,3A1,1 0 0,1 13,4A1,1 0 0,1 12,5A1,1 0 0,1 11,4A1,1 0 0,1 12,3M7,7H17V9H7V7M7,11H17V13H7V11M7,15H13V17H7V15Z" />
                 </svg>
               </div>
@@ -98,7 +98,7 @@ const CombinedHomeSections = () => {
             <div className="flex items-start gap-6">
               <div className="bg-orange-500 rounded-lg p-6 flex-shrink-0">
                 {/* Ícone de escudo/segurança mais simples */}
-                <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h0-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11H16V16H8V11H9.2V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.4,8.7 10.4,10V11H13.6V10C13.6,8.7 12.8,8.2 12,8.2Z" />
                 </svg>
               </div>
