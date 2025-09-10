@@ -381,7 +381,7 @@ export default function DemandsManager() {
                         </div>
 
                         <div className="text-xs text-slate-500">
-                          Criada em: {new Date(demand.created_at).toLocaleDateString('pt-BR')}
+                          Criada em: {new Date(demand.createdAt).toLocaleDateString('pt-BR')}
                         </div>
                       </div>
                     )}

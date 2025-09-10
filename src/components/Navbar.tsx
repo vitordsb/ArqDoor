@@ -26,7 +26,6 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [location, navigate] = useLocation();
   const { user, isLoggedIn, logout } = useAuth();
-  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -36,23 +35,6 @@ const Navbar = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    if (isLoggedIn && user) {
-      const fetchUnreadCount = async () => {
-        try {
-          // Ajuste o endpoint conforme a sua API real para contagem de mensagens não lidas
-          const response = await fetch("https://zameed-backend.onrender.com/api/messages/unread/count");
-          if (response.ok) {
-            const data = await response.json();
-            setUnreadMessages(data.count);
-          }
-        } catch (error) {
-          console.error("Failed to fetch unread messages:", error);
-        }
-      };
-
-    }
-  }, [isLoggedIn, user]);
 
   const handleLogout = async () => {
     await logout();
@@ -109,14 +91,6 @@ const Navbar = () => {
               <div className="relative">
                 <Button variant="ghost" size="icon" aria-label="Messages">
                   <MessageCircle className="h-5 w-5 text-gray-700" />
-                  {unreadMessages > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-                    >
-                      {unreadMessages > 9 ? '9+' : unreadMessages}
-                    </Badge>
-                  )}
                 </Button>
               </div>
             </Link>
@@ -151,7 +125,8 @@ const Navbar = () => {
             </DropdownMenu>
           ) : (
             <>
-              <Button onClick={() => navigate("/auth")}>Login</Button>
+              <Button variant="default" onClick={() => navigate("/auth")}>Login</Button>
+              <Button variant="link" onClick={() => navigate("/auth/register")}>Cadastrar</Button>
             </>
           )}
         </div>

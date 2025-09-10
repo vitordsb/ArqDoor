@@ -173,6 +173,7 @@ export interface EnrichedService extends ServiceFreelancer {
   userType: string;
 }
 export interface Step {
+  rejection_reason: ReactNode;
   id: number
   ticket_id: number
   title: string
