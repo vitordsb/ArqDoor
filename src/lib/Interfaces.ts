@@ -1,6 +1,3 @@
-export type StepStatus = 'pending' | 'in_progress' | 'awaiting_confirmation' | 'completed' | 'rejected'
-export type TicketStatus = 'pendente' | 'em_andamento' | 'concluida' | 'concluída' | 'cancelada'
-
 export interface LogFunc {
   (message?: any, ...optionalParams: any[]): void
 }
@@ -22,6 +19,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  about: string;
   cpf?: string;
   cnpj?: string;
   birth: string;
@@ -159,7 +157,11 @@ export interface ServiceFreelancer {
   updatedAt: string;
   ServiceProvider: ServiceProvider;
 }
-
+export interface EnrichedService extends ServiceFreelancer {
+  userName: string;
+  userEmail: string;
+  userType: string;
+}
 export interface ServicesResponse {
   code: number;
   message: string;
@@ -167,31 +169,24 @@ export interface ServicesResponse {
   success: boolean;
 }
 
-export interface EnrichedService extends ServiceFreelancer {
-  userName: string;
-  userEmail: string;
-  userType: string;
-}
+
 export interface Step {
-  rejection_reason: ReactNode;
   id: number
   ticket_id: number
   title: string
-  status: string
   price: number
-  provider_completed?: boolean
-  client_confirmed?: boolean
   confirm_contractor?: boolean
   confirm_freelancer?: boolean
   createdAt?: string
   updatedAt?: string
+  status: 'Recusado' | 'Concluido' | 'Pendente'
 }
 
 export interface Ticket {
   id: number
   conversation_id: number
-  status: 'pendente' | 'em_andamento' | 'concluida' | 'concluída' | 'cancelada'
   created_at: string
   updated_at?: string
+  status: 'pendente' | 'cancelada' | 'em_andamento' | 'concluída'
 }
 

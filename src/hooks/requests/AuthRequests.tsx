@@ -8,9 +8,33 @@ export const login = async (
   data: LoginInterface,
   setUser: React.Dispatch<React.SetStateAction<User | null>>
 ) => {
-  const loginRes = await apiRequest("POST", "/auth/login", data);
-  console.log(loginRes);
-  if (!loginRes.ok) {
+  try {
+    const validate = await apiRequest("POST", "/auth/login", data);
+    if (validate.status === 401) {
+      toast({
+        title: "Credenciais invalidas",
+        description: "Email ou senha incorretos",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!validate.ok) return;
+    console.log(validate);
+    const body = await validate.json() as { data: { token: string } };
+    console.log(body);
+    const token = body.data.token;
+    const payload = parseJwt<User>(token);
+    const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
+    sessionStorage.setItem("token", token);
+    sessionStorage.setItem("tokenExpiry", expiresAt.toString());
+    setUser(payload);
+    toast({
+      title: "Login realizado",
+      description: "Seja bem vindo!",
+      variant: "default",
+    })
+  } catch (error) {
+    console.log(error);
     toast({
       title: "Erro no login",
       description: "Erro interno, por favor tente novamente mais tarde",
@@ -18,14 +42,6 @@ export const login = async (
     });
     return;
   }
-  const body = await loginRes.json() as { data: { token: string } };
-  console.log(body);
-  const token = body.data.token;
-  const payload = parseJwt<User>(token);
-  const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
-  sessionStorage.setItem("token", token);
-  sessionStorage.setItem("tokenExpiry", expiresAt.toString());
-  setUser(payload);
 };
 
 export const register = async (data: RegisterInterface) => {

@@ -1,7 +1,10 @@
+
+
 // src/pages/Messages.tsx
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
+import { useContract } from '@/hooks/use-contract';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +13,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import MessagesLayout from '@/components/layouts/MessagesLayout';
-import { Send, Users, MessageCircle, FileText, CheckCircle, XCircle, Plus, Clock, Shield, Eye, Loader2, Maximize2, Download, Edit2, Trash2, Check, X } from 'lucide-react';
+import {
+  Send,
+  Users,
+  MessageCircle,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Plus,
+  Clock,
+  Shield,
+  Eye,
+  Loader2,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
@@ -36,17 +51,18 @@ export default function Messages() {
     currentConversation,
     messages,
     newMessage,
-    tickets,
     unreadMessageCount,
     loadingConversations,
-    loadingTickets,
     sendingMessage,
     setNewMessage,
     sendMessage,
     selectConversation,
     conversationsError,
-    acceptStep,
-    rejectStep,
+  } = useMessaging(initialPartnerId);
+
+  const {
+    tickets,
+    loadingTickets,
     createProposal,
     buscarPDF,
     getStepsForTicket,
@@ -54,47 +70,104 @@ export default function Messages() {
     updateStep,
     deleteStep,
     markStepCompleted,
-    confirmStepCompletion,
-    signDocument,
-  } = useMessaging(initialPartnerId);
+    confirmFreelancerStep,
+    signContract,
+    acceptStep,
+    rejectStep,
+  } = useContract(currentConversation?.id);
 
-  // ---------- helpers/ordenadores ----------
+  // ---------- helpers ----------
   const sortTicketsDesc = (a: any, b: any) => {
     const aT = new Date(a?.updated_at || a?.created_at || 0).getTime();
     const bT = new Date(b?.updated_at || b?.created_at || 0).getTime();
     if (!isNaN(aT) && !isNaN(bT) && aT !== bT) return bT - aT;
     return (b?.id || 0) - (a?.id || 0);
   };
-  const canCreateProposal = () => user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
-  const formatMessageTime = (d: string) => { try { return format(new Date(d), 'HH:mm', { locale: ptBR }); } catch { return ''; } };
+  const canCreateProposal = () =>
+    user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
+  const formatMessageTime = (d: string) => {
+    try {
+      return format(new Date(d), 'HH:mm', { locale: ptBR });
+    } catch {
+      return '';
+    }
+  };
   const formatConversationTime = (d: string) => {
     try {
-      const date = new Date(d); const now = new Date();
+      const date = new Date(d);
+      const now = new Date();
       const diffH = (now.getTime() - date.getTime()) / 36e5;
-      return diffH < 24 ? format(date, 'HH:mm', { locale: ptBR }) : format(date, 'dd/MM', { locale: ptBR });
-    } catch { return ''; }
+      return diffH < 24
+        ? format(date, 'HH:mm', { locale: ptBR })
+        : format(date, 'dd/MM', { locale: ptBR });
+    } catch {
+      return '';
+    }
   };
-  const getInitials = (name: string) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  const calculateProposalTotal = (steps: any[]) => steps.reduce((s, st) => s + (st.price || 0), 0);
-  const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+  const getInitials = (name: string) =>
+    name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const calculateProposalTotal = (steps: any[]) =>
+    steps.reduce((s, st) => s + (st.price || 0), 0);
+  const formatCurrency = (v: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
   // ---------- status UI ----------
   const getStatusConfig = (status?: string) => {
     const s = (status || '').toLowerCase();
-    if (s === 'pendente') return { icon: Clock, label: 'Pendente', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300', bg: 'bg-orange-50', border: 'border-orange-200', color: 'text-orange-700' };
-    if (s === 'em andamento' || s === 'em_andamento') return { icon: Clock, label: 'Em Andamento', badgeClass: 'bg-blue-100 text-blue-800 border-blue-300', bg: 'bg-blue-50', border: 'border-blue-200', color: 'text-blue-700' };
-    if (s === 'concluída' || s === 'concluida') return { icon: CheckCircle, label: 'Concluída', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300', bg: 'bg-emerald-50', border: 'border-emerald-200', color: 'text-emerald-700' };
-    if (s === 'cancelada') return { icon: XCircle, label: 'Cancelada', badgeClass: 'bg-red-100 text-red-800 border-red-300', bg: 'bg-red-50', border: 'border-red-200', color: 'text-red-700' };
-    return { icon: Clock, label: 'Pendente', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300', bg: 'bg-orange-50', border: 'border-orange-200', color: 'text-orange-700' };
+    if (s === 'pendente')
+      return {
+        icon: Clock,
+        label: 'Pendente',
+        badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
+        bg: 'bg-orange-50',
+        border: 'border-orange-200',
+        color: 'text-orange-700',
+      };
+    if (s === 'em andamento' || s === 'em_andamento')
+      return {
+        icon: Clock,
+        label: 'Em Andamento',
+        badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
+        bg: 'bg-blue-50',
+        border: 'border-blue-200',
+        color: 'text-blue-700',
+      };
+    if (s === 'concluída' || s === 'concluida')
+      return {
+        icon: CheckCircle,
+        label: 'Concluída',
+        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        bg: 'bg-emerald-50',
+        border: 'border-emerald-200',
+        color: 'text-emerald-700',
+      };
+    if (s === 'cancelada')
+      return {
+        icon: XCircle,
+        label: 'Cancelada',
+        badgeClass: 'bg-red-100 text-red-800 border-red-300',
+        bg: 'bg-red-50',
+        border: 'border-red-200',
+        color: 'text-red-700',
+      };
+    return {
+      icon: Clock,
+      label: 'Pendente',
+      badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
+      bg: 'bg-orange-50',
+      border: 'border-orange-200',
+      color: 'text-orange-700',
+    };
   };
 
-  // ---------- state: proposta nova ----------
+  // ---------- state ----------
   const [showProposalModal, setShowProposalModal] = useState(false);
-  const [proposalSteps, setProposalSteps] = useState<ProposalStep[]>([{ id: crypto.randomUUID(), title: '', price: 0 }]);
+  const [proposalSteps, setProposalSteps] = useState<ProposalStep[]>([
+    { id: crypto.randomUUID(), title: '', price: 0 },
+  ]);
   const [sendingProposal, setSendingProposal] = useState(false);
   const [contractFile, setContractFile] = useState<File | null>(null);
 
-  // ---------- state: detalhes de proposta / steps ----------
   const [showProposalDetails, setShowProposalDetails] = useState(false);
   const [selectedTicketSteps, setSelectedTicketSteps] = useState<any[]>([]);
   const [loadingSteps, setLoadingSteps] = useState(false);
@@ -102,7 +175,6 @@ export default function Messages() {
   const [editingStep, setEditingStep] = useState<number | null>(null);
   const [editStepData, setEditStepData] = useState({ title: '', price: 0 });
 
-  // ---------- state: PDF viewer ----------
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>('');
@@ -112,7 +184,6 @@ export default function Messages() {
   const [pdfError, setPdfError] = useState<string>('');
   const [fullscreenPdf, setFullscreenPdf] = useState(false);
 
-  // ---------- state: assinatura ----------
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [selectedTicketForSignature, setSelectedTicketForSignature] = useState<any>(null);
   const [signaturePassword, setSignaturePassword] = useState('');
@@ -120,7 +191,6 @@ export default function Messages() {
   const [signingDocument, setSigningDocument] = useState(false);
   const [showPasswordField, setShowPasswordField] = useState(false);
 
-  // ---------- state: outros ----------
   const [showOlderTickets, setShowOlderTickets] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -130,7 +200,11 @@ export default function Messages() {
       if (tickets.length === 0) return;
       const map: Record<number, any[]> = {};
       for (const t of tickets) {
-        try { map[t.id] = await getStepsForTicket(t.id); } catch { map[t.id] = []; }
+        try {
+          map[t.id] = await getStepsForTicket(t.id);
+        } catch {
+          map[t.id] = [];
+        }
       }
       setTicketStepsMap(map);
     };
@@ -154,25 +228,44 @@ export default function Messages() {
   };
 
   // ---------- handlers: proposta nova ----------
-  const addProposalStep = () => setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0 }]);
-  const removeProposalStep = (id: string) => setProposalSteps(ps => ps.filter(s => s.id !== id));
-  const updateProposalStep = (id: string, field: 'title' | 'price', value: string | number) =>
-    setProposalSteps(ps => ps.map(s => s.id === id ? { ...s, [field]: value } : s));
+  const addProposalStep = () =>
+    setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0 }]);
+  const removeProposalStep = (id: string) =>
+    setProposalSteps(ps => ps.filter(s => s.id !== id));
+  const updateProposalStep = (
+    id: string,
+    field: 'title' | 'price',
+    value: string | number,
+  ) =>
+    setProposalSteps(ps =>
+      ps.map(s => (s.id === id ? { ...s, [field]: value } : s)),
+    );
   const handleContractFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f || f.type !== 'application/pdf') {
-      toast({ title: 'Erro', description: 'Selecione um PDF válido.', variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: 'Selecione um PDF válido.',
+        variant: 'destructive',
+      });
       return;
     }
     setContractFile(f);
   };
+
   const handleSendProposal = async () => {
     if (!currentConversation || !user || !canCreateProposal()) return;
+
     const valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
     if (valid.length < 1) {
-      toast({ title: 'Erro', description: 'Adicione pelo menos 1 etapa além da assinatura.', variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: 'Adicione pelo menos 1 etapa além da assinatura.',
+        variant: 'destructive',
+      });
       return;
     }
+
     setSendingProposal(true);
     try {
       const ok = await createProposal(valid, contractFile || undefined);
@@ -195,15 +288,25 @@ export default function Messages() {
       const steps = await getStepsForTicket(ticketId);
       setSelectedTicketSteps(Array.isArray(steps) ? steps : []);
     } catch (e: any) {
-      toast({ title: 'Erro', description: e?.message || 'Não foi possível carregar os detalhes.', variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: e?.message || 'Não foi possível carregar os detalhes.',
+        variant: 'destructive',
+      });
     } finally {
       setLoadingSteps(false);
     }
   };
-  const handleEditStep = (step: any) => { setEditingStep(step.id); setEditStepData({ title: step.title, price: step.price }); };
+  const handleEditStep = (step: any) => {
+    setEditingStep(step.id);
+    setEditStepData({ title: step.title, price: step.price });
+  };
   const handleSaveStep = async () => {
     if (!editingStep) return;
-    const ok = await updateStep(editingStep, { title: editStepData.title, price: editStepData.price });
+    const ok = await updateStep(editingStep, {
+      title: editStepData.title,
+      price: editStepData.price,
+    });
     if (ok) {
       setEditingStep(null);
       const updated = await getStepsForTicket(selectedTicketSteps[0]?.ticket_id);
@@ -217,58 +320,78 @@ export default function Messages() {
       setSelectedTicketSteps(updated);
     }
   };
-  const handleMarkStepCompleted = async (stepId: number) => { await markStepCompleted(stepId); };
-  const handleConfirmStepCompletion = async (stepId: number, ticketId: number) => { await confirmStepCompletion(stepId, ticketId); };
+  const handleMarkStepCompleted = async (stepId: number, password: string, ticketId: number) => {
+    await markStepCompleted(stepId, password, ticketId);
+  };
 
   // Cliente REJEITA um step específico
   const handleRejectStep = async (step: any) => {
     try {
-      const ok = await updateStep(step.id, { status: 'rejected', client_confirmed: false });
-      if (!ok) return;
-      if (step.indexInTicket === 0 || step.isSignatureStep) await updateTicketStatus(step.ticket_id, 'cancelada');
-      const updated = await getStepsForTicket(step.ticket_id);
-      setSelectedTicketSteps(updated);
-      toast({ title: 'Etapa recusada', description: 'Você recusou esta etapa.' });
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e?.message || 'Não foi possível recusar a etapa.', variant: 'destructive' });
-    }
-  };
-  // Cliente ACEITA step
-  const handleAcceptStep = async (step: any) => {
-    try {
-      const ok = await updateStep(step.id, { client_confirmed: true, status: 'completed' });
-      if (!ok) return;
-      const steps = await getStepsForTicket(step.ticket_id);
-      const idx = steps.findIndex((s: any) => s.id === step.id);
-      const next = steps[idx + 1];
-      if (next && !['in_progress', 'completed', 'rejected'].includes(next.status)) {
-        await updateStep(next.id, { status: 'in_progress' });
+      const ok = await rejectStep(step.id, step.ticket_id, step.indexInTicket);
+      if (ok) {
+        const updated = await getStepsForTicket(step.ticket_id);
+        setSelectedTicketSteps(updated);
       }
-      const updated = await getStepsForTicket(step.ticket_id);
-      setSelectedTicketSteps(updated);
-      toast({ title: 'Etapa aceita', description: 'A próxima etapa foi iniciada.' });
     } catch (e: any) {
-      toast({ title: 'Erro', description: e?.message || 'Não foi possível aceitar a etapa.', variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: e?.message || 'Não foi possível recusar a etapa.',
+        variant: 'destructive',
+      });
     }
   };
 
-  // ---------- handlers: recusar contrato (cancela ticket) ----------
+  // Cliente ACEITA step (precisa da senha vinda do Dialog)
+  const handleAcceptStep = async (step: any, password: string) => {
+    try {
+      const ok = await acceptStep(step.id, password);
+      if (ok) {
+        const updated = await getStepsForTicket(step.ticket_id);
+        setSelectedTicketSteps(updated);
+        toast({
+          title: 'Etapa aceita',
+          description: 'A próxima etapa foi iniciada.',
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Erro',
+        description: e?.message || 'Não foi possível aceitar a etapa.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // ---------- handlers: recusar contrato ----------
   const handleRejectContract = async (ticketId: number) => {
     try {
-      await updateTicketStatus(ticketId, 'cancelada');
-      await apiRequest('DELETE', `/ticket/${ticketId}`);
-      toast({ title: 'Contrato recusado', description: 'O contrato foi recusado e o ticket cancelado.' });
+      const response = await apiRequest('DELETE', `/ticket/${ticketId}`);
+      if (response.ok) {
+        await updateTicketStatus(ticketId, 'cancelada');
+        toast({
+          title: 'Contrato recusado',
+          description: 'O contrato foi recusado e o ticket cancelado.',
+        });
+      }
       setShowProposalDetails(false);
     } catch (e: any) {
-      toast({ title: 'Erro', description: e?.message || 'Não foi possível recusar o contrato.', variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: e?.message || 'Não foi possível recusar o contrato.',
+        variant: 'destructive',
+      });
     }
   };
 
-  // ---------- handlers: assinatura ----------
+  // ---------- handlers: assinatura (contrato) ----------
   const handleStartSignature = (ticket: any) => {
     if (!ticket) return;
     if (['concluída', 'concluida'].includes((ticket.status || '').toLowerCase())) {
-      toast({ title: 'Documento já assinado', description: 'Este documento já foi assinado.', variant: 'destructive' });
+      toast({
+        title: 'Documento já assinado',
+        description: 'Este documento já foi assinado.',
+        variant: 'destructive',
+      });
       return;
     }
     setSelectedTicketForSignature(ticket);
@@ -279,7 +402,11 @@ export default function Messages() {
   };
   const handleAgreeAndAskPassword = () => {
     if (!ackChecked) {
-      toast({ title: 'Confirmação necessária', description: 'Você deve concordar com os termos.', variant: 'destructive' });
+      toast({
+        title: 'Confirmação necessária',
+        description: 'Você deve concordar com os termos.',
+        variant: 'destructive',
+      });
       return;
     }
     setShowPasswordField(true);
@@ -287,39 +414,24 @@ export default function Messages() {
   const handleConfirmSignature = async () => {
     if (!selectedTicketForSignature) return;
     if (!ackChecked || !signaturePassword.trim()) {
-      toast({ title: 'Dados faltando', description: 'Confirme os termos e digite sua senha.', variant: 'destructive' });
+      toast({
+        title: 'Dados faltando',
+        description: 'Confirme os termos e digite sua senha.',
+        variant: 'destructive',
+      });
       return;
     }
     setSigningDocument(true);
 
     try {
       const ticketId = selectedTicketForSignature.id as number;
-
-      // 🔐 chama signDocument (já ajustado para PATCH /ticket/signature/{id})
-      const ok = await signDocument(ticketId, signaturePassword);
+      const ok = await signContract(ticketId, signaturePassword);
       if (!ok) return;
 
-      // ✅ pós-assinatura: completa step 1 e inicia step 2
-      try {
-        const steps = await getStepsForTicket(ticketId);
-        if (Array.isArray(steps) && steps.length > 0) {
-          const first = steps[0];
-          await updateStep(first.id, {
-            status: 'completed',
-            provider_completed: true,
-            client_confirmed: true,
-          });
-
-          const next = steps[1];
-          if (next && !['in_progress', 'completed', 'rejected'].includes(next.status)) {
-            await updateStep(next.id, { status: 'in_progress' });
-          }
-        }
-      } catch {
-        /* noop */
-      }
-
-      toast({ title: 'Documento assinado', description: 'O contrato foi assinado e registrado.' });
+      toast({
+        title: 'Documento assinado',
+        description: 'O contrato foi assinado e registrado.',
+      });
       setShowSignatureModal(false);
       setSelectedTicketForSignature(null);
       setSignaturePassword('');
@@ -331,12 +443,21 @@ export default function Messages() {
       setSigningDocument(false);
     }
   };
+
+  // Prestador confirma etapa (usa senha se sua API exigir)
+  const handleConfirmStepCompletion = async (stepId: number, password: string) => {
+    await confirmFreelancerStep(stepId, password);
+  };
+
   // ---------- handlers: PDF ----------
   const handleViewPdf = async (ticketOrId: number | { id: number }) => {
     try {
       setLoadingPdf(true);
       setPdfError('');
-      if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(''); }
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+        setPdfUrl('');
+      }
       const ticketId = typeof ticketOrId === 'number' ? ticketOrId : ticketOrId?.id;
       if (!ticketId) throw new Error('Ticket inválido.');
       setSelectedTicketForPdf(ticketId);
@@ -371,19 +492,37 @@ export default function Messages() {
     const a = document.createElement('a');
     a.href = url;
     a.download = pdfFilename || `contrato-ticket-${selectedTicketForPdf}.pdf`;
-    document.body.appendChild(a); a.click(); a.remove();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   };
 
   // ---------- componentes internos ----------
-  const ProposalCard = ({ ticket, steps, isLatest = false }: { ticket: any, steps: any[], isLatest?: boolean }) => {
+  const ProposalCard = ({
+    ticket,
+    steps,
+    isLatest = false,
+  }: {
+    ticket: any;
+    steps: any[];
+    isLatest?: boolean;
+  }) => {
     const total = calculateProposalTotal(steps);
     const cfg = getStatusConfig(ticket.status);
-    const isSigned = ['concluída', 'concluida'].includes((ticket.status || '').toLowerCase());
-    const canSign = user?.type === 'contratante' && (ticket.status || '').toLowerCase() === 'em andamento' && !isSigned;
+    const isSigned = ['concluída', 'concluida', 'cancelado'].includes(
+      (ticket.status || '').toLowerCase(),
+    );
+    const canSign =
+      user?.type === 'contratante' &&
+      (ticket.status || '').toLowerCase() === 'pendente' &&
+      !isSigned;
 
     return (
-      <div className={`group rounded-xl p-5 shadow-sm border transition-all duration-200 hover:shadow-md ${cfg.bg} ${cfg.border} ${isLatest ? 'ring-2 ring-orange-200' : ''}`}>
+      <div
+        className={`group rounded-xl p-5 shadow-sm border transition-all duration-200 hover:shadow-md ${cfg.bg} ${cfg.border} ${isLatest ? 'ring-2 ring-orange-200' : ''
+          }`}
+      >
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-white shadow-sm">
@@ -397,18 +536,34 @@ export default function Messages() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">{steps.length} etapas</span>
-            <span className="text-lg font-bold text-gray-900">{formatCurrency(total)}</span>
+            <span className="text-lg font-bold text-gray-900">
+              {formatCurrency(total)}
+            </span>
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => handleViewProposalDetails(ticket.id)} className="flex-1 min-w-[120px]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleViewProposalDetails(ticket.id)}
+              className="flex-1 min-w-[120px]"
+            >
               <Eye className="h-4 w-4 mr-2" /> Detalhes
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleViewPdf(ticket)} className="flex-1 min-w-[120px]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleViewPdf(ticket)}
+              className="flex-1 min-w-[120px]"
+            >
               <FileText className="h-4 w-4 mr-2" /> Ver PDF
             </Button>
             {canSign && (
-              <Button size="sm" onClick={() => handleStartSignature(ticket)} className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]">
+              <Button
+                size="sm"
+                onClick={() => handleStartSignature(ticket)}
+                className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]"
+              >
                 <Shield className="h-4 w-4 mr-2" /> Eu assino e confirmo os termos
               </Button>
             )}
@@ -428,7 +583,11 @@ export default function Messages() {
               <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" /> Messages
               </h1>
-              {unreadMessageCount > 0 && <Badge variant="destructive" className="ml-2">{unreadMessageCount}</Badge>}
+              {unreadMessageCount > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {unreadMessageCount}
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -439,7 +598,9 @@ export default function Messages() {
                 <p className="text-sm text-gray-600">Carregando conversas...</p>
               </div>
             ) : conversationsError ? (
-              <div className="p-4 text-center"><p className="text-sm text-red-600">Erro ao carregar conversas</p></div>
+              <div className="p-4 text-center">
+                <p className="text-sm text-red-600">Erro ao carregar conversas</p>
+              </div>
             ) : conversations.length === 0 ? (
               <div className="p-4 text-center">
                 <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
@@ -447,26 +608,50 @@ export default function Messages() {
               </div>
             ) : (
               <div className="p-2">
-                {conversations.map((conversation) => (
+                {conversations.map(conversation => (
                   <div
-                    key={conversation.id ?? conversation.otherUser?.id ?? `conv-${conversation.id}`}
+                    key={
+                      conversation.id ??
+                      conversation.otherUser?.id ??
+                      `conv-${conversation.id}`
+                    }
                     onClick={() => handleConversationClick(conversation)}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors mb-2 ${currentConversation?.id === conversation.id ? 'bg-orange-50 border border-orange-200' : 'hover:bg-gray-50'}`}
+                    className={`p-3 rounded-lg cursor-pointer transition-colors mb-2 ${currentConversation?.id === conversation.id
+                      ? 'bg-orange-50 border border-orange-200'
+                      : 'hover:bg-gray-50'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src="" />
-                        <AvatarFallback className="bg-orange-100 text-orange-700">{getInitials(conversation.otherUser.name)}</AvatarFallback>
+                        <AvatarFallback className="bg-orange-100 text-orange-700">
+                          {getInitials(conversation.otherUser.name)}
+                        </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900 truncate">{conversation.otherUser.name}</p>
-                          <span className="text-xs text-gray-500">{formatConversationTime(conversation.updated_at)}</span>
+                          <p className="font-medium text-gray-900 truncate">
+                            {conversation.otherUser.name}
+                          </p>
+                          <span className="text-xs text-gray-500">
+                            {formatConversationTime(conversation.updated_at)}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-sm text-gray-600 truncate">{conversation.lastMessage?.content || 'Nenhuma mensagem'}</p>
-                          <Badge variant={conversation.otherUser.type === 'prestador' ? 'default' : 'secondary'} className="text-xs">
-                            {conversation.otherUser.type === 'prestador' ? 'Prestador' : 'Cliente'}
+                          <p className="text-sm text-gray-600 truncate">
+                            {conversation.lastMessage?.content || 'Nenhuma mensagem'}
+                          </p>
+                          <Badge
+                            variant={
+                              conversation.otherUser.type === 'prestador'
+                                ? 'default'
+                                : 'secondary'
+                            }
+                            className="text-xs"
+                          >
+                            {conversation.otherUser.type === 'prestador'
+                              ? 'Prestador'
+                              : 'Cliente'}
                           </Badge>
                         </div>
                       </div>
@@ -486,17 +671,33 @@ export default function Messages() {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src="" />
-                    <AvatarFallback className="bg-orange-100 text-orange-700">{getInitials(currentConversation.otherUser.name)}</AvatarFallback>
+                    <AvatarFallback className="bg-orange-100 text-orange-700">
+                      {getInitials(currentConversation.otherUser.name)}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h2 className="font-semibold text-gray-900">{currentConversation.otherUser.name}</h2>
-                    <Badge variant={currentConversation.otherUser.type === 'prestador' ? 'default' : 'secondary'} className="text-xs">
-                      {currentConversation.otherUser.type === 'prestador' ? 'Prestador' : 'Cliente'}
+                    <h2 className="font-semibold text-gray-900">
+                      {currentConversation.otherUser.name}
+                    </h2>
+                    <Badge
+                      variant={
+                        currentConversation.otherUser.type === 'prestador'
+                          ? 'default'
+                          : 'secondary'
+                      }
+                      className="text-xs"
+                    >
+                      {currentConversation.otherUser.type === 'prestador'
+                        ? 'Prestador'
+                        : 'Cliente'}
                     </Badge>
                   </div>
                 </div>
                 {canCreateProposal() && (
-                  <Button onClick={() => setShowProposalModal(true)} className="bg-orange-600 hover:bg-orange-700">
+                  <Button
+                    onClick={() => setShowProposalModal(true)}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
                     <Plus className="h-4 w-4 mr-2" /> Nova Proposta
                   </Button>
                 )}
@@ -509,10 +710,28 @@ export default function Messages() {
                     <ScrollArea className="h-full p-4">
                       <div className="space-y-4">
                         {messages.map((m, idx) => (
-                          <div key={m.id ?? m.tempId ?? `msg-${idx}`} className={`flex ${m.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${m.sender_id === user?.id ? 'bg-orange-600 text-white' : 'bg-white border border-gray-200 text-gray-900'}`}>
+                          <div
+                            key={m.id ?? m.tempId ?? `msg-${idx}`}
+                            className={`flex ${m.sender_id === user?.id
+                              ? 'justify-end'
+                              : 'justify-start'
+                              }`}
+                          >
+                            <div
+                              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${m.sender_id === user?.id
+                                ? 'bg-orange-600 text-white'
+                                : 'bg-white border border-gray-200 text-gray-900'
+                                }`}
+                            >
                               <p className="text-sm">{m.content}</p>
-                              <p className={`text-xs mt-1 ${m.sender_id === user?.id ? 'text-orange-100' : 'text-gray-500'}`}>{formatMessageTime(m.created_at)}</p>
+                              <p
+                                className={`text-xs mt-1 ${m.sender_id === user?.id
+                                  ? 'text-orange-100'
+                                  : 'text-gray-500'
+                                  }`}
+                              >
+                                {formatMessageTime(m.created_at)}
+                              </p>
                             </div>
                           </div>
                         ))}
@@ -523,9 +742,23 @@ export default function Messages() {
 
                   <div className="p-4 bg-white border-t border-gray-200">
                     <form onSubmit={handleSendMessage} className="flex gap-2">
-                      <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Digite sua mensagem..." className="flex-1" disabled={sendingMessage} />
-                      <Button type="submit" disabled={!newMessage.trim() || sendingMessage} className="bg-orange-600 hover:bg-orange-700">
-                        {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      <Input
+                        value={newMessage}
+                        onChange={e => setNewMessage(e.target.value)}
+                        placeholder="Digite sua mensagem..."
+                        className="flex-1"
+                        disabled={sendingMessage}
+                      />
+                      <Button
+                        type="submit"
+                        disabled={!newMessage.trim() || sendingMessage}
+                        className="bg-orange-600 hover:bg-orange-700"
+                      >
+                        {sendingMessage ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
                       </Button>
                     </form>
                   </div>
@@ -549,25 +782,39 @@ export default function Messages() {
                       <div className="text-center py-8">
                         <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                         <p className="text-sm text-gray-600">Nenhuma proposta ainda</p>
-                        {canCreateProposal() && <p className="text-xs text-gray-500 mt-1">Crie uma proposta para começar</p>}
+                        {canCreateProposal() && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Crie uma proposta para começar
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {tickets.slice().sort(sortTicketsDesc).slice(0, 2).map((ticket, index) => (
-                          <ProposalCard
-                            key={ticket.id ?? `ticket-${index}`}
-                            ticket={ticket}
-                            steps={ticketStepsMap[ticket.id] || []}
-                            isLatest={index === 0}
-                          />
-                        ))}
+                        {tickets
+                          .slice()
+                          .sort(sortTicketsDesc)
+                          .slice(0, 2)
+                          .map((ticket, index) => (
+                            <ProposalCard
+                              key={ticket.id ?? `ticket-${index}`}
+                              ticket={ticket}
+                              steps={ticketStepsMap[ticket.id] || []}
+                              isLatest={index === 0}
+                            />
+                          ))}
                       </div>
                     )}
                   </ScrollArea>
 
                   {tickets.length > 2 && (
                     <div className="p-4 border-t border-gray-200">
-                      <Button variant="outline" size="sm" onClick={() => setShowOlderTickets(true)}>Acessar outros contratos</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowOlderTickets(true)}
+                      >
+                        Acessar outros contratos
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -577,17 +824,20 @@ export default function Messages() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Selecione uma conversa</h3>
-                <p className="text-gray-600">Escolha uma conversa da lista para começar a trocar mensagens</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Selecione uma conversa
+                </h3>
+                <p className="text-gray-600">
+                  Escolha uma conversa da lista para começar a trocar mensagens
+                </p>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ===== Modais (componentes separados) ===== */}
+      {/* ===== Modais ===== */}
 
-      {/* Nova Proposta */}
       <NewProposalDialog
         open={showProposalModal}
         onOpenChange={setShowProposalModal}
@@ -600,10 +850,9 @@ export default function Messages() {
         sendingProposal={sendingProposal}
       />
 
-      {/* 🚨 MODAL DE DETALHES — AGORA MONTADO */}
       <ProposalDetailsDialog
         open={showProposalDetails}
-        onOpenChange={(v) => {
+        onOpenChange={v => {
           setShowProposalDetails(v);
           if (!v) {
             setEditingStep(null);
@@ -614,30 +863,61 @@ export default function Messages() {
         loading={loadingSteps}
         userType={user?.type as 'prestador' | 'contratante' | undefined}
         tickets={tickets}
-        onMarkProviderCompleted={(id) => handleMarkStepCompleted(id)}
-        onClientAccept={(step) => acceptStep(step.id, step.ticket_id, step.indexInTicket)}
-        onClientRejectStep={(step) => rejectStep(step.id, step.ticket_id, step.indexInTicket)}
-        onEditStep={(step) => handleEditStep(step)}
-        onDeleteStep={(id) => handleDeleteStep(id)}
+        onEditStep={step => handleEditStep(step)}
+        onDeleteStep={id => handleDeleteStep(id)}
         editingStepId={editingStep}
         editStepData={editStepData}
         onEditStepDataChange={setEditStepData}
         onSaveStep={handleSaveStep}
         onCancelEdit={() => setEditingStep(null)}
-        onStartSignature={(ticket) => handleStartSignature(ticket)}
-        onRejectContract={(ticketId) => handleRejectContract(ticketId)}
+        onMarkProviderCompleted={(id, ticketId) => {
+          const pwd = window.prompt('Senha do prestador para concluir a etapa:') || '';
+          if (!pwd) return;
+          handleMarkStepCompleted(id, pwd, ticketId);
+        }}
+        onClientAccept={async (step) => {
+          const pwd = window.prompt('Digite sua senha para aceitar a etapa:') || '';
+          if (!pwd) return; // usuário cancelou
+          await handleAcceptStep(step, pwd);
+        }}
+
+        onClientRejectStep={(step) => handleRejectStep(step)}
+        currentIndex={(() => {
+          const firstNotDone = selectedTicketSteps.findIndex(
+            s => (s.status || '').toLowerCase() !== 'concluido',
+          );
+          return firstNotDone === -1
+            ? Math.max(selectedTicketSteps.length - 1, 0)
+            : firstNotDone;
+        })()}
+        onStartSignature={handleStartSignature}
+        onOpenSignature={ticketId => {
+          setSelectedTicketForSignature({ id: ticketId, status: 'pendente' });
+          setSignaturePassword('');
+          setAckChecked(false);
+          setShowPasswordField(false);
+          setShowSignatureModal(true);
+        }}
+        onRejectContract={ticketId => handleRejectContract(ticketId)}
+      // ✅ agora envia senha junto
       />
 
-      {/* Contratos anteriores */}
       <OlderContractsDialog
         open={showOlderTickets}
         onOpenChange={setShowOlderTickets}
-        tickets={tickets.slice().sort(sortTicketsDesc).slice(2).map((t: any, i: number) => (
-          <ProposalCard key={t.id ?? `ticket-old-${i}`} ticket={t} steps={ticketStepsMap[t.id] || []} />
-        ))}
+        tickets={tickets
+          .slice()
+          .sort(sortTicketsDesc)
+          .slice(2)
+          .map((t: any, i: number) => (
+            <ProposalCard
+              key={t.id ?? `ticket-old-${i}`}
+              ticket={t}
+              steps={ticketStepsMap[t.id] || []}
+            />
+          ))}
       />
 
-      {/* Assinatura digital */}
       <SignatureDialog
         open={showSignatureModal}
         onOpenChange={setShowSignatureModal}
@@ -652,7 +932,6 @@ export default function Messages() {
         onConfirm={handleConfirmSignature}
       />
 
-      {/* Visualizador de PDF */}
       <PdfViewerDialog
         open={showPdfViewer}
         onOpenChange={closePdfViewer}
@@ -661,8 +940,12 @@ export default function Messages() {
         pdfFilename={pdfFilename}
         loading={loadingPdf}
         error={pdfError}
-        onReload={() => selectedTicketForPdf && handleViewPdf(selectedTicketForPdf)}
-        onOpenNew={() => { if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer'); }}
+        onReload={() =>
+          selectedTicketForPdf && handleViewPdf(selectedTicketForPdf)
+        }
+        onOpenNew={() => {
+          if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+        }}
         onDownload={downloadPdf}
         fullscreen={fullscreenPdf}
         setFullscreen={setFullscreenPdf}
@@ -670,4 +953,5 @@ export default function Messages() {
     </MessagesLayout>
   );
 }
+
 

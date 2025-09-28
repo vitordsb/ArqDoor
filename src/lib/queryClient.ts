@@ -14,9 +14,6 @@ export async function apiRequest(
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  else if (method === "POST") {
-    headers["Content-Type"] = "application/json";
-  }
   if (data) {
     if (data instanceof FormData) {
       bodyContent = data;

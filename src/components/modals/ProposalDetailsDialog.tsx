@@ -1,20 +1,22 @@
+
 // src/components/modals/ProposalDetailsDialog.tsx
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit2, Trash2, CheckCircle, XCircle, Shield, Check, X } from "lucide-react"
+import {
+  Edit2, Trash2, CheckCircle, XCircle, Shield, Check, X, MoreVertical
+} from "lucide-react"
 import { Input } from "@/components/ui/input"
 import * as React from "react"
-
-type Step = {
-  id: number
-  ticket_id: number
-  title: string
-  price: number
-  status?: "pending" | "in_progress" | "awaiting_confirmation" | "completed" | "rejected"
-  provider_completed?: boolean
-  client_confirmed?: boolean
-}
+import { Step } from "@/lib/Interfaces"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 
 export function ProposalDetailsDialog({
   open,
@@ -24,8 +26,6 @@ export function ProposalDetailsDialog({
   userType,
   tickets,
   onMarkProviderCompleted,
-  onClientAccept,
-  onClientRejectStep,
   onEditStep,
   onDeleteStep,
   editingStepId,
@@ -35,6 +35,8 @@ export function ProposalDetailsDialog({
   onCancelEdit,
   onStartSignature,
   onRejectContract,
+  onClientAccept,
+  onClientRejectStep
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -42,9 +44,7 @@ export function ProposalDetailsDialog({
   loading: boolean
   userType?: "prestador" | "contratante"
   tickets: any[]
-  onMarkProviderCompleted: (stepId: number) => void
-  onClientAccept: (stepId: number, ticketId: number, index: number) => void
-  onClientRejectStep: (stepId: number, ticketId: number, index: number) => void
+  onMarkProviderCompleted: (stepId: number, ticketId: number) => void
   onEditStep: (step: Step) => void
   onDeleteStep: (stepId: number) => void
   editingStepId: number | null
@@ -54,7 +54,10 @@ export function ProposalDetailsDialog({
   onCancelEdit: () => void
   onStartSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
+  onClientAccept: (step: Step) => Promise<void>
+  onClientRejectStep: (step: Step) => Promise<void>
 }) {
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -66,67 +69,86 @@ export function ProposalDetailsDialog({
         {loading ? (
           <div className="text-center py-8">Carregando…</div>
         ) : steps.length === 0 ? (
-          <div className="text-center py-8 text-sm text-gray-600">Nenhuma etapa encontrada para este ticket.</div>
+          <div className="text-center py-8 text-sm text-gray-600">
+            Nenhuma etapa encontrada para este ticket.
+          </div>
         ) : (
           <div className="space-y-4">
+
             {steps.map((step, index) => {
               const isSignatureStep = index === 0
+
+              // helpers para auxiliar
+              const isConcluded = (s: any) =>
+                (s?.status || '').toLowerCase() === 'concluido' ||
+                (s?.confirm_freelancer && s?.confirm_contractor);
+
+              // padroniza status
+              const status = (step.status || "").toLowerCase()
+              const statusLabel = isConcluded(step)
+                ? "Concluido"
+                : status === "pendente"
+                  ? "Pendente"
+                  : status === "recusado"
+                    ? "Recusado"
+                    : "—"
+
               return (
                 <div key={step.id} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium">Etapa {index + 1}</h4>
-                    <Badge variant="outline">
-                      {step.status === "completed"
-                        ? "Concluída"
-                        : step.status === "in_progress"
-                          ? "Em Andamento"
-                          : step.status === "awaiting_confirmation"
-                            ? "Aguardando Confirmação"
-                            : step.status === "rejected"
-                              ? "Recusada"
-                              : "Pendente"}
-                    </Badge>
+                    <Badge variant="outline">{statusLabel}</Badge>
                   </div>
 
                   <p className="text-gray-700 mb-2">{step.title}</p>
                   <p className="font-semibold text-lg">
-                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(step.price || 0)}
+                    {new Intl.NumberFormat("pt-BR", {
+                      style: "currency",
+                      currency: "BRL"
+                    }).format(step.price || 0)}
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {userType === "prestador" && step.status === "in_progress" && !step.provider_completed && (
-                      <Button size="sm" onClick={() => onMarkProviderCompleted(step.id)}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Marcar como concluído
-                      </Button>
-                    )}
-
-                    {userType === "contratante" &&
-                      step.provider_completed &&
-                      !step.client_confirmed &&
-                      step.status === "awaiting_confirmation" && (
-                        <>
+                    {/* Prestador: marcar concluído + menu flutuante */}
+                    {userType === "prestador" && !isSignatureStep && ( // 👈 não renderiza ações do prestador no step 1
+                      <>
+                        {/* Marcar como concluído */}
+                        {status === "pendente" && !isConcluded(step) && (
                           <Button
                             size="sm"
-                            onClick={() => onClientAccept(step.id, step.ticket_id, index)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
                           >
                             <CheckCircle className="h-4 w-4 mr-2" />
-                            Aceitar etapa
+                            Marcar como concluído
                           </Button>
+                        )}
 
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => onClientRejectStep(step.id, step.ticket_id, index)}
-                          >
-                            <XCircle className="h-4 w-4 mr-2" />
-                            Recusar etapa
-                          </Button>
-                        </>
-                      )}
+                        {/* Menu flutuante para editar/excluir */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onEditStep(step)}>
+                              <Edit2 className="h-4 w-4 mr-2" /> Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => onDeleteStep(step.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </>
+                    )}
 
-                    {userType === "contratante" && isSignatureStep && step.status !== "completed" && (
-                      <div className="flex gap-2">
+                    {/* Cliente: contrato (primeiro step) */}
+                    {userType === "contratante" && isSignatureStep && (
+                      <>
                         <Button
                           size="sm"
                           className="bg-purple-600 hover:bg-purple-700 text-white"
@@ -138,32 +160,57 @@ export function ProposalDetailsDialog({
                           <Shield className="h-4 w-4 mr-2" />
                           Assinar contrato
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => onRejectContract(step.ticket_id)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => onRejectContract(step.ticket_id)}
+                        >
                           <XCircle className="h-4 w-4 mr-2" />
                           Recusar contrato
                         </Button>
-                      </div>
-                    )}
-
-                    {userType === "prestador" && (
-                      <>
-                        <Button size="sm" variant="outline" onClick={() => onEditStep(step)}>
-                          <Edit2 className="h-4 w-4 mr-2" />
-                          Editar
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => onDeleteStep(step.id)}>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </Button>
                       </>
                     )}
+
+                    {/* Cliente: steps > 1 (aceitar/recusar etapa) */}
+
+                    {userType === "contratante" && !isSignatureStep && (() => {
+                      const prev = steps[index - 1]
+                      const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
+
+                      if (prevDone && !isConcluded(step)) {
+                        return (
+                          <>
+                            <Button size="sm" onClick={() => onClientAccept(step)}>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Aceitar etapa
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => onClientRejectStep(step)}
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Recusar etapa
+                            </Button>
+                          </>
+                        )
+                      }
+                      return null
+                    })()}
+
                   </div>
 
+                  {/* Editor inline */}
                   {editingStepId === step.id && (
                     <div className="mt-3 space-y-2">
                       <Input
                         value={editStepData.title}
-                        onChange={(e) => onEditStepDataChange({ ...editStepData, title: e.target.value })}
+                        onChange={(e) =>
+                          onEditStepDataChange({
+                            ...editStepData,
+                            title: e.target.value
+                          })
+                        }
                         placeholder="Título da etapa"
                       />
                       <Input
@@ -172,7 +219,10 @@ export function ProposalDetailsDialog({
                         step="0.01"
                         value={editStepData.price}
                         onChange={(e) =>
-                          onEditStepDataChange({ ...editStepData, price: parseFloat(e.target.value) || 0 })
+                          onEditStepDataChange({
+                            ...editStepData,
+                            price: parseFloat(e.target.value) || 0
+                          })
                         }
                         placeholder="Valor"
                       />
@@ -194,8 +244,11 @@ export function ProposalDetailsDialog({
               <div className="flex justify-between items-center">
                 <span className="font-medium">Total:</span>
                 <span className="text-xl font-bold">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                    steps.reduce((s, it) => s + (it.price || 0), 0),
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL"
+                  }).format(
+                    steps.reduce((s, it) => s + (it.price || 0), 0)
                   )}
                 </span>
               </div>
@@ -206,3 +259,4 @@ export function ProposalDetailsDialog({
     </Dialog>
   )
 }
+

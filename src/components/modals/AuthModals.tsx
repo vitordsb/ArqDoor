@@ -169,7 +169,6 @@ export const AuthModals: React.FC<{
       setLoginLoading(true);
       try {
         await login(data);
-        toast({ title: "Bem-vindo!", description: "Login realizado com sucesso." });
         onSuccess?.();
       } catch (err) {
         toast({
