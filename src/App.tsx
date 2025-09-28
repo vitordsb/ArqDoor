@@ -33,6 +33,7 @@ function Router() {
       <Route path="/providers/:provider_id" component={ProviderProfile} />
       <Route path="/user/:user_id" component={ClientProfile} />
       <Route path="/messages/:userId?" component={Messages} />
+      <Route path="/termos-de-uso" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );

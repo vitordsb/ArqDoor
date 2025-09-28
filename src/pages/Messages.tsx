@@ -415,8 +415,8 @@ export default function Messages() {
     if (!selectedTicketForSignature) return;
     if (!ackChecked || !signaturePassword.trim()) {
       toast({
-        title: 'Dados faltando',
-        description: 'Confirme os termos e digite sua senha.',
+        title: 'Termos não assinados.',
+        description: 'Confirme os termos e depois digite sua senha.',
         variant: 'destructive',
       });
       return;

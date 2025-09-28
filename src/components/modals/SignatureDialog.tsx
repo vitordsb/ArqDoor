@@ -22,7 +22,7 @@ export function SignatureDialog({
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Checkbox checked={ackChecked} onCheckedChange={(c) => setAckChecked(!!c)} id="ack" />
-            <label htmlFor="ack" className="text-sm">Eu aceito os termos.</label>
+            <label htmlFor="ack" className="text-sm">Eu aceito os <a href="/termos-de-uso" className="underline cursor-pointer">Termos de uso</a> da plataforma</label>
           </div>
 
           {!showPasswordField ? (
