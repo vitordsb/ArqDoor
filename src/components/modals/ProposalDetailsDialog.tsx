@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { formatIsoToBr } from "./NewProposalDialog"
 
 export function ProposalDetailsDialog({
   open,
@@ -34,9 +35,11 @@ export function ProposalDetailsDialog({
   onSaveStep,
   onCancelEdit,
   onStartSignature,
+  onOpenSignature,
   onRejectContract,
   onClientAccept,
-  onClientRejectStep
+  onClientRejectStep,
+  currentIndex,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -53,9 +56,11 @@ export function ProposalDetailsDialog({
   onSaveStep: () => void
   onCancelEdit: () => void
   onStartSignature: (ticket: any) => void
+  onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
   onClientAccept: (step: Step) => Promise<void>
-  onClientRejectStep: (step: Step) => Promise<void>
+  onClientRejectStep: (step: Step) => Promise<void>,
+  currentIndex: number
 }) {
 
   return (
@@ -99,7 +104,9 @@ export function ProposalDetailsDialog({
                     <h4 className="font-medium">Etapa {index + 1}</h4>
                     <Badge variant="outline">{statusLabel}</Badge>
                   </div>
-
+                  <p className="text-sm text-gray-500">
+                    {formatIsoToBr((step as any).startDate)} – {formatIsoToBr((step as any).endDate)}
+                  </p>
                   <p className="text-gray-700 mb-2">{step.title}</p>
                   <p className="font-semibold text-lg">
                     {new Intl.NumberFormat("pt-BR", {
@@ -109,10 +116,8 @@ export function ProposalDetailsDialog({
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {/* Prestador: marcar concluído + menu flutuante */}
-                    {userType === "prestador" && !isSignatureStep && ( // 👈 não renderiza ações do prestador no step 1
+                    {userType === "prestador" && !isSignatureStep && (
                       <>
-                        {/* Marcar como concluído */}
                         {status === "pendente" && !isConcluded(step) && (
                           <Button
                             size="sm"
@@ -124,7 +129,6 @@ export function ProposalDetailsDialog({
                           </Button>
                         )}
 
-                        {/* Menu flutuante para editar/excluir */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button size="sm" variant="outline">
@@ -146,7 +150,6 @@ export function ProposalDetailsDialog({
                       </>
                     )}
 
-                    {/* Cliente: contrato (primeiro step) */}
                     {userType === "contratante" && isSignatureStep && (
                       <>
                         <Button

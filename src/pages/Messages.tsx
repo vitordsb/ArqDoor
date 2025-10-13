@@ -1,10 +1,9 @@
 
-
-// src/pages/Messages.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
 import { useContract } from '@/hooks/use-contract';
+import { useSignature } from '@/hooks/use-signature';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -30,14 +29,19 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
 
-// === Modais separados ===
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
 import { SignatureDialog } from '@/components/modals/SignatureDialog';
 import { NewProposalDialog } from '@/components/modals/NewProposalDialog';
 import { OlderContractsDialog } from '@/components/modals/OlderContractsDialog';
 
-type ProposalStep = { id: string; title: string; price: number };
+type ProposalStep = {
+  id: string;
+  title: string;
+  price: number;
+  startDate?: string;
+  endDate?: string;
+};
 
 export default function Messages() {
   const [location, setLocation] = useLocation();
@@ -64,27 +68,31 @@ export default function Messages() {
     tickets,
     loadingTickets,
     createProposal,
-    buscarPDF,
     getStepsForTicket,
     updateTicketStatus,
     updateStep,
     deleteStep,
     markStepCompleted,
     confirmFreelancerStep,
-    signContract,
-    acceptStep,
     rejectStep,
   } = useContract(currentConversation?.id);
 
-  // ---------- helpers ----------
+  const {
+    signContract,
+    acceptStep,
+    buscarPDF,
+  } = useSignature(currentConversation?.id);
+
   const sortTicketsDesc = (a: any, b: any) => {
     const aT = new Date(a?.updated_at || a?.created_at || 0).getTime();
     const bT = new Date(b?.updated_at || b?.created_at || 0).getTime();
     if (!isNaN(aT) && !isNaN(bT) && aT !== bT) return bT - aT;
     return (b?.id || 0) - (a?.id || 0);
   };
+
   const canCreateProposal = () =>
     user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
+
   const formatMessageTime = (d: string) => {
     try {
       return format(new Date(d), 'HH:mm', { locale: ptBR });
@@ -92,6 +100,7 @@ export default function Messages() {
       return '';
     }
   };
+
   const formatConversationTime = (d: string) => {
     try {
       const date = new Date(d);
@@ -104,10 +113,13 @@ export default function Messages() {
       return '';
     }
   };
+
   const getInitials = (name: string) =>
     name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
   const calculateProposalTotal = (steps: any[]) =>
     steps.reduce((s, st) => s + (st.price || 0), 0);
+
   const formatCurrency = (v: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
@@ -163,7 +175,7 @@ export default function Messages() {
   // ---------- state ----------
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [proposalSteps, setProposalSteps] = useState<ProposalStep[]>([
-    { id: crypto.randomUUID(), title: '', price: 0 },
+    { id: crypto.randomUUID(), title: '', price: 0, startDate: '', endDate: '' },
   ]);
   const [sendingProposal, setSendingProposal] = useState(false);
   const [contractFile, setContractFile] = useState<File | null>(null);
@@ -229,17 +241,22 @@ export default function Messages() {
 
   // ---------- handlers: proposta nova ----------
   const addProposalStep = () =>
-    setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0 }]);
-  const removeProposalStep = (id: string) =>
-    setProposalSteps(ps => ps.filter(s => s.id !== id));
+    setProposalSteps(ps => [
+      ...ps,
+      { id: crypto.randomUUID(), title: '', price: 0, startDate: '', endDate: '' },
+    ]); const removeProposalStep = (id: string) =>
+      setProposalSteps(ps => ps.filter(s => s.id !== id));
+
   const updateProposalStep = (
     id: string,
-    field: 'title' | 'price',
+    field: 'title' | 'price' | 'startDate' | 'endDate',
     value: string | number,
-  ) =>
+  ) => {
     setProposalSteps(ps =>
       ps.map(s => (s.id === id ? { ...s, [field]: value } : s)),
     );
+  };
+
   const handleContractFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f || f.type !== 'application/pdf') {
@@ -253,6 +270,22 @@ export default function Messages() {
     setContractFile(f);
   };
 
+  function calcularDuracaoTotal(stepList: any[]) {
+    const totalDias = stepList.reduce((acc, step) => {
+      const ini = step.startDate ? new Date(step.startDate) : null;
+      const fim = step.endDate ? new Date(step.endDate) : null;
+      if (ini && fim && !isNaN(ini.getTime()) && !isNaN(fim.getTime())) {
+        const diffMs = fim.getTime() - ini.getTime();
+        const diffDias = diffMs / (1000 * 60 * 60 * 24);
+        return acc + Math.max(0, diffDias);
+      }
+      return acc;
+    }, 0);
+
+    const meses = Math.floor(totalDias / 30);
+    const diasRestantes = Math.round(totalDias % 30);
+    return { totalDias, meses, diasRestantes };
+  }
   const handleSendProposal = async () => {
     if (!currentConversation || !user || !canCreateProposal()) return;
 
@@ -513,6 +546,7 @@ export default function Messages() {
     const isSigned = ['concluída', 'concluida', 'cancelado'].includes(
       (ticket.status || '').toLowerCase(),
     );
+    const { meses, diasRestantes } = calcularDuracaoTotal(steps);
     const canSign =
       user?.type === 'contratante' &&
       (ticket.status || '').toLowerCase() === 'pendente' &&
@@ -540,6 +574,10 @@ export default function Messages() {
               {formatCurrency(total)}
             </span>
           </div>
+          <span className="text-sm text-gray-600">
+            Período total: {meses} mês(es)
+            {diasRestantes > 0 ? ` e ${diasRestantes} dia(s)` : ''}
+          </span>
 
           <div className="flex flex-wrap gap-2 pt-2">
             <Button
@@ -891,7 +929,7 @@ export default function Messages() {
             : firstNotDone;
         })()}
         onStartSignature={handleStartSignature}
-        onOpenSignature={ticketId => {
+        onOpenSignature={(ticketId: any) => {
           setSelectedTicketForSignature({ id: ticketId, status: 'pendente' });
           setSignaturePassword('');
           setAckChecked(false);
@@ -899,7 +937,6 @@ export default function Messages() {
           setShowSignatureModal(true);
         }}
         onRejectContract={ticketId => handleRejectContract(ticketId)}
-      // ✅ agora envia senha junto
       />
 
       <OlderContractsDialog
