@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +20,6 @@ export function useMessaging(initialPartnerId?: string | null) {
   const [newMessage, setNewMessage] = useState("");
   const [isInitializing, setIsInitializing] = useState(false);
 
-  /** =============== CONVERSAS =============== */
   const {
     data: conversationsData,
     isLoading: loadingConversations,
@@ -40,7 +38,6 @@ export function useMessaging(initialPartnerId?: string | null) {
     },
   });
 
-  // carrega "otherUser" via Users endpoint (mesma lógica do seu hook original)
   const userIds = useMemo(() => {
     if (!conversationsData?.conversations || !user) return [];
     return conversationsData.conversations.map((conv: any) =>
@@ -108,7 +105,6 @@ export function useMessaging(initialPartnerId?: string | null) {
       .filter(Boolean) as Conversation[];
   }, [conversationsData, user, usersData]);
 
-  /** =============== MENSAGENS =============== */
   const {
     data: messages = [],
     isLoading: loadingMessages,
@@ -167,7 +163,6 @@ export function useMessaging(initialPartnerId?: string | null) {
     });
   }, [currentConversation, newMessage, sendMessageMutation]);
 
-  /** =============== SELEÇÃO / INICIALIZAÇÃO =============== */
   const selectConversation = useCallback((conversation: Conversation) => {
     if (!conversation || !conversation.id || typeof conversation.id !== "number") return;
     setCurrentConversation(conversation);
@@ -267,44 +262,31 @@ export function useMessaging(initialPartnerId?: string | null) {
     }
   }, [conversations, initialPartnerId, currentConversation, loadingConversations, loadingUsers]);
 
-  /** =============== CONTRATO/STEP HOOK (AGREGADO) =============== */
   const contract = useContract(currentConversation?.id);
 
-  /** Mantém o mesmo "shape" que o hook gigante retornava antes */
   return {
-    // Estados / dados
     conversations,
     currentConversation,
     messages,
     newMessage,
     tickets: contract.tickets,
     unreadMessageCount: 0,
-
-    // Loading
     loadingConversations,
     loadingMessages,
     loadingTickets: contract.loadingTickets,
     sendingMessage: (sendMessageMutation as any).isPending,
-
-    // Funções de mensagens/conversas
     setNewMessage,
     sendMessage,
     selectConversation,
     startConversation,
     startConversationAndNavigate,
-
-    // Funções de tickets/steps (tudo vindo do useContract)
     createProposal: contract.createProposal,
     getStepsForTicket: contract.getStepsForTicket,
     getActiveTicket: contract.getActiveTicket,
     updateTicketStatus: contract.updateTicketStatus,
     updateStep: contract.updateStep,
-    uploadPDF: contract.uploadPDF,
-    buscarPDF: contract.buscarPDF,
     markStepCompleted: contract.markStepCompleted,
     confirmStepCompletion: contract.confirmStepCompletion,
-
-    // Erros
     conversationsError,
     messagesError,
   };

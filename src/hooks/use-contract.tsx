@@ -59,10 +59,7 @@ export function useContract(conversationId?: number) {
     staleTime: 30_000,
     queryFn: async () => {
       if (!conversationId) return [];
-      const res = await apiRequest(
-        "GET",
-        `/ticket/conversation/${conversationId}`
-      );
+      const res = await apiRequest("GET", `/ticket/conversation/${conversationId}`);
       if (!res.ok) throw new Error(`Erro ao buscar tickets: ${res.status}`);
       const json = await res.json();
       return json.tickets || [];
@@ -98,12 +95,17 @@ export function useContract(conversationId?: number) {
 
   /** =================== STEPS =================== */
   const getStepsForTicket = useCallback(async (ticketId: number): Promise<Step[]> => {
-    const res = await apiRequest("GET", `/step/${ticketId}`);
-    if (!res.ok) throw new Error(`Erro ao buscar steps: ${res.status}`);
-    const json = await res.json();
-    const steps: Step[] = (json.steps || []).map(normalizeStep);
-    console.log("Steps do ticket", steps)
-    return steps.map((s: any, idx: number) => ({ ...s, indexInTicket: idx }));
+    try {
+      const res = await apiRequest("GET", `/step/${ticketId}`);
+      if (!res.ok) throw new Error(`Erro ao buscar steps: ${res.status}`);
+      const json = await res.json();
+      const steps: Step[] = (json.steps || []).map(normalizeStep);
+      console.log("Steps do ticket", steps)
+      return steps.map((s: any, idx: number) => ({ ...s, indexInTicket: idx }));
+    } catch (e) {
+      console.error("❌ Erro ao buscar steps:", e);
+      return [];
+    }
   }, []);
 
   const updateStep = useCallback(
@@ -173,7 +175,7 @@ export function useContract(conversationId?: number) {
       const bothConfirmed =
         (truthy(sNorm.confirmContractor) || truthy(sNorm.confirm_contractor)) &&
         (truthy(sNorm.confirmFreelancer) || truthy(sNorm.confirm_freelancer));
-      const isConcluded = norm(sNorm.status) === "concluido";
+      const isConcluded = norm(sNorm.status) === "Concluido";
       if (bothConfirmed && !isConcluded) {
         await updateStep(sNorm.id, { status: "Concluido" } as any);
       }
@@ -189,13 +191,13 @@ export function useContract(conversationId?: number) {
         }
         if (ticketId) {
           const allSteps = await getStepsForTicket(ticketId);
-          const allDone = allSteps.every((st: any) => norm(st.status) === "concluido");
+          const allDone = allSteps.every((st: any) => norm(st.status) === "Concluido");
           if (allDone) {
             await updateTicketStatus(ticketId, "concluída");
           }
         }
         await sendSystemMessage(
-          `🎉 Ticket #${ticketId} **concluído**! Todas as etapas foram finalizadas.`,
+          `🎉 Ticket #${ticketId} concluído! Todas as etapas foram finalizadas.`,
           "text",
           { ticket_id: ticketId, action: "ticket_concluded" }
         );
@@ -243,7 +245,7 @@ export function useContract(conversationId?: number) {
           const meta = await getStepMeta(stepId, ticketId);
           if (meta) {
             await sendSystemMessage(
-              `🛠️ Prestador marcou **concluída** a etapa ${meta.index}: _${meta.title}_ (Ticket #${meta.ticketId}).`,
+              `🛠️ Prestador marcou concluída a etapa ${meta.index}: _${meta.title}_ (Ticket #${meta.ticketId}).`,
               "text",
               { ticket_id: meta.ticketId, step_id: stepId, action: "freelancer_concluded" }
             );
@@ -374,12 +376,30 @@ export function useContract(conversationId?: number) {
         // cria steps
         const createdSteps: any[] = [];
         for (const s of stepsToCreate) {
+          let startIso: string | null = null;
+          let endIso: string | null = null;
+
+          const startValue = (s as any).startDate;
+          const endValue = (s as any).endDate;
+
+          const parseBrToIso = (br: string) => {
+            const [d, m, y] = br.split('/');
+            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          };
+
+          if (startValue && startValue.trim()) {
+            startIso = startValue.includes('/') ? parseBrToIso(startValue) : startValue;
+          }
+          if (endValue && endValue.trim()) {
+            endIso = endValue.includes('/') ? parseBrToIso(endValue) : endValue;
+          }
+
           const sRes = await apiRequest("POST", "/step", {
             ticket_id: ticketId,
             title: s.title,
             price: s.price,
-            start_date: (s as any).startDate ?? null,
-            end_date: (s as any).endDate ?? null,
+            start_date: startIso,
+            end_date: endIso,
           });
           if (!sRes.ok) throw new Error(await sRes.text());
           const sJson = await sRes.json();
@@ -387,8 +407,8 @@ export function useContract(conversationId?: number) {
             id: sJson.step?.id || sJson.id,
             title: s.title,
             price: s.price,
-            start_date: (s as any).startDate ?? null,
-            end_date: (s as any).endDate ?? null,
+            start_date: startIso,
+            end_date: endIso,
           });
         }
         if (createdSteps[0]?.id) {

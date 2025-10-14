@@ -177,6 +177,8 @@ export interface Step {
   price: number
   confirm_contractor?: boolean
   confirm_freelancer?: boolean
+  start_date?: Date
+  end_date?: Date
   createdAt?: string
   updatedAt?: string
   status: 'Recusado' | 'Concluido' | 'Pendente'
