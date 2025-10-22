@@ -6,14 +6,71 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
+export const formatDate = (dateString: string) => {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return "Data inválida";
+    }
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'numeric',
+      year: 'numeric'
+    });
+  } catch (error) {
+    return "Data inválida";
+  }
+};
 export function formatPrice(price: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
   }).format(price);
 }
+export function formatTotalDurationFromDays(totalDays: number | null | undefined): string | null {
+  if (totalDays == null || totalDays <= 0 || isNaN(totalDays)) {
+    return null; // Retorna nulo se não houver dias válidos
+  }
 
+  // Arredonda para o inteiro mais próximo, caso venha quebrado
+  const daysInt = Math.round(totalDays);
+
+  const years = Math.floor(daysInt / 365);
+  const remainingDaysAfterYears = daysInt % 365;
+  const months = Math.floor(remainingDaysAfterYears / 30); // Aproximação: mês = 30 dias
+  const days = remainingDaysAfterYears % 30;
+
+  const parts: string[] = [];
+
+  if (years > 0) {
+    parts.push(`${years} ano${years > 1 ? 's' : ''}`);
+  }
+  if (months > 0) {
+    parts.push(`${months} ${months > 1 ? 'meses' : 'mês'}`);
+  }
+  // Só mostra dias se for a única unidade ou se houver anos/meses também
+  if (days > 0 || (years === 0 && months === 0 && daysInt > 0)) {
+    // Se for exatamente 1 dia e não tiver anos/meses, mostra só "1 dia"
+    if (daysInt === 1 && years === 0 && months === 0) {
+      parts.push(`1 dia`);
+    } else if (days > 0) { // Senão, mostra os dias restantes normalmente
+      parts.push(`${days} dia${days > 1 ? 's' : ''}`);
+    }
+  }
+
+
+  if (parts.length === 0) {
+    // Se por algum motivo deu 0 dias após arredondar e calcular
+    return daysInt === 1 ? "1 dia" : `${daysInt} dias`;
+  } else if (parts.length === 1) {
+    return parts[0];
+  } else if (parts.length === 2) {
+    return parts.join(" e ");
+  } else {
+    // Para 3 partes (anos, meses e dias)
+    return `${parts[0]}, ${parts[1]} e ${parts[2]}`;
+  }
+}
 export function formatCNPJ(cnpj: string): string {
   return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }

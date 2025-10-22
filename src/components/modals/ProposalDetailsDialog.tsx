@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
-import { formatIsoToBr } from "./NewProposalDialog"
+import { formatDate } from "@/lib/utils"
 
 export function ProposalDetailsDialog({
   open,
@@ -35,11 +35,9 @@ export function ProposalDetailsDialog({
   onSaveStep,
   onCancelEdit,
   onStartSignature,
-  onOpenSignature,
   onRejectContract,
   onClientAccept,
   onClientRejectStep,
-  currentIndex,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -62,6 +60,8 @@ export function ProposalDetailsDialog({
   onClientRejectStep: (step: Step) => Promise<void>,
   currentIndex: number
 }) {
+
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,7 +105,7 @@ export function ProposalDetailsDialog({
                     <Badge variant="outline">{statusLabel}</Badge>
                   </div>
                   <p className="text-sm text-gray-500">
-                    {formatIsoToBr((step as any).startDate)} – {formatIsoToBr((step as any).endDate)}
+                    {formatDate((step as any).start_date)} – {formatDate((step as any).end_date)}
                   </p>
                   <p className="text-gray-700 mb-2">{step.title}</p>
                   <p className="font-semibold text-lg">
@@ -149,32 +149,6 @@ export function ProposalDetailsDialog({
                         </DropdownMenu>
                       </>
                     )}
-
-                    {userType === "contratante" && isSignatureStep && (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-purple-600 hover:bg-purple-700 text-white"
-                          onClick={() => {
-                            const t = tickets.find((tk) => tk.id === step.ticket_id)
-                            if (t) onStartSignature(t)
-                          }}
-                        >
-                          <Shield className="h-4 w-4 mr-2" />
-                          Assinar contrato
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => onRejectContract(step.ticket_id)}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Recusar contrato
-                        </Button>
-                      </>
-                    )}
-
-                    {/* Cliente: steps > 1 (aceitar/recusar etapa) */}
 
                     {userType === "contratante" && !isSignatureStep && (() => {
                       const prev = steps[index - 1]

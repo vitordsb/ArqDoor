@@ -62,6 +62,7 @@ export function useContract(conversationId?: number) {
       const res = await apiRequest("GET", `/ticket/conversation/${conversationId}`);
       if (!res.ok) throw new Error(`Erro ao buscar tickets: ${res.status}`);
       const json = await res.json();
+      console.log(json)
       return json.tickets || [];
     },
   });
@@ -100,7 +101,7 @@ export function useContract(conversationId?: number) {
       if (!res.ok) throw new Error(`Erro ao buscar steps: ${res.status}`);
       const json = await res.json();
       const steps: Step[] = (json.steps || []).map(normalizeStep);
-      console.log("Steps do ticket", steps)
+      console.log(steps.map((s: any) => ({ ...s, indexInTicket: steps.length - 1 })))
       return steps.map((s: any, idx: number) => ({ ...s, indexInTicket: idx }));
     } catch (e) {
       console.error("❌ Erro ao buscar steps:", e);
@@ -234,6 +235,7 @@ export function useContract(conversationId?: number) {
       try {
         const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
           confirm_freelancer: true,
+          confirmFreelancer: true,
           password,
         });
         if (!res.ok) throw new Error(await res.text());
@@ -276,6 +278,7 @@ export function useContract(conversationId?: number) {
     try {
       const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
         confirmFreelancer: true,
+        confirm_freelancer: true,
         password,
       });
       if (!res.ok) throw new Error(await res.text());
@@ -317,6 +320,7 @@ export function useContract(conversationId?: number) {
       const setPassword = window.prompt("Por favor, digite a senha para confirmar o contrato");
       const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
         confirm_freelancer: true,
+        confirmFreelancer: true,
         password: setPassword,
       });
       if (res.ok) return true;
@@ -326,16 +330,14 @@ export function useContract(conversationId?: number) {
       return false;
     }
   }
-  // ⬇️ cole perto dos outros useCallback helpers
   const checkAndConcludeTicket = useCallback(
     async (ticketId: number) => {
       try {
         const steps = await getStepsForTicket(ticketId);
-        const allDone = steps.every(s => (String(s.status || '').toLowerCase() === 'concluido'));
+        const allDone = steps.every(s => s.status === 'Concluido');
         if (allDone) {
           await updateTicketStatus(ticketId, 'concluída');
         }
-        // manter UI fresca
         queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
       } catch (e) {
         console.warn('checkAndConcludeTicket falhou:', e);
@@ -345,105 +347,7 @@ export function useContract(conversationId?: number) {
   );
 
   /** =================== PROPOSTA (createProposal) =================== */
-  const createProposal = useCallback(
-    async (
-      steps: Omit<CreateStepRequest, "ticket_id">[],
-      contractFile?: File | Blob
-    ) => {
-      if (!conversationId) return false;
-      if (!user || user.type !== "prestador") return false;
 
-      const validSteps = steps.filter((s) => s.title?.trim() && s.price > 0);
-      if (validSteps.length < 1) return false
-
-      const SIGN_STEP: Omit<CreateStepRequest, "ticket_id"> = {
-        title: "Assinatura do contrato (PDF)",
-        price: 1,
-      };
-      const stepsToCreate = [SIGN_STEP, ...validSteps];
-      const totalPrice = validSteps.reduce((acc, s) => acc + s.price, 0);
-
-      try {
-        // cria ticket
-        const tRes = await apiRequest("POST", "/ticket", {
-          conversation_id: conversationId,
-        });
-        if (!tRes.ok) throw new Error(await tRes.text());
-        const tJson = await tRes.json();
-        const ticketId: number = tJson.ticketService?.id || tJson.ticket?.id;
-        if (!ticketId) throw new Error("ID do ticket não retornado pela API");
-
-        // cria steps
-        const createdSteps: any[] = [];
-        for (const s of stepsToCreate) {
-          let startIso: string | null = null;
-          let endIso: string | null = null;
-
-          const startValue = (s as any).startDate;
-          const endValue = (s as any).endDate;
-
-          const parseBrToIso = (br: string) => {
-            const [d, m, y] = br.split('/');
-            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-          };
-
-          if (startValue && startValue.trim()) {
-            startIso = startValue.includes('/') ? parseBrToIso(startValue) : startValue;
-          }
-          if (endValue && endValue.trim()) {
-            endIso = endValue.includes('/') ? parseBrToIso(endValue) : endValue;
-          }
-
-          const sRes = await apiRequest("POST", "/step", {
-            ticket_id: ticketId,
-            title: s.title,
-            price: s.price,
-            start_date: startIso,
-            end_date: endIso,
-          });
-          if (!sRes.ok) throw new Error(await sRes.text());
-          const sJson = await sRes.json();
-          createdSteps.push({
-            id: sJson.step?.id || sJson.id,
-            title: s.title,
-            price: s.price,
-            start_date: startIso,
-            end_date: endIso,
-          });
-        }
-        if (createdSteps[0]?.id) {
-          await preConfirmFirstStepFreelancer(createdSteps[0].id);
-        }
-        // anexa contrato (PDF) se houver
-        if (contractFile) await uploadPDF(ticketId, contractFile);
-
-        // mensagem de sistema
-        await sendSystemMessage(
-          `📋 Nova proposta enviada! Ticket #${ticketId} - Etapas: ${stepsToCreate.length} - Total: R$ ${totalPrice.toFixed(2)}`,
-          "proposal",
-          { ticket_id: ticketId, steps: createdSteps, total: totalPrice, status: "pendente" }
-        );
-
-        queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
-        toast({
-          title: "Proposta enviada",
-          description: "Etapa 1 (assinatura) foi adicionada automaticamente.",
-        });
-        return true;
-      } catch (err: any) {
-        console.error("❌ Erro ao criar proposta:", err);
-        toast({
-          title: "Erro",
-          description: err?.message || "Erro ao criar proposta",
-          variant: "destructive",
-        });
-        return false;
-      }
-    },
-    [conversationId, user, queryClient, toast, sendSystemMessage]
-  );
-
-  /** =================== PDF/CONTRATO =================== */
   const uploadPDF = useCallback(
     async (ticketId: number, file: File | Blob) => {
       try {
@@ -467,6 +371,160 @@ export function useContract(conversationId?: number) {
     },
     [conversationId, queryClient, toast]
   );
+
+  const createProposal = useCallback(
+    async (
+      steps: Omit<CreateStepRequest, "ticket_id">[],
+      contractFile?: File | Blob
+    ) => {
+      if (!conversationId) return false;
+      if (!user || user.type !== "prestador") return false;
+      const validSteps = steps.filter((s) => s.title?.trim() && s.price > 0);
+      if (validSteps.length < 1) {
+        toast({
+          title: "Erro na Proposta",
+          description: "Adicione pelo menos uma etapa com título e preço válidos.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const getFutureDateIso = (daysToAdd: number): string => {
+        const date = new Date();
+        date.setDate(date.getDate() + daysToAdd);
+        return date.toISOString().split('T')[0];
+      };
+
+      // Função auxiliar para adicionar dias a uma data ISO (YYYY-MM-DD)
+      const addDaysToIsoDate = (isoDate: string, days: number): string => {
+        const date = new Date(isoDate + 'T00:00:00'); // Garante que interpreta como UTC meia-noite
+        date.setDate(date.getDate() + days);
+        return date.toISOString().split('T')[0];
+      };
+
+      const tomorrowDate = getFutureDateIso(1);
+      const dayAfterTomorrowDate = getFutureDateIso(2);
+      const SIGN_STEP: Omit<CreateStepRequest, "ticket_id"> & { start_date: string; end_date: string } = {
+        title: "Assinatura do contrato (PDF)",
+        price: 1,
+        start_date: tomorrowDate,
+        end_date: dayAfterTomorrowDate,
+      };
+      const stepsToCreate = [SIGN_STEP, ...validSteps] as (Omit<CreateStepRequest, "ticket_id"> & { start_date?: string | null, endDate?: string | null })[];
+      const totalPrice = validSteps.reduce((acc, s) => acc + (s.price || 0), 0);
+
+      try {
+        const tRes = await apiRequest("POST", "/ticket", { conversation_id: conversationId });
+        if (!tRes.ok) throw new Error(await tRes.text());
+        const tJson = await tRes.json();
+        const ticketId: number = tJson.ticketService?.id || tJson.ticket?.id;
+        if (!ticketId) throw new Error("ID do ticket não retornado pela API");
+
+        const createdSteps: any[] = [];
+        for (const s of stepsToCreate) {
+          let startIso: string | null = null;
+          let endIso: string | null = null;
+
+          const startValue = (s as any).startDate || s.start_date;
+          const endValue = (s as any).endDate || (s as any).end_date; // Considera end_date também da SIGN_STEP
+          const todayIso = new Date().toISOString().split('T')[0]; // Pega a data de hoje
+          const parseBrToIso = (brDate: string): string | null => {
+            if (!brDate || !/^\d{2}\/\d{2}\/\d{4}$/.test(brDate)) return null;
+            const [d, m, y] = brDate.split('/');
+            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          };
+
+          // Parseia as datas
+          if (startValue && typeof startValue === 'string' && startValue.trim()) {
+            if (startValue.includes('/')) { startIso = parseBrToIso(startValue); }
+            else if (/^\d{4}-\d{2}-\d{2}$/.test(startValue)) { startIso = startValue; }
+          }
+          if (endValue && typeof endValue === 'string' && endValue.trim()) {
+            if (endValue.includes('/')) { endIso = parseBrToIso(endValue); }
+            else if (/^\d{4}-\d{2}-\d{2}$/.test(endValue)) { endIso = endValue; }
+          }
+
+          if (!startIso) {
+            startIso = getFutureDateIso(1); // Padrão: amanhã
+          }
+          if (!endIso) {
+            endIso = addDaysToIsoDate(startIso, 1);
+          }
+
+          if (new Date(startIso + 'T00:00:00') < new Date(todayIso + 'T00:00:00')) {
+            toast({
+              title: "Data de Início Inválida",
+              description: `A data de início da etapa "${s.title}" (${startIso}) não pode ser anterior a hoje (${todayIso}).`,
+              variant: "destructive",
+            });
+            return false; // Interrompe a criação da proposta
+          }
+
+          // Validação final: endIso não pode ser anterior ou igual a startIso
+          if (new Date(endIso) <= new Date(startIso)) {
+            console.warn(`Data final (${endIso}) <= data inicial (${startIso}) para "${s.title}". Ajustando...`);
+            endIso = addDaysToIsoDate(startIso, 1);
+          }
+
+          if (new Date(endIso) < new Date(startIso)) {
+            console.warn(`Data final (${endIso}) é anterior à data inicial (${startIso}) para a etapa "${s.title}". Ajustando data final para ${startIso}.`);
+            endIso = addDaysToIsoDate(startIso, 1);
+          }
+
+          // Cria o payload - agora com start_date e end_date sempre presentes
+          const stepPayload: any = {
+            ticket_id: ticketId,
+            title: s.title,
+            price: s.price || 0,
+            start_date: startIso,
+            end_date: endIso, // Envia end_date (obrigatório)
+          };
+
+          const sRes = await apiRequest("POST", "/step", stepPayload);
+          if (!sRes.ok) {
+            const errorBody = await sRes.text();
+            console.error("Erro ao criar step:", errorBody, "Payload:", stepPayload);
+            throw new Error(`Erro ao criar etapa "${s.title}": ${errorBody || sRes.statusText}`);
+          }
+          const sJson = await sRes.json();
+          createdSteps.push({
+            id: sJson.step?.id || sJson.id,
+            title: s.title,
+            price: s.price || 0,
+            start_date: startIso,
+            end_date: endIso,
+          });
+        }
+        if (createdSteps[0]?.id) {
+          await preConfirmFirstStepFreelancer(createdSteps[0].id);
+        }
+        if (contractFile) await uploadPDF(ticketId, contractFile);
+        await sendSystemMessage(
+          `📋 Nova proposta enviada! Ticket #${ticketId} - Etapas: ${stepsToCreate.length} - Total: R$ ${totalPrice.toFixed(2)}`,
+          "proposal",
+          { ticket_id: ticketId, steps: createdSteps, total: totalPrice, status: "pendente" }
+        );
+
+        queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
+        toast({
+          title: "Proposta enviada",
+          description: "Etapa 1 (assinatura) foi adicionada automaticamente.",
+        });
+        return true;
+      } catch (err: any) {
+        console.error("❌ Erro ao criar proposta:", err);
+        toast({
+          title: "Erro ao criar proposta",
+          description: err?.message || "Verifique os dados e tente novamente.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [conversationId, user, queryClient, toast, sendSystemMessage, uploadPDF, preConfirmFirstStepFreelancer] // Adicionei as dependências que faltavam
+  );
+
+  /** =================== PDF/CONTRATO =================== */
 
   // --- Cliente recusa etapa ---
   const rejectStep = useCallback(

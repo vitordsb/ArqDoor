@@ -28,6 +28,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
+import { formatTotalDurationFromDays } from '@/lib/utils';
 
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
@@ -35,13 +36,7 @@ import { SignatureDialog } from '@/components/modals/SignatureDialog';
 import { NewProposalDialog } from '@/components/modals/NewProposalDialog';
 import { OlderContractsDialog } from '@/components/modals/OlderContractsDialog';
 
-type ProposalStep = {
-  id: string;
-  title: string;
-  price: number;
-  startDate?: string;
-  endDate?: string;
-};
+type ProposalStep = { id: string; title: string; price: number };
 
 export default function Messages() {
   const [location, setLocation] = useLocation();
@@ -175,7 +170,7 @@ export default function Messages() {
   // ---------- state ----------
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [proposalSteps, setProposalSteps] = useState<ProposalStep[]>([
-    { id: crypto.randomUUID(), title: '', price: 0, startDate: '', endDate: '' },
+    { id: crypto.randomUUID(), title: '', price: 0 },
   ]);
   const [sendingProposal, setSendingProposal] = useState(false);
   const [contractFile, setContractFile] = useState<File | null>(null);
@@ -241,22 +236,17 @@ export default function Messages() {
 
   // ---------- handlers: proposta nova ----------
   const addProposalStep = () =>
-    setProposalSteps(ps => [
-      ...ps,
-      { id: crypto.randomUUID(), title: '', price: 0, startDate: '', endDate: '' },
-    ]); const removeProposalStep = (id: string) =>
-      setProposalSteps(ps => ps.filter(s => s.id !== id));
-
+    setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0 }]);
+  const removeProposalStep = (id: string) =>
+    setProposalSteps(ps => ps.filter(s => s.id !== id));
   const updateProposalStep = (
     id: string,
-    field: 'title' | 'price' | 'startDate' | 'endDate',
+    field: 'title' | 'price' | 'start_date' | 'end_date',
     value: string | number,
-  ) => {
+  ) =>
     setProposalSteps(ps =>
       ps.map(s => (s.id === id ? { ...s, [field]: value } : s)),
     );
-  };
-
   const handleContractFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f || f.type !== 'application/pdf') {
@@ -270,22 +260,6 @@ export default function Messages() {
     setContractFile(f);
   };
 
-  function calcularDuracaoTotal(stepList: any[]) {
-    const totalDias = stepList.reduce((acc, step) => {
-      const ini = step.startDate ? new Date(step.startDate) : null;
-      const fim = step.endDate ? new Date(step.endDate) : null;
-      if (ini && fim && !isNaN(ini.getTime()) && !isNaN(fim.getTime())) {
-        const diffMs = fim.getTime() - ini.getTime();
-        const diffDias = diffMs / (1000 * 60 * 60 * 24);
-        return acc + Math.max(0, diffDias);
-      }
-      return acc;
-    }, 0);
-
-    const meses = Math.floor(totalDias / 30);
-    const diasRestantes = Math.round(totalDias % 30);
-    return { totalDias, meses, diasRestantes };
-  }
   const handleSendProposal = async () => {
     if (!currentConversation || !user || !canCreateProposal()) return;
 
@@ -546,11 +520,12 @@ export default function Messages() {
     const isSigned = ['concluída', 'concluida', 'cancelado'].includes(
       (ticket.status || '').toLowerCase(),
     );
-    const { meses, diasRestantes } = calcularDuracaoTotal(steps);
     const canSign =
       user?.type === 'contratante' &&
       (ticket.status || '').toLowerCase() === 'pendente' &&
       !isSigned;
+
+    const formattedDuration = formatTotalDurationFromDays(ticket.total_date);
 
     return (
       <div
@@ -574,10 +549,13 @@ export default function Messages() {
               {formatCurrency(total)}
             </span>
           </div>
-          <span className="text-sm text-gray-600">
-            Período total: {meses} mês(es)
-            {diasRestantes > 0 ? ` e ${diasRestantes} dia(s)` : ''}
-          </span>
+
+          {formattedDuration && (
+            <div className="flex items-center text-sm text-gray-600">
+              <Clock className="h-4 w-4 mr-1.5 opacity-70" />
+              Duração total: {formattedDuration}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2 pt-2">
             <Button

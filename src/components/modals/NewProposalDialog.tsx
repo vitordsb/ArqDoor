@@ -37,7 +37,7 @@ interface NewProposalDialogProps {
   // Incluímos startDate e endDate como opções válidas de atualização
   onUpdateStep: (
     id: string,
-    field: "title" | "price" | "startDate" | "endDate",
+    field: "title" | "price" | "start_date" | "end_date",
     value: string | number
   ) => void;
   onContractFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
