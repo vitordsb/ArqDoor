@@ -127,8 +127,35 @@ export default function Profile() {
       const payload = { ...newItem, price: parseFloat(newItem.price) || 0, user_id: user.id };
       const endpoint = user.type === "prestador" ? "/servicesfreelancer" : "/demands";
       const res = await apiRequest("POST", endpoint, payload);
+      if (newItem.description.length < 30) {
+        toast({
+          title: "Poucos caracteres na descrição",
+          description: "A descrição precisa ter pelo menos 30 caracteres",
+          variant: "destructive"
+        });
+        return;
+      }
+      if (newItem.price.toString().length < 1) {
+        toast({
+          title: "Preço inválido",
+          description: "O preço precisa ser maior que zero",
+          variant: "destructive"
+        });
+        return;
+      }
+      const sla = await res.json();
+      // verificar se é prestador pra mandar mensagem de criação
+      const messageType = user.type === "prestador" ? "service" : "demand";
+      if (sla.id) {
+        await apiRequest("POST", `/messages/${sla.id}`, { type: messageType });
+      }
+      console.log(sla)
       if (res.ok) {
-        toast({ title: "Sucesso", description: "Item criado com sucesso!" });
+        toast({
+          title: "Sucesso",
+          description: `${messageType} criado com sucesso!`,
+          variant: "default",
+        });
         setNewItem({ title: "", description: "", price: "" });
         setIsCreating(false);
         loadItems();

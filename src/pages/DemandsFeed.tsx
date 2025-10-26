@@ -281,12 +281,6 @@ export default function DemandsPage() {
                   Tente ajustar os filtros ou usar termos diferentes.
                 </p>
                 <Button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSortBy("newest")
-                  }}>
-                </Button>
-                <Button
                   onClick={() => window.location.reload()}
                   className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium px-6 py-2 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
                   Limpar filtros
