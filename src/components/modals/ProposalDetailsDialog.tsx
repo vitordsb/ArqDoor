@@ -37,6 +37,7 @@ export function ProposalDetailsDialog({
   onCancelEdit,
   onClientAccept,
   onClientRejectStep,
+  onFeedbackCreated,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -56,7 +57,8 @@ export function ProposalDetailsDialog({
   onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
   onClientAccept: (step: Step) => Promise<void>
-  onClientRejectStep: (step: Step) => Promise<void>,
+  onClientRejectStep: (step: Step) => Promise<boolean>,
+  onFeedbackCreated?: (step: Step, comment: string) => void,
   currentIndex: number
 }) {
   const [viewingFeedbackStep, setViewingFeedbackStep] = React.useState<Step | null>(null);
@@ -73,11 +75,23 @@ export function ProposalDetailsDialog({
     isCreatingFeedback
   } = useStepFeedbackActions();
 
-  const handleSubmitFeedback = () => {
+  const handleSubmitFeedback = async () => {
     if (addingFeedbackStep && newFeedbackComment.trim()) {
-      createStepFeedback(addingFeedbackStep.id, newFeedbackComment.trim());
+      const comment = newFeedbackComment.trim();
+      const success = await createStepFeedback(addingFeedbackStep.id, comment);
+      if (success) {
+        onFeedbackCreated?.(addingFeedbackStep, comment);
+        setNewFeedbackComment("");
+        setAddingFeedbackStep(null);
+      }
+    }
+  };
+
+  const handleRejectStepClick = async (step: Step) => {
+    const result = await onClientRejectStep(step);
+    if (result) {
+      setAddingFeedbackStep(step);
       setNewFeedbackComment("");
-      setAddingFeedbackStep(null);
     }
   };
 
@@ -186,7 +200,7 @@ export function ProposalDetailsDialog({
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => onClientRejectStep(step)}
+                                onClick={() => handleRejectStepClick(step)}
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
                                 Recusar etapa

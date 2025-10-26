@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
 import { formatTotalDurationFromDays } from '@/lib/utils';
+import type { Step } from '@/lib/Interfaces';
 
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
@@ -70,6 +71,7 @@ export default function Messages() {
     markStepCompleted,
     confirmFreelancerStep,
     rejectStep,
+    sendSystemMessage,
   } = useContract(currentConversation?.id);
 
   const {
@@ -339,13 +341,28 @@ export default function Messages() {
         const updated = await getStepsForTicket(step.ticket_id);
         setSelectedTicketSteps(updated);
       }
+      return ok;
     } catch (e: any) {
       toast({
         title: 'Erro',
         description: e?.message || 'Não foi possível recusar a etapa.',
         variant: 'destructive',
       });
+      return false;
     }
+  };
+
+  const handleFeedbackCreated = (step: Step, comment: string) => {
+    if (!currentConversation?.id) return;
+    const steps = selectedTicketSteps || [];
+    const index = steps.findIndex((s: any) => s.id === step.id);
+    const stepNumber = index >= 0 ? index + 1 : undefined;
+    const title = step?.title?.trim();
+    const snippet = comment.length > 160 ? `${comment.slice(0, 157)}...` : comment;
+    const stepLabel = stepNumber ? `na etapa ${stepNumber}` : 'em uma etapa';
+    const titleLabel = title ? ` (${title})` : '';
+    const messageContent = `📝 Novo feedback adicionado ${stepLabel}${titleLabel}: "${snippet}"`;
+    void sendSystemMessage(messageContent);
   };
 
   // Cliente ACEITA step (precisa da senha vinda do Dialog)
@@ -898,6 +915,7 @@ export default function Messages() {
         }}
 
         onClientRejectStep={(step) => handleRejectStep(step)}
+        onFeedbackCreated={handleFeedbackCreated}
         currentIndex={(() => {
           const firstNotDone = selectedTicketSteps.findIndex(
             s => (s.status || '').toLowerCase() !== 'concluido',

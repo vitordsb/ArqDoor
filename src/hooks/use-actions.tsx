@@ -46,7 +46,7 @@ export function useStepFeedbackActions(idStep?: number) {
       }
       const data = await response.json();
       console.log(data)
-      return response.json();
+      return data;
     },
     onSuccess: (_, variables) => {
       // Invalida a query de busca para atualizar a lista
@@ -66,12 +66,17 @@ export function useStepFeedbackActions(idStep?: number) {
   });
 
   // Função para chamar a criação de feedback
-  const createStepFeedback = useCallback((step_id: number, comment: string) => {
+  const createStepFeedback = useCallback(async (step_id: number, comment: string) => {
     if (!comment?.trim()) {
       toast({ description: "O comentário não pode estar vazio.", variant: "destructive" }); //
-      return;
+      return false;
     }
-    createFeedbackMutation.mutate({ step_id, comment });
+    try {
+      await createFeedbackMutation.mutateAsync({ step_id, comment });
+      return true;
+    } catch (error) {
+      return false;
+    }
   }, [createFeedbackMutation, toast]); //
 
   return {
