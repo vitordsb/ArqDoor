@@ -39,6 +39,20 @@ import { OlderContractsDialog } from '@/components/modals/OlderContractsDialog';
 
 type ProposalStep = { id: string; title: string; price: number };
 
+type SignatureDialogOverrides = {
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
+  agreeLabel?: string;
+  passwordPlaceholder?: string;
+  requireAck?: boolean;
+};
+
+type SignatureFlow =
+  | ({ type: 'contract'; ticket: any } & SignatureDialogOverrides)
+  | ({ type: 'step-complete'; stepId: number; ticketId: number } & SignatureDialogOverrides)
+  | ({ type: 'step-accept'; step: any } & SignatureDialogOverrides);
+
 export default function Messages() {
   const [location, setLocation] = useLocation();
   const { userId } = useParams<{ userId?: string }>();
@@ -199,6 +213,7 @@ export default function Messages() {
   const [ackChecked, setAckChecked] = useState(false);
   const [signingDocument, setSigningDocument] = useState(false);
   const [showPasswordField, setShowPasswordField] = useState(false);
+  const [signatureFlow, setSignatureFlow] = useState<SignatureFlow | null>(null);
 
   const [showOlderTickets, setShowOlderTickets] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -329,9 +344,11 @@ export default function Messages() {
       setSelectedTicketSteps(updated);
     }
   };
-  const handleMarkStepCompleted = async (stepId: number, password: string, ticketId: number) => {
-    await markStepCompleted(stepId, password, ticketId);
-  };
+  const handleMarkStepCompleted = async (
+    stepId: number,
+    password: string,
+    ticketId: number,
+  ) => markStepCompleted(stepId, password, ticketId);
 
   // Cliente REJEITA um step específico
   const handleRejectStep = async (step: any) => {
@@ -377,12 +394,14 @@ export default function Messages() {
           description: 'A próxima etapa foi iniciada.',
         });
       }
+      return ok;
     } catch (e: any) {
       toast({
         title: 'Erro',
         description: e?.message || 'Não foi possível aceitar a etapa.',
         variant: 'destructive',
       });
+      return false;
     }
   };
 
@@ -407,6 +426,77 @@ export default function Messages() {
     }
   };
 
+  const resetSignatureDialogState = () => {
+    setSignaturePassword('');
+    setAckChecked(false);
+    setShowPasswordField(false);
+    setSignatureFlow(null);
+    setSelectedTicketForSignature(null);
+  };
+
+  const openContractSignatureDialog = (ticket: any) => {
+    if (!ticket) return;
+    resetSignatureDialogState();
+    setSelectedTicketForSignature(ticket);
+    setSignatureFlow({
+      type: 'contract',
+      ticket,
+      title: 'Assinatura Digital',
+      description: 'Confirme os termos e insira sua senha.',
+      confirmLabel: 'Assinar',
+      agreeLabel: 'Prosseguir',
+      passwordPlaceholder: 'Digite sua senha',
+      requireAck: true,
+    });
+    setSignaturePassword('');
+    setAckChecked(false);
+    setShowPasswordField(false);
+    setShowSignatureModal(true);
+  };
+
+  const openFreelancerStepSignature = (stepId: number, ticketId: number) => {
+    resetSignatureDialogState();
+    setSignatureFlow({
+      type: 'step-complete',
+      stepId,
+      ticketId,
+      title: 'Concluir etapa',
+      description: 'Confirme sua senha para concluir esta etapa.',
+      confirmLabel: 'Concluir etapa',
+      passwordPlaceholder: 'Digite sua senha',
+      requireAck: false,
+    });
+    setSignaturePassword('');
+    setAckChecked(true);
+    setShowPasswordField(true);
+    setShowSignatureModal(true);
+  };
+
+  const openClientStepSignature = (step: any) => {
+    resetSignatureDialogState();
+    setSignatureFlow({
+      type: 'step-accept',
+      step,
+      title: 'Aceitar etapa',
+      description: 'Informe sua senha para aceitar esta etapa.',
+      confirmLabel: 'Aceitar etapa',
+      passwordPlaceholder: 'Digite sua senha',
+      requireAck: false,
+    });
+    setSignaturePassword('');
+    setAckChecked(true);
+    setShowPasswordField(true);
+    setShowSignatureModal(true);
+  };
+
+  const handleSignatureModalChange = (open: boolean) => {
+    setShowSignatureModal(open);
+    if (!open) {
+      resetSignatureDialogState();
+      setSigningDocument(false);
+    }
+  };
+
   // ---------- handlers: assinatura (contrato) ----------
   const handleStartSignature = (ticket: any) => {
     if (!ticket) return;
@@ -418,14 +508,13 @@ export default function Messages() {
       });
       return;
     }
-    setSelectedTicketForSignature(ticket);
-    setSignaturePassword('');
-    setAckChecked(false);
-    setShowPasswordField(false);
-    setShowSignatureModal(true);
+    openContractSignatureDialog(ticket);
   };
   const handleAgreeAndAskPassword = () => {
-    if (!ackChecked) {
+    const requireAck = signatureFlow
+      ? signatureFlow.requireAck ?? (signatureFlow.type === 'contract')
+      : true;
+    if (requireAck && !ackChecked) {
       toast({
         title: 'Confirmação necessária',
         description: 'Você deve concordar com os termos.',
@@ -436,33 +525,76 @@ export default function Messages() {
     setShowPasswordField(true);
   };
   const handleConfirmSignature = async () => {
-    if (!selectedTicketForSignature) return;
-    if (!ackChecked || !signaturePassword.trim()) {
+    if (!signatureFlow) return;
+
+    const requireAck =
+      signatureFlow.requireAck ?? (signatureFlow.type === 'contract');
+    const password = signaturePassword.trim();
+
+    if (requireAck && !ackChecked) {
       toast({
-        title: 'Termos não assinados.',
-        description: 'Confirme os termos e depois digite sua senha.',
+        title: 'Confirmação necessária',
+        description: 'Você deve concordar com os termos.',
         variant: 'destructive',
       });
       return;
     }
+
+    if (!password) {
+      toast({
+        title: 'Senha obrigatória',
+        description: 'Digite sua senha para continuar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (signatureFlow.type === 'contract' && !selectedTicketForSignature) {
+      toast({
+        title: 'Contrato inválido',
+        description: 'Não foi possível identificar o contrato para assinatura.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSigningDocument(true);
 
     try {
-      const ticketId = selectedTicketForSignature.id as number;
-      const ok = await signContract(ticketId, signaturePassword);
-      if (!ok) return;
+      if (signatureFlow.type === 'contract') {
+        const ticketId = selectedTicketForSignature!.id as number;
+        const ok = await signContract(ticketId, password);
+        if (!ok) return;
 
-      toast({
-        title: 'Documento assinado',
-        description: 'O contrato foi assinado e registrado.',
-      });
-      setShowSignatureModal(false);
-      setSelectedTicketForSignature(null);
-      setSignaturePassword('');
-      setAckChecked(false);
-      setShowPasswordField(false);
+        toast({
+          title: 'Documento assinado',
+          description: 'O contrato foi assinado e registrado.',
+        });
+        setShowSignatureModal(false);
+        resetSignatureDialogState();
 
-      await handleViewPdf(ticketId);
+        await handleViewPdf(ticketId);
+        return;
+      }
+
+      if (signatureFlow.type === 'step-complete') {
+        const ok = await handleMarkStepCompleted(
+          signatureFlow.stepId,
+          password,
+          signatureFlow.ticketId,
+        );
+        if (ok === false) return;
+        setShowSignatureModal(false);
+        resetSignatureDialogState();
+        return;
+      }
+
+      if (signatureFlow.type === 'step-accept') {
+        const ok = await handleAcceptStep(signatureFlow.step, password);
+        if (ok === false) return;
+        setShowSignatureModal(false);
+        resetSignatureDialogState();
+      }
     } finally {
       setSigningDocument(false);
     }
@@ -521,6 +653,13 @@ export default function Messages() {
     a.remove();
     URL.revokeObjectURL(url);
   };
+
+  const signatureRequiresAck = signatureFlow
+    ? signatureFlow.requireAck ?? (signatureFlow.type === 'contract')
+    : true;
+  const signatureAgreeHandler = signatureRequiresAck
+    ? handleAgreeAndAskPassword
+    : () => setShowPasswordField(true);
 
   // ---------- componentes internos ----------
   const ProposalCard = ({
@@ -903,16 +1042,10 @@ export default function Messages() {
         onEditStepDataChange={setEditStepData}
         onSaveStep={handleSaveStep}
         onCancelEdit={() => setEditingStep(null)}
-        onMarkProviderCompleted={(id, ticketId) => {
-          const pwd = window.prompt('Senha do prestador para concluir a etapa:') || '';
-          if (!pwd) return;
-          handleMarkStepCompleted(id, pwd, ticketId);
-        }}
-        onClientAccept={async (step) => {
-          const pwd = window.prompt('Digite sua senha para aceitar a etapa:') || '';
-          if (!pwd) return; // usuário cancelou
-          await handleAcceptStep(step, pwd);
-        }}
+        onMarkProviderCompleted={(id, ticketId) =>
+          openFreelancerStepSignature(id, ticketId)
+        }
+        onClientAccept={step => openClientStepSignature(step)}
 
         onClientRejectStep={(step) => handleRejectStep(step)}
         onFeedbackCreated={handleFeedbackCreated}
@@ -925,13 +1058,9 @@ export default function Messages() {
             : firstNotDone;
         })()}
         onStartSignature={handleStartSignature}
-        onOpenSignature={(ticketId: any) => {
-          setSelectedTicketForSignature({ id: ticketId, status: 'pendente' });
-          setSignaturePassword('');
-          setAckChecked(false);
-          setShowPasswordField(false);
-          setShowSignatureModal(true);
-        }}
+        onOpenSignature={(ticketId: any) =>
+          openContractSignatureDialog({ id: ticketId, status: 'pendente' })
+        }
         onRejectContract={ticketId => handleRejectContract(ticketId)}
       />
 
@@ -953,16 +1082,21 @@ export default function Messages() {
 
       <SignatureDialog
         open={showSignatureModal}
-        onOpenChange={setShowSignatureModal}
+        onOpenChange={handleSignatureModalChange}
         ackChecked={ackChecked}
         setAckChecked={setAckChecked}
         signaturePassword={signaturePassword}
         setSignaturePassword={setSignaturePassword}
         showPasswordField={showPasswordField}
-        setShowPasswordField={setShowPasswordField}
         signingDocument={signingDocument}
-        onAgree={handleAgreeAndAskPassword}
+        onAgree={signatureAgreeHandler}
         onConfirm={handleConfirmSignature}
+        title={signatureFlow?.title}
+        description={signatureFlow?.description}
+        confirmLabel={signatureFlow?.confirmLabel}
+        agreeLabel={signatureFlow?.agreeLabel}
+        passwordPlaceholder={signatureFlow?.passwordPlaceholder}
+        requireAck={signatureRequiresAck}
       />
 
       <PdfViewerDialog
