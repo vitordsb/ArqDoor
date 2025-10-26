@@ -685,12 +685,11 @@ export default function Messages() {
 
     return (
       <div
-        className={`group rounded-xl p-5 shadow-sm border transition-all duration-200 hover:shadow-md ${cfg.bg} ${cfg.border} ${isLatest ? 'ring-2 ring-orange-200' : ''
-          }`}
+        className={`flex flex-col justify-between p-3 shadow-sm border transition-all duration-200 hover:shadow-md ${cfg.bg} ${cfg.border}`}
       >
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white shadow-sm">
+            <div className="p-1 rounded-lg bg-white shadow-sm">
               <cfg.icon className={`h-5 w-5 ${cfg.color}`} />
             </div>
             <h3 className="font-semibold text-gray-900">Proposta #{ticket.id}</h3>
@@ -698,7 +697,7 @@ export default function Messages() {
           <Badge className={cfg.badgeClass}>{cfg.label}</Badge>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">{steps.length} etapas</span>
             <span className="text-lg font-bold text-gray-900">
