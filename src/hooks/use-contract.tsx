@@ -623,6 +623,7 @@ export function useContract(conversationId?: number) {
     createProposal,
     updateTicketStatus,
     deleteTicket,
+    sendSystemMessage,
 
     // utils
     getActiveTicket,
