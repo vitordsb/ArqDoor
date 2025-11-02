@@ -6,7 +6,16 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
-  Edit2, Trash2, CheckCircle, XCircle, Shield, Check, X, MoreVertical, MessageCircle
+  Edit2,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Shield,
+  Check,
+  X,
+  MoreVertical,
+  MessageCircle,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import * as React from "react"
@@ -58,11 +67,13 @@ export function ProposalDetailsDialog({
   onRejectContract: (ticketId: number) => void
   onClientAccept: (step: Step) => Promise<void>
   onClientRejectStep: (step: Step) => Promise<boolean>,
-  onFeedbackCreated?: (step: Step, comment: string) => void,
+  onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void,
   currentIndex: number
 }) {
   const [viewingFeedbackStep, setViewingFeedbackStep] = React.useState<Step | null>(null);
+  const [viewingFeedbackType, setViewingFeedbackType] = React.useState<'normal' | 'problem'>('normal');
   const [addingFeedbackStep, setAddingFeedbackStep] = React.useState<Step | null>(null);
+  const [feedbackFormType, setFeedbackFormType] = React.useState<'normal' | 'problem'>('normal');
   const [newFeedbackComment, setNewFeedbackComment] = React.useState("");
 
   const {
@@ -78,11 +89,13 @@ export function ProposalDetailsDialog({
   const handleSubmitFeedback = async () => {
     if (addingFeedbackStep && newFeedbackComment.trim()) {
       const comment = newFeedbackComment.trim();
-      const success = await createStepFeedback(addingFeedbackStep.id, comment);
+      const isProblem = feedbackFormType === 'problem';
+      const success = await createStepFeedback(addingFeedbackStep.id, comment, { isProblem });
       if (success) {
-        onFeedbackCreated?.(addingFeedbackStep, comment);
+        onFeedbackCreated?.(addingFeedbackStep, comment, isProblem);
         setNewFeedbackComment("");
         setAddingFeedbackStep(null);
+        setFeedbackFormType('normal');
       }
     }
   };
@@ -90,6 +103,7 @@ export function ProposalDetailsDialog({
   const handleRejectStepClick = async (step: Step) => {
     const result = await onClientRejectStep(step);
     if (result) {
+      setFeedbackFormType('problem');
       setAddingFeedbackStep(step);
       setNewFeedbackComment("");
     }
@@ -250,23 +264,58 @@ export function ProposalDetailsDialog({
                       </div>
                     )}
                     {!isSignatureStep && !isConcluded(step) && userType === "contratante" && (
-                      <div className="mt-3 pt-3 border-t flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setAddingFeedbackStep(step)}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-2" />
-                          Adicionar Feedback
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setViewingFeedbackStep(step)}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-2" />
-                          Ver Feedbacks
-                        </Button>
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setFeedbackFormType('normal');
+                                setAddingFeedbackStep(step);
+                              }}
+                            >
+                              <MessageCircle className="h-4 w-4 mr-2" />
+                              Feedback avulso
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setViewingFeedbackType('normal');
+                                setViewingFeedbackStep(step);
+                              }}
+                            >
+                              <MessageCircle className="h-4 w-4 mr-2" />
+                              Listar feedbacks
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2 justify-end">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                setFeedbackFormType('problem');
+                                setAddingFeedbackStep(step);
+                              }}
+                            >
+                              <AlertTriangle className="h-4 w-4 mr-2" />
+                              Relatar problema
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-red-400 text-red-600 hover:text-red-700 hover:border-red-500"
+                              onClick={() => {
+                                setViewingFeedbackType('problem');
+                                setViewingFeedbackStep(step);
+                              }}
+                            >
+                              <AlertTriangle className="h-4 w-4 mr-2" />
+                              Listar problemas
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -292,51 +341,108 @@ export function ProposalDetailsDialog({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!viewingFeedbackStep} onOpenChange={(open) => !open && setViewingFeedbackStep(null)}>
+      <Dialog
+        open={!!viewingFeedbackStep}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewingFeedbackStep(null);
+            setViewingFeedbackType('normal');
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Feedbacks da Etapa {steps.findIndex(s => s.id === viewingFeedbackStep?.id) + 1}</DialogTitle>
+            <DialogTitle>
+              {viewingFeedbackType === 'problem' ? 'Problemas relatados' : 'Feedbacks da etapa'}{' '}
+              {viewingFeedbackStep ? steps.findIndex(s => s.id === viewingFeedbackStep.id) + 1 : ''}
+            </DialogTitle>
             <DialogDescription>{viewingFeedbackStep?.title}</DialogDescription>
           </DialogHeader>
           <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
             {isLoadingFeedback ? (
               <p>Carregando feedbacks...</p>
-            ) : feedbackData && feedbackData.length > 0 ? (
-              feedbackData.map(fb => (
-                <div key={fb.id} className="border p-3 rounded-lg bg-gray-50">
+            ) : (() => {
+              const filteredFeedbacks = (feedbackData || []).filter(fb =>
+                viewingFeedbackType === 'problem' ? fb.isProblem : !fb.isProblem
+              );
+              if (filteredFeedbacks.length === 0) {
+                return (
+                  <p className="text-sm text-gray-600">
+                    {viewingFeedbackType === 'problem'
+                      ? 'Nenhum problema relatado para esta etapa.'
+                      : 'Nenhum feedback encontrado para esta etapa.'}
+                  </p>
+                );
+              }
+              return filteredFeedbacks.map(fb => (
+                <div
+                  key={fb.id}
+                  className={`border p-3 rounded-lg ${
+                    fb.isProblem
+                      ? 'border-red-300 bg-red-50 text-red-900'
+                      : 'border-gray-200 bg-gray-50'
+                  }`}
+                >
                   <p className="text-sm">{fb.comment}</p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className={`text-xs mt-1 ${fb.isProblem ? 'text-red-700/80' : 'text-gray-500'}`}>
                     {formatDate(fb.createdAt)}
                   </p>
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-600">Nenhum feedback encontrado para esta etapa.</p>
-            )}
+              ));
+            })()}
           </div>
         </DialogContent>
       </Dialog>
 
       {/* --- Modal para Adicionar Feedback (Novo) --- */}
-      <Dialog open={!!addingFeedbackStep} onOpenChange={(open) => !open && setAddingFeedbackStep(null)}>
+      <Dialog
+        open={!!addingFeedbackStep}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddingFeedbackStep(null);
+            setFeedbackFormType('normal');
+            setNewFeedbackComment("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Adicionar Feedback para Etapa {steps.findIndex(s => s.id === addingFeedbackStep?.id) + 1}</DialogTitle>
+            <DialogTitle>
+              {feedbackFormType === 'problem' ? 'Relatar problema' : 'Adicionar feedback'} para etapa{' '}
+              {addingFeedbackStep ? steps.findIndex(s => s.id === addingFeedbackStep.id) + 1 : ''}
+            </DialogTitle>
             <DialogDescription>{addingFeedbackStep?.title}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {feedbackFormType === 'problem' && (
+              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <AlertTriangle className="h-4 w-4 mt-0.5" />
+                <p>
+                  Detalhe o problema encontrado nesta etapa. Ele aparecerá destacado para a equipe acompanhar
+                  com prioridade.
+                </p>
+              </div>
+            )}
             <Textarea
               value={newFeedbackComment}
               onChange={(e) => setNewFeedbackComment(e.target.value)}
-              placeholder="Escreva seu feedback aqui..."
+              placeholder={
+                feedbackFormType === 'problem'
+                  ? 'Descreva o problema encontrado...'
+                  : 'Escreva seu feedback aqui...'
+              }
               rows={4}
             />
             <Button
               onClick={handleSubmitFeedback}
               disabled={isCreatingFeedback || !newFeedbackComment.trim()}
-              className="w-full"
+              className={`w-full ${feedbackFormType === 'problem' ? 'bg-red-600 hover:bg-red-700' : ''}`}
             >
-              {isCreatingFeedback ? "Enviando..." : "Enviar Feedback"}
+              {isCreatingFeedback
+                ? "Enviando..."
+                : feedbackFormType === 'problem'
+                  ? "Relatar problema"
+                  : "Enviar feedback"}
             </Button>
           </div>
         </DialogContent>
@@ -344,4 +450,3 @@ export function ProposalDetailsDialog({
     </>
   )
 }
-

@@ -369,7 +369,7 @@ export default function Messages() {
     }
   };
 
-  const handleFeedbackCreated = (step: Step, comment: string) => {
+  const handleFeedbackCreated = (step: Step, comment: string, isProblem: boolean) => {
     if (!currentConversation?.id) return;
     const steps = selectedTicketSteps || [];
     const index = steps.findIndex((s: any) => s.id === step.id);
@@ -378,7 +378,9 @@ export default function Messages() {
     const snippet = comment.length > 160 ? `${comment.slice(0, 157)}...` : comment;
     const stepLabel = stepNumber ? `na etapa ${stepNumber}` : 'em uma etapa';
     const titleLabel = title ? ` (${title})` : '';
-    const messageContent = `📝 Novo feedback adicionado ${stepLabel}${titleLabel}: "${snippet}"`;
+    const icon = isProblem ? '🚨' : '📝';
+    const contextLabel = isProblem ? 'problema relatado' : 'feedback adicionado';
+    const messageContent = `${icon} Novo ${contextLabel} ${stepLabel}${titleLabel}: "${snippet}"`;
     void sendSystemMessage(messageContent);
   };
 
@@ -1119,5 +1121,4 @@ export default function Messages() {
     </MessagesLayout>
   );
 }
-
 

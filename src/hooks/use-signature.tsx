@@ -137,7 +137,8 @@ export function useSignature(conversationId?: number) {
             {
               role,
               when: now,      // garante que a data/hora atual seja exibida
-              page: 'last',   // carimba na última página; altere para 'first' se precisar
+              page: 'all',    // garante assinatura em todas as páginas do documento
+              watermarkText: `Assinado eletronicamente por ${user?.name || 'Cliente'} (${role})`,
             }
           );
 

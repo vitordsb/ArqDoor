@@ -2,12 +2,14 @@ import { useCallback } from 'react';
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { decodeFeedbackComment, encodeFeedbackComment } from '@/lib/feedback';
 
 interface StepFeedback {
   id: number;
   step_id: number;
   comment: string;
   createdAt: string;
+  isProblem?: boolean;
 }
 
 export function useStepFeedbackActions(idStep?: number) {
@@ -23,16 +25,24 @@ export function useStepFeedbackActions(idStep?: number) {
         throw new Error('Erro ao buscar feedback da etapa');
       }
       const data = await response.json();
-      console.log(data)
-      return data.feedbacks || []; // Ajuste 'data.feedback' conforme a resposta da sua API
+      const feedbacks = data.feedbacks || [];
+      return feedbacks.map((feedback: StepFeedback) => {
+        const { comment, isProblem } = decodeFeedbackComment(feedback.comment);
+        return {
+          ...feedback,
+          comment,
+          isProblem,
+        };
+      });
     },
     enabled: !!idStep, // Só executa a query se idStep tiver um valor
     staleTime: 5 * 60 * 1000, // Cache de 5 minutos
   });
 
   const createFeedbackMutation = useMutation({
-    mutationFn: async ({ step_id, comment }: { step_id: number; comment: string }) => {
-      const response = await apiRequest('POST', `/stepfeedback/${step_id}`, { comment }); //
+    mutationFn: async ({ step_id, comment, isProblem }: { step_id: number; comment: string; isProblem?: boolean }) => {
+      const encodedComment = encodeFeedbackComment(comment, isProblem);
+      const response = await apiRequest('POST', `/stepfeedback/${step_id}`, { comment: encodedComment }); //
       if (!response.ok) {
         // Tenta pegar a mensagem de erro da API, se disponível
         let errorMessage = 'Erro ao criar feedback';
@@ -45,15 +55,14 @@ export function useStepFeedbackActions(idStep?: number) {
         throw new Error(errorMessage);
       }
       const data = await response.json();
-      console.log(data)
-      return data;
+      return { data, isProblem };
     },
     onSuccess: (_, variables) => {
       // Invalida a query de busca para atualizar a lista
       queryClient.invalidateQueries({ queryKey: ['stepFeedback', variables.step_id] }); //
       toast({ //
         title: "Sucesso",
-        description: "Feedback enviado!",
+        description: variables.isProblem ? "Problema relatado!" : "Feedback enviado!",
       });
     },
     onError: (error: Error) => {
@@ -66,13 +75,13 @@ export function useStepFeedbackActions(idStep?: number) {
   });
 
   // Função para chamar a criação de feedback
-  const createStepFeedback = useCallback(async (step_id: number, comment: string) => {
+  const createStepFeedback = useCallback(async (step_id: number, comment: string, options?: { isProblem?: boolean }) => {
     if (!comment?.trim()) {
       toast({ description: "O comentário não pode estar vazio.", variant: "destructive" }); //
       return false;
     }
     try {
-      await createFeedbackMutation.mutateAsync({ step_id, comment });
+      await createFeedbackMutation.mutateAsync({ step_id, comment: comment.trim(), isProblem: options?.isProblem });
       return true;
     } catch (error) {
       return false;
@@ -86,4 +95,3 @@ export function useStepFeedbackActions(idStep?: number) {
     isCreatingFeedback: createFeedbackMutation.isPending,
   };
 }
-
