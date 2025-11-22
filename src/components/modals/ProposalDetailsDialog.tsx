@@ -15,7 +15,9 @@ import {
   X,
   MoreVertical,
   MessageCircle,
-  AlertTriangle
+  AlertTriangle,
+  QrCode,
+  Loader2,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import * as React from "react"
@@ -47,6 +49,8 @@ export function ProposalDetailsDialog({
   onClientAccept,
   onClientRejectStep,
   onFeedbackCreated,
+  onClientPayStep,
+  payingStepId,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -68,6 +72,8 @@ export function ProposalDetailsDialog({
   onClientAccept: (step: Step) => Promise<void>
   onClientRejectStep: (step: Step) => Promise<boolean>,
   onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void,
+  onClientPayStep?: (step: Step) => void,
+  payingStepId?: number | null,
   currentIndex: number
 }) {
   const [viewingFeedbackStep, setViewingFeedbackStep] = React.useState<Step | null>(null);
@@ -224,6 +230,22 @@ export function ProposalDetailsDialog({
                         }
                         return null
                       })()}
+
+                      {userType === "contratante" && !isSignatureStep && isConcluded(step) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onClientPayStep?.(step)}
+                          disabled={!!payingStepId && payingStepId === step.id}
+                        >
+                          {payingStepId === step.id ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <QrCode className="h-4 w-4 mr-2" />
+                          )}
+                          Gerar pagamento PIX
+                        </Button>
+                      )}
 
                     </div>
 

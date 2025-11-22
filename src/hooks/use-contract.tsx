@@ -411,7 +411,10 @@ export function useContract(conversationId?: number) {
         end_date: dayAfterTomorrowDate,
       };
       const stepsToCreate = [SIGN_STEP, ...validSteps] as (Omit<CreateStepRequest, "ticket_id"> & { start_date?: string | null, endDate?: string | null })[];
-      const totalPrice = validSteps.reduce((acc, s) => acc + (s.price || 0), 0);
+      const totalPrice = stepsToCreate.reduce((acc, s, index) => {
+        if (index === 0) return acc; // ignora a etapa de assinatura gratuita
+        return acc + (s.price || 0);
+      }, 0);
 
       try {
         const tRes = await apiRequest("POST", "/ticket", { conversation_id: conversationId });
@@ -633,4 +636,3 @@ export function useContract(conversationId?: number) {
 }
 
 export default useContract;
-

@@ -787,7 +787,7 @@ export default function SocialFeed() {
             {/* Conteúdo principal */}
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                <h2 className="text-2xl sm:text-2xl font-bold text-gray-700">
                   {currentUser?.type === "prestador"
                     ? "Clientes Disponíveis"
                     : currentUser?.type === "contratante"
@@ -796,7 +796,7 @@ export default function SocialFeed() {
                   }
                 </h2>
                 <Badge variant="outline" className="text-sm">
-                  {displayList.length} {displayList.length === 1 ? "perfil" : "perfis"}
+                  {displayList.length} {displayList.length === 1 ? "perfil encontrado" : "perfis encontrados"}
                 </Badge>
               </div>
 
@@ -813,7 +813,7 @@ export default function SocialFeed() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-2 sm:gap-2">
                   {displayList.map((item) => (
                     <motion.div
                       key={item.user.id}
@@ -843,30 +843,14 @@ export default function SocialFeed() {
                                   <p className="text-amber-600 font-medium text-sm sm:text-base mb-2">
                                     {item.provider.profession || "Ainda não informou"}
                                   </p>
-
-                                  <div className="flex items-center justify-center gap-1 mb-3">
-                                    <div className="flex">
-                                      {[...Array(5)].map((_, i) => (
-                                        <Star
-                                          key={i}
-                                          className={`h-4 w-4 ${i < Math.floor(item.provider.rating_mid)
-                                            ? "text-yellow-400 fill-current"
-                                            : "text-gray-300"
-                                            }`}
-                                        />
-                                      ))}
-                                    </div>
-                                    <span className="text-sm text-gray-600 ml-1">
-                                    </span>
-                                  </div>
                                 </>
                               )}
                             </div>
 
                             {/* Badges e informações */}
-                            <div className="flex flex-wrap justify-center gap-2 mb-4">
-                              <Badge variant="secondary" className="text-xs">
-                                <User className="h-3 w-3 mr-1" />
+                            <div className="flex items-center flex-wrap justify-center gap-2 mb-4">
+                              <Badge variant="default" className="text-xs">
+                                <User className="h-4 w-4 mr-1" />
                                 {item.user.type === "prestador" ? "Prestador" : "Cliente"}
                               </Badge>
 
@@ -896,7 +880,7 @@ export default function SocialFeed() {
                               {isLoggedIn && currentUser?.id !== item.user.id && (
                                 <Button
                                   size="sm"
-                                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm"
+                                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm"
                                   onClick={() => handleStartConversation(item.user.id)}
                                 >
                                   <MessageCircle className="h-4 w-4 mr-1" />
@@ -915,7 +899,7 @@ export default function SocialFeed() {
           </div>
         </div>
       </div>
-    </ApplicationLayout >
+    </ApplicationLayout>
   );
 }
 

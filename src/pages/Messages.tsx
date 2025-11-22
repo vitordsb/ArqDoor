@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
 import { useContract } from '@/hooks/use-contract';
@@ -24,6 +24,8 @@ import {
   Shield,
   Eye,
   Loader2,
+  QrCode,
+  Copy,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -36,6 +38,13 @@ import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog
 import { SignatureDialog } from '@/components/modals/SignatureDialog';
 import { NewProposalDialog } from '@/components/modals/NewProposalDialog';
 import { OlderContractsDialog } from '@/components/modals/OlderContractsDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 type ProposalStep = { id: string; title: string; price: number };
 
@@ -216,6 +225,8 @@ export default function Messages() {
   const [signatureFlow, setSignatureFlow] = useState<SignatureFlow | null>(null);
 
   const [showOlderTickets, setShowOlderTickets] = useState(false);
+  const [stepPaymentInfo, setStepPaymentInfo] = useState<{ step: Step; data: any } | null>(null);
+  const [payingStepId, setPayingStepId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- efeitos ----------
@@ -406,6 +417,70 @@ export default function Messages() {
       return false;
     }
   };
+
+  const handleCopyPixCode = useCallback(
+    async (code?: string) => {
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        toast({ title: 'Código copiado', description: 'PIX copiado para a área de transferência.' });
+      } catch {
+        toast({
+          title: 'Não foi possível copiar',
+          description: 'Copie manualmente o código exibido.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [toast]
+  );
+
+  const handleClientPayStep = useCallback(
+    async (step: Step) => {
+      if (!step?.id) return;
+      if (user?.type !== 'contratante') {
+        toast({
+          title: 'Acesso negado',
+          description: 'Somente contratantes podem gerar pagamentos.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      try {
+        setPayingStepId(step.id);
+        const response = await apiRequest('POST', `/payments/steps/${step.id}`, {
+          description: `Pagamento da etapa "${step.title}"`,
+        });
+
+        let payload: any = {};
+        try {
+          payload = await response.json();
+        } catch {
+          payload = {};
+        }
+
+        if (!response.ok || payload?.success === false) {
+          throw new Error(payload?.message || 'Não foi possível gerar o pagamento.');
+        }
+
+        setStepPaymentInfo({ step, data: payload.data });
+        toast({
+          title: 'Pagamento gerado',
+          description: 'Exibindo o QR Code e o código copia e cola.',
+        });
+      } catch (error: any) {
+        toast({
+          title: 'Erro ao gerar pagamento',
+          description: error?.message || 'Tente novamente mais tarde.',
+          variant: 'destructive',
+        });
+      } finally {
+        setPayingStepId(null);
+      }
+    },
+    [toast, user]
+  );
 
   // ---------- handlers: recusar contrato ----------
   const handleRejectContract = async (ticketId: number) => {
@@ -1050,6 +1125,8 @@ export default function Messages() {
 
         onClientRejectStep={(step) => handleRejectStep(step)}
         onFeedbackCreated={handleFeedbackCreated}
+        onClientPayStep={handleClientPayStep}
+        payingStepId={payingStepId}
         currentIndex={(() => {
           const firstNotDone = selectedTicketSteps.findIndex(
             s => (s.status || '').toLowerCase() !== 'concluido',
@@ -1100,6 +1177,73 @@ export default function Messages() {
         requireAck={signatureRequiresAck}
       />
 
+      <Dialog
+        open={!!stepPaymentInfo}
+        onOpenChange={(open) => {
+          if (!open) setStepPaymentInfo(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Pagamento da etapa {stepPaymentInfo?.step?.title ? `- ${stepPaymentInfo.step.title}` : ''}
+            </DialogTitle>
+            <DialogDescription>
+              Use o QR Code ou copie o código PIX para finalizar o pagamento desta etapa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {(() => {
+              const enc = stepPaymentInfo?.data?.pix?.qr_code_image;
+              if (!enc) return null;
+              const src = enc.startsWith('data:image') ? enc : `data:image/png;base64,${enc}`;
+              return (
+                <div className="flex flex-col items-center gap-2">
+                  <img src={src} alt="QR Code PIX" className="w-44 h-44 object-contain" />
+                  <span className="text-xs text-gray-500">Escaneie para pagar</span>
+                </div>
+              );
+            })()}
+
+            <div>
+              <p className="text-sm font-medium mb-1">Código copia e cola</p>
+              <div className="bg-gray-100 rounded-md p-2 text-xs break-all">
+                {stepPaymentInfo?.data?.pix?.copy_and_paste || 'Não disponível'}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopyPixCode(stepPaymentInfo?.data?.pix?.copy_and_paste)}
+                  disabled={!stepPaymentInfo?.data?.pix?.copy_and_paste}
+                >
+                  <Copy className="h-3.5 w-3.5 mr-1" /> Copiar código
+                </Button>
+                {stepPaymentInfo?.data?.invoice_url && (
+                  <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
+                    <a
+                      href={stepPaymentInfo.data.invoice_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <QrCode className="h-3.5 w-3.5 mr-1" /> Abrir no Asaas
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {stepPaymentInfo?.data?.pix?.expires_at && (
+              <p className="text-xs text-gray-500">
+                Expira em{' '}
+                {new Date(stepPaymentInfo.data.pix.expires_at).toLocaleString('pt-BR')}
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <PdfViewerDialog
         open={showPdfViewer}
         onOpenChange={closePdfViewer}
@@ -1121,4 +1265,3 @@ export default function Messages() {
     </MessagesLayout>
   );
 }
-

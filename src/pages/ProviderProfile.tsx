@@ -169,7 +169,6 @@ export default function ProviderProfile() {
                 <CardTitle>Informações</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <p><User className="w-4 h-4 inline mr-2" /> {user.email}</p>
                 <p><Clock className="w-4 h-4 inline mr-2" /> Desde {new Date(user.createdAt).toLocaleDateString()}</p>
               </CardContent>
             </Card>

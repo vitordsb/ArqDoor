@@ -1,6 +1,6 @@
 
 // src/pages/Profile.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -52,24 +52,51 @@ export default function Profile() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // about me
-  const [about, setAbout] = useState<string>(user?.about || "");
+  const [about, setAbout] = useState<string>("");
   const [isEditingAbout, setIsEditingAbout] = useState(false);
   const [savingAbout, setSavingAbout] = useState(false);
+  const [providerProfile, setProviderProfile] = useState<any | null>(null);
+  const [loadingProviderInfo, setLoadingProviderInfo] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
+
+  const [documentsData, setDocumentsData] = useState({ cpf: "", cnpj: "" });
+  const [documentsOriginal, setDocumentsOriginal] = useState({ cpf: "", cnpj: "" });
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [savingDocuments, setSavingDocuments] = useState(false);
 
   // === função para salvar/editar o "Sobre mim" ===
   const handleSaveAbout = async () => {
     if (!user) return;
+    if (user.type !== "prestador") {
+      toast({
+        title: "Recurso indisponível",
+        description: "A seção 'Sobre mim' está disponível apenas para prestadores.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!providerProfile) {
+      toast({
+        title: "Prestador não encontrado",
+        description: "Não foi possível carregar seus dados. Atualize a página.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSavingAbout(true);
     try {
       const payload = { about };
-      const endpoint =
-        user.type === "prestador"
-          ? `/providers/${user.id}` // se o about ficar na tabela providers
-          : `/users/${user.id}`; // se o about ficar na tabela users
+      const endpoint = `/providers/${providerProfile.provider_id}`;
 
       const res = await apiRequest("PUT", endpoint, payload);
-      if (!res.ok) throw new Error(`Erro ao salvar: ${res.status}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || `Erro ao salvar: ${res.status}`);
+      }
 
+      setProviderProfile((prev: any) =>
+        prev ? { ...prev, about } : prev
+      );
       toast({ title: "Sucesso", description: "Sobre mim atualizado!" });
       setIsEditingAbout(false);
     } catch (err: any) {
@@ -77,6 +104,101 @@ export default function Profile() {
     } finally {
       setSavingAbout(false);
     }
+  };
+
+  const sanitizeCpf = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 11);
+  const sanitizeCnpj = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 14);
+
+  const loadProviderInfo = useCallback(async () => {
+    if (!user || user.type !== "prestador") {
+      setProviderProfile(null);
+      setAbout("");
+      return;
+    }
+    try {
+      setLoadingProviderInfo(true);
+      setProviderError(null);
+      const res = await apiRequest("GET", `/providers/user/${user.id}`);
+      if (!res.ok) {
+        throw new Error("Não foi possível carregar os dados do prestador");
+      }
+      const body = await res.json();
+      setProviderProfile(body.provider);
+      setAbout(body.provider?.about || "");
+    } catch (error: any) {
+      setProviderError(error?.message || "Falha ao carregar dados do prestador");
+      setProviderProfile(null);
+      setAbout("");
+    } finally {
+      setLoadingProviderInfo(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadProviderInfo();
+  }, [loadProviderInfo]);
+
+  const loadDocumentsData = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingDocuments(true);
+    try {
+      const res = await apiRequest("GET", `/users/${user.id}`);
+      if (!res.ok) return;
+      const body = await res.json();
+      const next = {
+        cpf: body?.user?.cpf || "",
+        cnpj: body?.user?.cnpj || "",
+      };
+      setDocumentsData(next);
+      setDocumentsOriginal(next);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingDocuments(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadDocumentsData();
+  }, [loadDocumentsData]);
+
+  const documentsChanged =
+    documentsData.cpf !== documentsOriginal.cpf ||
+    documentsData.cnpj !== documentsOriginal.cnpj;
+
+  const handleSaveDocuments = async () => {
+    if (!user) return;
+    setSavingDocuments(true);
+    try {
+      const payload: Record<string, string | null> = {
+        cpf: documentsData.cpf || null,
+        cnpj: documentsData.cnpj || null,
+      };
+
+      const res = await apiRequest("PUT", `/users/${user.id}`, payload);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Não foi possível atualizar os documentos");
+      }
+
+      setDocumentsOriginal({ ...documentsData });
+      toast({
+        title: "Dados atualizados",
+        description: "Seu CPF/CNPJ será usado apenas para pagamentos internos",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error?.message || "Não foi possível salvar os documentos",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingDocuments(false);
+    }
+  };
+
+  const handleCancelDocuments = () => {
+    setDocumentsData(documentsOriginal);
   };
 
   // === Load ===
@@ -262,7 +384,18 @@ export default function Profile() {
                   <CardTitle>Sobre mim</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {isEditingAbout ? (
+                  {user.type !== "prestador" ? (
+                    <p className="text-sm text-slate-500">
+                      Apenas prestadores podem definir uma descrição pública no momento.
+                    </p>
+                  ) : loadingProviderInfo ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Carregando descrição...
+                    </div>
+                  ) : providerError ? (
+                    <p className="text-sm text-red-600">{providerError}</p>
+                  ) : isEditingAbout ? (
                     <div className="space-y-3">
                       <Textarea
                         value={about}
@@ -273,7 +406,7 @@ export default function Profile() {
                         <Button
                           size="sm"
                           onClick={handleSaveAbout}
-                          disabled={savingAbout}
+                          disabled={savingAbout || !providerProfile}
                           className="bg-green-600 text-white"
                         >
                           {savingAbout ? (
@@ -307,6 +440,75 @@ export default function Profile() {
                         {about && about.trim() !== "" ? "Editar" : "Adicionar"}
                       </Button>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Documentos para pagamento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loadingDocuments ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Carregando dados...
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">CPF</label>
+                        <Input
+                          value={documentsData.cpf}
+                          onChange={(e) =>
+                            setDocumentsData((prev) => ({
+                              ...prev,
+                              cpf: sanitizeCpf(e.target.value),
+                            }))
+                          }
+                          placeholder="Somente números"
+                          maxLength={14}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">CNPJ</label>
+                        <Input
+                          value={documentsData.cnpj}
+                          onChange={(e) =>
+                            setDocumentsData((prev) => ({
+                              ...prev,
+                              cnpj: sanitizeCnpj(e.target.value),
+                            }))
+                          }
+                          placeholder="Somente números"
+                          maxLength={18}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Essas informações são usadas apenas para processar pagamentos e não são exibidas para outros usuários.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-orange-600 text-white"
+                          onClick={handleSaveDocuments}
+                          disabled={!documentsChanged || savingDocuments}
+                        >
+                          {savingDocuments ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
+                          Salvar documentos
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleCancelDocuments}
+                          disabled={!documentsChanged || savingDocuments}
+                        >
+                          <X className="w-4 h-4 mr-1" /> Cancelar
+                        </Button>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -493,4 +695,3 @@ export default function Profile() {
     </AplicationLayout>
   );
 }
-

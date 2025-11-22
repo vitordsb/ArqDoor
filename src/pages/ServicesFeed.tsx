@@ -326,7 +326,7 @@ export default function ServicesFeed() {
                           Ver Perfil
                         </Button>
                       </Link>
-                      <Link href={`/providers/${svc.id_serviceFreelancer}`}>
+                      <Link href={`/providers/${svc.id_provider}`}>
                         <Button
                           size="lg"
                           className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1 focus:ring-2 focus:ring-orange-300"
