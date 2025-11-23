@@ -843,6 +843,11 @@ export default function SocialFeed() {
                                   <p className="text-amber-600 font-medium text-sm sm:text-base mb-2">
                                     {item.provider.profession || "Ainda não informou"}
                                   </p>
+                                  {(currentUser?.type !== "prestador" || !currentUser) && item.provider.about && (
+                                    <p className="text-sm text-gray-600 mb-3 line-clamp-1">
+                                      {item.provider.about}
+                                    </p>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -902,5 +907,3 @@ export default function SocialFeed() {
     </ApplicationLayout>
   );
 }
-
-

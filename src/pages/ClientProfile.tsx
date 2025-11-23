@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { User, Briefcase, Loader2, MessageCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 export interface UserApi {
   id: number;
@@ -36,6 +37,7 @@ export interface Demand {
 export default function ClientProfile() {
   const { user_id } = useParams<{ user_id: string }>();
   const [location, setLocation] = useLocation();
+  const { user: currentUser } = useAuth();
 
   const { data: usersEnv, isLoading: loadingUsers } = useQuery<{ users: UserApi[] }>({
     queryKey: ["users"],
@@ -94,6 +96,11 @@ export default function ClientProfile() {
       .slice(0, 2)
       .toUpperCase();
 
+  const canShowEmail =
+    !currentUser ||
+    currentUser.id === user.id ||
+    currentUser.type !== "prestador";
+
   return (
     <ApplicationLayout>
       <div className="max-w-6xl mx-auto p-6 space-y-8">
@@ -120,7 +127,11 @@ export default function ClientProfile() {
                 <CardTitle>Informações</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <p><User className="w-4 h-4 inline mr-2" /> {user.email}</p>
+                {canShowEmail ? (
+                  <p><User className="w-4 h-4 inline mr-2" /> {user.email}</p>
+                ) : (
+                  <p className="text-sm text-slate-500">Email oculto para prestadores.</p>
+                )}
                 <p><Clock className="w-4 h-4 inline mr-2" /> Desde {new Date(user.createdAt).toLocaleDateString()}</p>
               </CardContent>
             </Card>
@@ -154,4 +165,3 @@ export default function ClientProfile() {
     </ApplicationLayout>
   );
 }
-

@@ -1,6 +1,6 @@
 
 // components/PortfolioModal.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Heart, MessageCircle, Share, Bookmark, Trash2, Edit2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,15 +13,16 @@ interface PortfolioItem {
   title: string;
   description: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
-interface Comment {
+export type PortfolioComment = {
   id: number;
   user: string;
   text: string;
   date: string;
-}
+  avatar?: string;
+};
 
 interface PortfolioModalProps {
   isOpen: boolean;
@@ -30,8 +31,15 @@ interface PortfolioModalProps {
   imageUrl: string;
   userName: string;
   userAvatar?: string;
+  viewerName: string;
+  viewerAvatar?: string;
+  initialLikes?: number;
+  initialLiked?: boolean;
+  initialComments?: PortfolioComment[];
   onDelete?: (id: number) => void;
   onEdit?: (item: PortfolioItem) => void;
+  onToggleLike?: (liked: boolean) => Promise<void> | void;
+  onAddComment?: (commentText: string) => Promise<void> | void;
 }
 
 export default function PortfolioModal({
@@ -41,25 +49,29 @@ export default function PortfolioModal({
   imageUrl,
   userName,
   userAvatar,
+  viewerName,
+  viewerAvatar,
+  initialLikes = 0,
+  initialLiked = false,
+  initialComments = [],
   onDelete,
-  onEdit
+  onEdit,
+  onToggleLike,
+  onAddComment
 }: PortfolioModalProps) {
+  const [likes, setLikes] = useState(initialLikes);
+  const [liked, setLiked] = useState(initialLiked);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: 1,
-      user: "João Silva",
-      text: "Trabalho incrível! Parabéns pelo resultado.",
-      date: "2 dias atrás"
-    },
-    {
-      id: 2,
-      user: "Maria Santos",
-      text: "Adorei o estilo! Você tem muito talento.",
-      date: "1 dia atrás"
-    }
-  ]);
+  const [comments, setComments] = useState<PortfolioComment[]>(initialComments);
+
+  useEffect(() => {
+    setLikes(initialLikes);
+    setLiked(initialLiked);
+    setComments(initialComments);
+    setShowComments(false);
+    setNewComment("");
+  }, [initialComments, initialLiked, initialLikes, isOpen, item?.id]);
 
   if (!isOpen || !item) return null;
   
@@ -85,22 +97,35 @@ export default function PortfolioModal({
     }
   };
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      const comment: Comment = {
-        id: comments.length + 1,
-        user: userName,
-        text: newComment.trim(),
-        date: "agora"
-      };
-      setComments([...comments, comment]);
-      setNewComment("");
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !onAddComment) return;
+    const text = newComment.trim();
+    setNewComment("");
+    try {
+      await onAddComment(text);
+    } catch (err) {
+      console.error("Erro ao adicionar comentário", err);
+      setNewComment(text);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleAddComment();
+    }
+  };
+
+  const handleToggleLike = async () => {
+    const nextLiked = !liked;
+    const likeDiff = nextLiked ? 1 : -1;
+    setLiked(nextLiked);
+    setLikes((prev) => Math.max(0, prev + likeDiff));
+    try {
+      await onToggleLike?.(nextLiked);
+    } catch (err) {
+      console.error("Erro ao atualizar like", err);
+      setLiked(!nextLiked);
+      setLikes((prev) => Math.max(0, prev - likeDiff));
     }
   };
 
@@ -172,14 +197,21 @@ export default function PortfolioModal({
                   </AvatarFallback>
                 </Avatar>
                 <span className="text-white font-medium">{userName}</span>
-                <span className="text-white/70 text-sm">• {formatDate(item.created_at)}</span>
+                <span className="text-white/70 text-sm">
+                  • {formatDate(item.created_at || (item as any).createdAt || new Date().toISOString())}
+                </span>
               </div>
             </div>
 
             {/* Botões de ação na parte inferior */}
             <div className="absolute bottom-0 left-4 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <Button size="sm" variant="ghost" className="text-white hover:bg-white/20 rounded-full w-10 h-10 p-0">
-                <Heart className="w-5 h-5" />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleToggleLike}
+                className={`text-white hover:bg-white/20 rounded-full w-10 h-10 p-0 ${liked ? "bg-white/10" : ""}`}
+              >
+                <Heart className={`w-5 h-5 ${liked ? "fill-white" : ""}`} />
               </Button>
               <Button size="sm" variant="ghost" className="text-white hover:bg-white/20 rounded-full w-10 h-10 p-0">
                 <Share className="w-5 h-5" />
@@ -187,6 +219,9 @@ export default function PortfolioModal({
               <Button size="sm" variant="ghost" className="text-white hover:bg-white/20 rounded-full w-10 h-10 p-0">
                 <Bookmark className="w-5 h-5" />
               </Button>
+              <span className="text-white text-sm ml-1">
+                {likes} {likes === 1 ? "like" : "likes"}
+              </span>
             </div>
 
             {/* Tarja "Ver comentários" */}
@@ -215,8 +250,9 @@ export default function PortfolioModal({
                 {comments.map((comment) => (
                   <div key={comment.id} className="flex gap-3">
                     <Avatar className="w-8 h-8 flex-shrink-0">
+                      <AvatarImage src={comment.avatar} alt={comment.user} />
                       <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
-                          {comment.user}
+                        {comment.user.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
@@ -224,7 +260,9 @@ export default function PortfolioModal({
                         <p className="font-medium text-sm text-gray-800">{comment.user}</p>
                         <p className="text-sm text-gray-700 mt-1">{comment.text}</p>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1 ml-3">{comment.date}</p>
+                      <p className="text-xs text-gray-500 mt-1 ml-3">
+                        {comment.date ? new Date(comment.date).toLocaleString("pt-BR") : ""}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -234,9 +272,9 @@ export default function PortfolioModal({
               <div className="p-4 border-t border-gray-200">
                 <div className="flex gap-2">
                   <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarImage src={userAvatar} alt={userName} />
+                    <AvatarImage src={viewerAvatar} alt={viewerName} />
                     <AvatarFallback className="bg-amber-100 text-amber-700 text-xs">
-                      {userName}
+                      {viewerName?.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 flex gap-2">
@@ -249,7 +287,7 @@ export default function PortfolioModal({
                     />
                     <Button
                       onClick={handleAddComment}
-                      disabled={!newComment.trim()}
+                      disabled={!newComment.trim() || !onAddComment}
                       size="sm"
                       className="bg-amber-600 hover:bg-amber-700 text-white px-3"
                     >
@@ -265,4 +303,3 @@ export default function PortfolioModal({
     </div>
   );
 }
-
