@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
-export const API_BASE_URL = import.meta.env.URL_BASE_API;
+// export const API_BASE_URL = "http://localhost:8080";
+export const API_BASE_URL = "https://arqdoor.com";
 
 export async function apiRequest(
   method: string,
