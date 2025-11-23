@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-export const API_BASE_URL = "http://localhost:8080";
+export const API_BASE_URL = "http://89.116.225.129:8080";
 
 export async function apiRequest(
   method: string,
