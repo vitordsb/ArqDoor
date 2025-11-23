@@ -85,7 +85,15 @@ export const register = async (data: RegisterInterface) => {
 };
 
 export const logout = async (setUser: React.Dispatch<React.SetStateAction<User | null>>) => {
-  await apiRequest("POST", "/auth/logout");
+  // Muitos backends com JWT não precisam de rota de logout;
+  // limpar o token local já é suficiente.
+  try {
+    // Se no futuro existir uma rota /auth/logout, você pode reativar:
+    // const res = await apiRequest("POST", "/auth/logout");
+    // ignorar 404 ou falhas não críticas
+  } catch {
+    // silenciosamente ignora erros de logout remoto
+  }
   sessionStorage.clear();
   setUser(null);
   toast({ title: "Até mais!", description: "Você saiu da sua conta." });
@@ -140,4 +148,3 @@ export function useAuth(): AuthContextType {
   if (!ctx) throw new Error("useAuth deve estar dentro de AuthProvider");
   return ctx;
 }
-

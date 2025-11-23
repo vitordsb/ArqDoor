@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
 import {
   Ticket,
   Step,
@@ -315,21 +316,28 @@ export function useContract(conversationId?: number) {
   const confirmStepCompletion = confirmFreelancerStep; // alias compat
 
   // cliente assina/aceita etapa formalmente (usa /step/signature/{id})
-  const preConfirmFirstStepFreelancer = async (stepId: number) => {
+  const preConfirmFirstStepFreelancer = async (stepId: number, password: string) => {
+    const sanitizedPassword = (password || "").trim();
+    if (!sanitizedPassword) {
+      console.warn("Senha não fornecida para pré-confirmar a primeira etapa.");
+      return false;
+    }
     try {
-      const setPassword = window.prompt("Por favor, digite a senha para confirmar o contrato");
       const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
         confirm_freelancer: true,
         confirmFreelancer: true,
-        password: setPassword,
+        password: sanitizedPassword,
       });
-      if (res.ok) return true;
+      if (!res.ok) {
+        console.warn("Falha ao pré-confirmar etapa de assinatura:", await res.text());
+        return false;
+      }
       return true;
     } catch (e) {
       console.warn("Não consegui pré-confirmar o contrato pelo freelancer:", e);
       return false;
     }
-  }
+  };
   const checkAndConcludeTicket = useCallback(
     async (ticketId: number) => {
       try {
@@ -375,10 +383,20 @@ export function useContract(conversationId?: number) {
   const createProposal = useCallback(
     async (
       steps: Omit<CreateStepRequest, "ticket_id">[],
-      contractFile?: File | Blob
+      contractFile?: File | Blob,
+      signaturePassword?: string
     ) => {
       if (!conversationId) return false;
       if (!user || user.type !== "prestador") return false;
+      const sanitizedPassword = (signaturePassword || "").trim();
+      if (!sanitizedPassword) {
+        toast({
+          title: "Senha obrigatória",
+          description: "Informe sua senha para confirmar a etapa de assinatura.",
+          variant: "destructive",
+        });
+        return false;
+      }
       const validSteps = steps.filter((s) => s.title?.trim() && s.price > 0);
       if (validSteps.length < 1) {
         toast({
@@ -405,8 +423,8 @@ export function useContract(conversationId?: number) {
       const tomorrowDate = getFutureDateIso(1);
       const dayAfterTomorrowDate = getFutureDateIso(2);
       const SIGN_STEP: Omit<CreateStepRequest, "ticket_id"> & { start_date: string; end_date: string } = {
-        title: "Assinatura do contrato (PDF)",
-        price: 1,
+        title: SIGNATURE_STEP_TITLE,
+        price: 0,
         start_date: tomorrowDate,
         end_date: dayAfterTomorrowDate,
       };
@@ -499,7 +517,13 @@ export function useContract(conversationId?: number) {
           });
         }
         if (createdSteps[0]?.id) {
-          await preConfirmFirstStepFreelancer(createdSteps[0].id);
+          const confirmed = await preConfirmFirstStepFreelancer(
+            createdSteps[0].id,
+            sanitizedPassword
+          );
+          if (!confirmed) {
+            throw new Error("Não foi possível confirmar a etapa de assinatura.");
+          }
         }
         if (contractFile) await uploadPDF(ticketId, contractFile);
         await sendSystemMessage(

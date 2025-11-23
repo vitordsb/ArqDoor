@@ -6,6 +6,7 @@ import { useContract } from '@/hooks/use-contract';
 import { useSignature } from '@/hooks/use-signature';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
 import { formatTotalDurationFromDays } from '@/lib/utils';
-import type { Step } from '@/lib/Interfaces';
+import type { Step, CreateStepRequest } from '@/lib/Interfaces';
 
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
@@ -60,7 +61,15 @@ type SignatureDialogOverrides = {
 type SignatureFlow =
   | ({ type: 'contract'; ticket: any } & SignatureDialogOverrides)
   | ({ type: 'step-complete'; stepId: number; ticketId: number } & SignatureDialogOverrides)
-  | ({ type: 'step-accept'; step: any } & SignatureDialogOverrides);
+  | ({ type: 'step-accept'; step: any } & SignatureDialogOverrides)
+  | ({ type: 'proposal-first-step' } & SignatureDialogOverrides);
+
+type ProposalStepPayload = Omit<CreateStepRequest, 'ticket_id'> & {
+  startDate?: string;
+  endDate?: string;
+  start_date?: string;
+  end_date?: string;
+};
 
 export default function Messages() {
   const [location, setLocation] = useLocation();
@@ -197,6 +206,10 @@ export default function Messages() {
   const [proposalSteps, setProposalSteps] = useState<ProposalStep[]>([
     { id: crypto.randomUUID(), title: '', price: 0 },
   ]);
+  const [pendingProposalData, setPendingProposalData] = useState<{
+    steps: ProposalStepPayload[];
+    contractFile?: File | null;
+  } | null>(null);
   const [sendingProposal, setSendingProposal] = useState(false);
   const [contractFile, setContractFile] = useState<File | null>(null);
 
@@ -288,7 +301,7 @@ export default function Messages() {
     setContractFile(f);
   };
 
-  const handleSendProposal = async () => {
+  const handleSendProposal = () => {
     if (!currentConversation || !user || !canCreateProposal()) return;
 
     const valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
@@ -300,18 +313,17 @@ export default function Messages() {
       });
       return;
     }
-
-    setSendingProposal(true);
-    try {
-      const ok = await createProposal(valid, contractFile || undefined);
-      if (ok) {
-        setShowProposalModal(false);
-        setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0 }]);
-        setContractFile(null);
-      }
-    } finally {
-      setSendingProposal(false);
-    }
+    const payloadSteps: ProposalStepPayload[] = valid.map(step => ({
+      title: step.title.trim(),
+      price: step.price,
+      startDate: step.startDate,
+      endDate: step.endDate,
+    }));
+    setPendingProposalData({
+      steps: payloadSteps,
+      contractFile,
+    });
+    openProposalSignatureDialog();
   };
 
   // ---------- handlers: detalhes / steps ----------
@@ -333,6 +345,18 @@ export default function Messages() {
     }
   };
   const handleEditStep = (step: any) => {
+    if (!step) return;
+    const isSignatureStep =
+      step.title === SIGNATURE_STEP_TITLE ||
+      (selectedTicketSteps[0] && selectedTicketSteps[0].id === step.id);
+    if (isSignatureStep) {
+      toast({
+        title: "Etapa protegida",
+        description: "A etapa de assinatura não pode ser editada.",
+        variant: "destructive",
+      });
+      return;
+    }
     setEditingStep(step.id);
     setEditStepData({ title: step.title, price: step.price });
   };
@@ -349,6 +373,18 @@ export default function Messages() {
     }
   };
   const handleDeleteStep = async (stepId: number) => {
+    const target = selectedTicketSteps.find((s) => s.id === stepId);
+    const isSignatureStep =
+      target?.title === SIGNATURE_STEP_TITLE ||
+      (selectedTicketSteps[0] && selectedTicketSteps[0].id === stepId);
+    if (isSignatureStep) {
+      toast({
+        title: "Etapa protegida",
+        description: "A etapa de assinatura não pode ser excluída.",
+        variant: "destructive",
+      });
+      return;
+    }
     const ok = await deleteStep(stepId);
     if (ok) {
       const updated = await getStepsForTicket(selectedTicketSteps[0]?.ticket_id);
@@ -566,11 +602,28 @@ export default function Messages() {
     setShowSignatureModal(true);
   };
 
+  const openProposalSignatureDialog = () => {
+    resetSignatureDialogState();
+    setSignatureFlow({
+      type: 'proposal-first-step',
+      title: 'Confirmar envio',
+      description: 'Informe sua senha para validar o contrato em PDF.',
+      confirmLabel: 'Enviar proposta',
+      passwordPlaceholder: 'Digite sua senha',
+      requireAck: false,
+    });
+    setAckChecked(true);
+    setShowPasswordField(true);
+    setShowSignatureModal(true);
+  };
+
   const handleSignatureModalChange = (open: boolean) => {
     setShowSignatureModal(open);
     if (!open) {
       resetSignatureDialogState();
       setSigningDocument(false);
+      setPendingProposalData(null);
+      setSendingProposal(false);
     }
   };
 
@@ -638,6 +691,35 @@ export default function Messages() {
     setSigningDocument(true);
 
     try {
+      if (signatureFlow.type === 'proposal-first-step') {
+        if (!pendingProposalData || pendingProposalData.steps.length === 0) {
+          toast({
+            title: 'Dados inválidos',
+            description: 'Não foi possível recuperar as etapas da proposta.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        setSendingProposal(true);
+        try {
+          const ok = await createProposal(
+            pendingProposalData.steps,
+            pendingProposalData.contractFile || undefined,
+            password,
+          );
+          if (!ok) return;
+          setShowSignatureModal(false);
+          resetSignatureDialogState();
+          setPendingProposalData(null);
+          setShowProposalModal(false);
+          setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0 }]);
+          setContractFile(null);
+          return;
+        } finally {
+          setSendingProposal(false);
+        }
+      }
+
       if (signatureFlow.type === 'contract') {
         const ticketId = selectedTicketForSignature!.id as number;
         const ok = await signContract(ticketId, password);

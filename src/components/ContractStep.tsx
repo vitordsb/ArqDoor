@@ -3,6 +3,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Check, X, AlertCircle } from "lucide-react";
 import { Step, StepStatus } from "@/lib/Interfaces";
 import { formatPrice } from "@/lib/utils";
+import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
 
 export interface ContractStepProps {
   step: Step;
@@ -33,6 +34,7 @@ export function ContractStep({
   const showProviderActions = isProvider && (isPending || isAwaitingConfirmation);
   const showClientActions = !isProvider && isAwaitingConfirmation;
 
+  const isSignatureStep = step.title === SIGNATURE_STEP_TITLE;
   return (
     <Card className={`mb-4 ${isActive ? 'border-2 border-primary' : ''}`}>
       <CardContent className="pt-4">
@@ -40,7 +42,7 @@ export function ContractStep({
           <div>
             <h3 className="font-medium">{step.title}</h3>
             <p className="text-sm text-muted-foreground">
-              {formatPrice(Number(step.price))}
+              {isSignatureStep ? "Contrato PDF (sem custo)" : formatPrice(Number(step.price))}
             </p>
             {step.status && (
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${

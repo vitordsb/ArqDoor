@@ -31,6 +31,7 @@ import {
 import { formatDate } from "@/lib/utils"
 import { useStepFeedbackActions } from "@/hooks/use-actions"
 import { Textarea } from "@/components/ui/textarea"
+import { SIGNATURE_STEP_TITLE } from "@/constants/contracts"
 
 export function ProposalDetailsDialog({
   open,
@@ -137,7 +138,7 @@ export function ProposalDetailsDialog({
             <div className="space-y-4">
 
               {steps.map((step, index) => {
-                const isSignatureStep = index === 0
+                const isSignatureStep = step.title === SIGNATURE_STEP_TITLE || index === 0
 
                 // helpers para auxiliar
                 const isConcluded = (s: any) =>
@@ -165,10 +166,12 @@ export function ProposalDetailsDialog({
                     </p>
                     <p className="text-gray-700 mb-2">{step.title}</p>
                     <p className="font-semibold text-lg">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL"
-                      }).format(step.price || 0)}
+                      {isSignatureStep
+                        ? "Contrato PDF (sem custo)"
+                        : new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL"
+                          }).format(step.price || 0)}
                     </p>
 
                     <div className="mt-3 flex flex-wrap gap-2">
