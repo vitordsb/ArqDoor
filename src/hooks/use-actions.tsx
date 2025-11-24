@@ -9,6 +9,7 @@ interface StepFeedback {
   step_id: number;
   comment: string;
   createdAt: string;
+  type?: 'feedback' | 'issue';
   isProblem?: boolean;
 }
 
@@ -27,11 +28,12 @@ export function useStepFeedbackActions(idStep?: number) {
       const data = await response.json();
       const feedbacks = data.feedbacks || [];
       return feedbacks.map((feedback: StepFeedback) => {
+        const isProblemApi = feedback.type === 'issue';
         const { comment, isProblem } = decodeFeedbackComment(feedback.comment);
         return {
           ...feedback,
           comment,
-          isProblem,
+          isProblem: isProblemApi || isProblem,
         };
       });
     },
@@ -42,7 +44,10 @@ export function useStepFeedbackActions(idStep?: number) {
   const createFeedbackMutation = useMutation({
     mutationFn: async ({ step_id, comment, isProblem }: { step_id: number; comment: string; isProblem?: boolean }) => {
       const encodedComment = encodeFeedbackComment(comment, isProblem);
-      const response = await apiRequest('POST', `/stepfeedback/${step_id}`, { comment: encodedComment }); //
+      const response = await apiRequest('POST', `/stepfeedback/${step_id}`, {
+        comment: encodedComment,
+        type: isProblem ? 'issue' : 'feedback',
+      }); //
       if (!response.ok) {
         // Tenta pegar a mensagem de erro da API, se disponível
         let errorMessage = 'Erro ao criar feedback';

@@ -144,6 +144,7 @@ export function ProposalDetailsDialog({
                 const isConcluded = (s: any) =>
                   (s?.status || '').toLowerCase() === 'concluido' ||
                   (s?.confirm_freelancer && s?.confirm_contractor);
+                const providerMarkedDone = !!step.confirm_freelancer;
 
                 // padroniza status
                 const status = (step.status || "").toLowerCase()
@@ -177,14 +178,20 @@ export function ProposalDetailsDialog({
                     <div className="mt-3 flex flex-wrap gap-2">
                       {userType === "prestador" && !isSignatureStep && (
                         <>
-                          {status === "pendente" && !isConcluded(step) && (
+                          {!isConcluded(step) && (
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
                             >
                               <CheckCircle className="h-4 w-4 mr-2" />
-                              Marcar como concluído
+                              {(() => {
+                                const reworks = Number((step as any).rework_count) || 0;
+                                const attempt = reworks + 1;
+                                return attempt > 1
+                                  ? `Concluir novamente (${attempt}ª vez)`
+                                  : "Marcar como concluído";
+                              })()}
                             </Button>
                           )}
 
@@ -213,7 +220,7 @@ export function ProposalDetailsDialog({
                         const prev = steps[index - 1]
                         const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
 
-                        if (prevDone && !isConcluded(step)) {
+                        if (prevDone && providerMarkedDone && !isConcluded(step)) {
                           return (
                             <>
                               <Button size="sm" onClick={() => onClientAccept(step)}>
@@ -231,10 +238,17 @@ export function ProposalDetailsDialog({
                             </>
                           )
                         }
+                        if (prevDone && !providerMarkedDone) {
+                          return (
+                            <p className="text-sm text-gray-500">
+                              Aguardando o prestador marcar a etapa como concluída.
+                            </p>
+                          );
+                        }
                         return null
                       })()}
 
-                      {userType === "contratante" && !isSignatureStep && isConcluded(step) && (
+                      {userType === "contratante" && !isSignatureStep && providerMarkedDone && isConcluded(step) && (
                         <Button
                           size="sm"
                           variant="secondary"

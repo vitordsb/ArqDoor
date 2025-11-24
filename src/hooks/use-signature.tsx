@@ -85,7 +85,15 @@ export function useSignature(conversationId?: number) {
       ? chosen.pdf_path
       : `${API_BASE_URL}/${chosen.pdf_path.replace(/^\/+/, '')}`;
 
-    const fileRes = await fetch(pdfUrlAbs, { method: 'GET' });
+    const token = sessionStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const fileRes = await fetch(pdfUrlAbs, {
+      method: 'GET',
+      headers,
+    });
     if (!fileRes.ok) throw new Error(await fileRes.text());
     const blob = await fileRes.blob();
     const blobUrl = URL.createObjectURL(blob);

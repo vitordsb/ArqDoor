@@ -343,7 +343,7 @@ export default function Messages() {
     }
   };
 
-  const handleFeedbackCreated = (step: Step, comment: string, isProblem: boolean) => {
+  const handleFeedbackCreated = async (step: Step, comment: string, isProblem: boolean) => {
     if (!currentConversation?.id) return;
     const steps = selectedTicketSteps || [];
     const index = steps.findIndex((s: any) => s.id === step.id);
@@ -356,10 +356,49 @@ export default function Messages() {
     const contextLabel = isProblem ? 'problema relatado' : 'feedback adicionado';
     const messageContent = `${icon} Novo ${contextLabel} ${stepLabel}${titleLabel}: "${snippet}"`;
     void sendSystemMessage(messageContent);
+
+    // se for problema, atualiza a lista de etapas para refletir rollback
+    if (isProblem) {
+      const ticketId =
+        (step as any).ticket_id ??
+        (step as any).ticketId ??
+        selectedTicket?.id;
+
+      // Atualização otimista local: libera o botão pro prestador refazer
+      setSelectedTicketSteps((prev = []) =>
+        prev.map((s: any) =>
+          s.id === step.id
+            ? {
+                ...s,
+                confirm_freelancer: false,
+                confirm_contractor: false,
+                status: 'Pendente',
+              }
+            : s
+        )
+      );
+
+      if (ticketId) {
+        try {
+          const updated = await getStepsForTicket(ticketId);
+          setSelectedTicketSteps(updated);
+        } catch (e) {
+          console.warn('Falha ao atualizar etapas após problema relatado', e);
+        }
+      }
+    }
   };
 
   // Cliente ACEITA step (precisa da senha vinda do Dialog)
   const handleAcceptStep = async (step: any, password: string) => {
+    if (!step?.confirm_freelancer) {
+      toast({
+        title: 'Aguardando prestador',
+        description: 'O prestador precisa marcar a etapa como concluída antes da sua aprovação.',
+        variant: 'destructive',
+      });
+      return false;
+    }
     try {
       const ok = await acceptStep(step.id, password);
       if (ok) {
@@ -405,6 +444,15 @@ export default function Messages() {
         toast({
           title: 'Acesso negado',
           description: 'Somente contratantes podem gerar pagamentos.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!step.confirm_freelancer) {
+        toast({
+          title: 'Aguardando prestador',
+          description: 'O prestador precisa marcar a etapa como concluída antes do pagamento.',
           variant: 'destructive',
         });
         return;
