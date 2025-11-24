@@ -413,11 +413,30 @@ export function useContract(conversationId?: number) {
         return date.toISOString().split('T')[0];
       };
 
-      // Função auxiliar para adicionar dias a uma data ISO (YYYY-MM-DD)
       const addDaysToIsoDate = (isoDate: string, days: number): string => {
-        const date = new Date(isoDate + 'T00:00:00'); // Garante que interpreta como UTC meia-noite
+        const date = new Date(isoDate + 'T00:00:00');
         date.setDate(date.getDate() + days);
         return date.toISOString().split('T')[0];
+      };
+
+      const parseBrToIso = (brDate: string): string | null => {
+        if (!brDate || !/^\d{2}\/\d{2}\/\d{4}$/.test(brDate)) return null;
+        const [d, m, y] = brDate.split('/');
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      };
+
+      const normalizeDateInput = (value?: string | null): string | null => {
+        if (!value || typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) return parseBrToIso(trimmed);
+        return null;
+      };
+
+      const formatIsoToBr = (iso: string) => {
+        const [y, m, d] = iso.split('-');
+        return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
       };
 
       const tomorrowDate = getFutureDateIso(1);
@@ -442,53 +461,59 @@ export function useContract(conversationId?: number) {
         if (!ticketId) throw new Error("ID do ticket não retornado pela API");
 
         const createdSteps: any[] = [];
-        for (const s of stepsToCreate) {
-          let startIso: string | null = null;
-          let endIso: string | null = null;
+        const todayIso = new Date().toISOString().split('T')[0];
+        let previousEndIso: string | null = null;
+        for (let index = 0; index < stepsToCreate.length; index++) {
+          const s = stepsToCreate[index];
+          const isSignatureStep = index === 0;
 
-          const startValue = (s as any).startDate || s.start_date;
-          const endValue = (s as any).endDate || (s as any).end_date; // Considera end_date também da SIGN_STEP
-          const todayIso = new Date().toISOString().split('T')[0]; // Pega a data de hoje
-          const parseBrToIso = (brDate: string): string | null => {
-            if (!brDate || !/^\d{2}\/\d{2}\/\d{4}$/.test(brDate)) return null;
-            const [d, m, y] = brDate.split('/');
-            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-          };
+          let startIso = normalizeDateInput((s as any).startDate ?? s.start_date ?? null);
+          let endIso = normalizeDateInput((s as any).endDate ?? (s as any).end_date ?? null);
 
-          // Parseia as datas
-          if (startValue && typeof startValue === 'string' && startValue.trim()) {
-            if (startValue.includes('/')) { startIso = parseBrToIso(startValue); }
-            else if (/^\d{4}-\d{2}-\d{2}$/.test(startValue)) { startIso = startValue; }
-          }
-          if (endValue && typeof endValue === 'string' && endValue.trim()) {
-            if (endValue.includes('/')) { endIso = parseBrToIso(endValue); }
-            else if (/^\d{4}-\d{2}-\d{2}$/.test(endValue)) { endIso = endValue; }
+          if (isSignatureStep) {
+            startIso = SIGN_STEP.start_date;
+            endIso = SIGN_STEP.end_date;
+          } else {
+            const minimumStartIso = previousEndIso || getFutureDateIso(1);
+            if (!startIso) {
+              startIso = minimumStartIso;
+            } else if (
+              previousEndIso &&
+              new Date(startIso) < new Date(previousEndIso)
+            ) {
+              toast({
+                title: "Sequência de datas inválida",
+                description: `A etapa "${s.title}" deve iniciar a partir de ${formatIsoToBr(previousEndIso)}.`,
+                variant: "destructive",
+              });
+              return false;
+            }
+
+            if (!endIso) {
+              endIso = addDaysToIsoDate(startIso, 1);
+            }
           }
 
           if (!startIso) {
-            startIso = getFutureDateIso(1); // Padrão: amanhã
+            startIso = getFutureDateIso(1);
           }
           if (!endIso) {
             endIso = addDaysToIsoDate(startIso, 1);
           }
 
-          if (new Date(startIso + 'T00:00:00') < new Date(todayIso + 'T00:00:00')) {
+          const startDateObj = new Date(startIso + 'T00:00:00');
+          const todayDateObj = new Date(todayIso + 'T00:00:00');
+          if (startDateObj < todayDateObj) {
             toast({
               title: "Data de Início Inválida",
               description: `A data de início da etapa "${s.title}" (${startIso}) não pode ser anterior a hoje (${todayIso}).`,
               variant: "destructive",
             });
-            return false; // Interrompe a criação da proposta
+            return false;
           }
 
-          // Validação final: endIso não pode ser anterior ou igual a startIso
           if (new Date(endIso) <= new Date(startIso)) {
             console.warn(`Data final (${endIso}) <= data inicial (${startIso}) para "${s.title}". Ajustando...`);
-            endIso = addDaysToIsoDate(startIso, 1);
-          }
-
-          if (new Date(endIso) < new Date(startIso)) {
-            console.warn(`Data final (${endIso}) é anterior à data inicial (${startIso}) para a etapa "${s.title}". Ajustando data final para ${startIso}.`);
             endIso = addDaysToIsoDate(startIso, 1);
           }
 
@@ -498,7 +523,7 @@ export function useContract(conversationId?: number) {
             title: s.title,
             price: s.price || 0,
             start_date: startIso,
-            end_date: endIso, // Envia end_date (obrigatório)
+            end_date: endIso,
           };
 
           const sRes = await apiRequest("POST", "/step", stepPayload);
@@ -515,6 +540,7 @@ export function useContract(conversationId?: number) {
             start_date: startIso,
             end_date: endIso,
           });
+          previousEndIso = endIso;
         }
         if (createdSteps[0]?.id) {
           const confirmed = await preConfirmFirstStepFreelancer(

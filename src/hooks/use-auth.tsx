@@ -16,7 +16,11 @@ export const login = async (
   setUser: React.Dispatch<React.SetStateAction<User | null>>
 ) => {
   try {
-    const validate = await apiRequest("POST", "/auth/login", data);
+    const sanitized = {
+      email: data.email?.trim().toLowerCase() || "",
+      password: data.password?.trim() || "",
+    };
+    const validate = await apiRequest("POST", "/auth/login", sanitized);
     if (validate.status === 401) {
       toast({
         title: "Credenciais invalidas",

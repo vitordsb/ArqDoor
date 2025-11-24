@@ -157,6 +157,11 @@ export function useSignature(conversationId?: number) {
       return true;
     } catch (err: any) {
       console.error('❌ Erro ao assinar contrato:', err);
+      toast({
+        title: 'Erro na assinatura',
+        description: err?.message || 'Senha inválida ou falha ao validar o contrato.',
+        variant: 'destructive',
+      });
       return false;
     }
   };

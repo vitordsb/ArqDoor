@@ -86,7 +86,10 @@ export function formatEmail(email: string): string {
 export function parseJwt<T = any>(token: string): T | null {
   try {
     const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    if (!base64Url) return null;
+    const normalized = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
+    const base64 = normalized + padding;
     const jsonPayload = decodeURIComponent(
       atob(base64)
         .split('')
@@ -153,4 +156,3 @@ export function formatRelativeTime(dateString: string): string {
   const diffInYears = Math.floor(diffInMonths / 12);
   return `${diffInYears} year${diffInYears !== 1 ? 's' : ''} ago`;
 }
-

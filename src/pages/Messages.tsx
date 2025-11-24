@@ -7,32 +7,21 @@ import { useSignature } from '@/hooks/use-signature';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import MessagesLayout from '@/components/layouts/MessagesLayout';
 import {
-  Send,
-  Users,
   MessageCircle,
-  FileText,
-  CheckCircle,
-  XCircle,
-  Plus,
-  Clock,
-  Shield,
-  Eye,
-  Loader2,
   QrCode,
   Copy,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { apiRequest } from '@/lib/queryClient';
-import { formatTotalDurationFromDays } from '@/lib/utils';
 import type { Step, CreateStepRequest } from '@/lib/Interfaces';
+import { ConversationsSidebar } from '@/features/messages/components/ConversationsSidebar';
+import { ConversationHeader } from '@/features/messages/components/ConversationHeader';
+import { ChatPanel } from '@/features/messages/components/ChatPanel';
+import { ContractsPanel } from '@/features/messages/components/ContractsPanel';
+import { ProposalCard } from '@/features/messages/components/ProposalCard';
+import { sortTicketsDesc } from '@/features/messages/utils';
 
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
@@ -47,7 +36,13 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 
-type ProposalStep = { id: string; title: string; price: number };
+type ProposalStep = {
+  id: string;
+  title: string;
+  price: number;
+  startDate?: string;
+  endDate?: string;
+};
 
 type SignatureDialogOverrides = {
   title?: string;
@@ -112,94 +107,8 @@ export default function Messages() {
     buscarPDF,
   } = useSignature(currentConversation?.id);
 
-  const sortTicketsDesc = (a: any, b: any) => {
-    const aT = new Date(a?.updated_at || a?.created_at || 0).getTime();
-    const bT = new Date(b?.updated_at || b?.created_at || 0).getTime();
-    if (!isNaN(aT) && !isNaN(bT) && aT !== bT) return bT - aT;
-    return (b?.id || 0) - (a?.id || 0);
-  };
-
   const canCreateProposal = () =>
     user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
-
-  const formatMessageTime = (d: string) => {
-    try {
-      return format(new Date(d), 'HH:mm', { locale: ptBR });
-    } catch {
-      return '';
-    }
-  };
-
-  const formatConversationTime = (d: string) => {
-    try {
-      const date = new Date(d);
-      const now = new Date();
-      const diffH = (now.getTime() - date.getTime()) / 36e5;
-      return diffH < 24
-        ? format(date, 'HH:mm', { locale: ptBR })
-        : format(date, 'dd/MM', { locale: ptBR });
-    } catch {
-      return '';
-    }
-  };
-
-  const getInitials = (name: string) =>
-    name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-
-  const calculateProposalTotal = (steps: any[]) =>
-    steps.reduce((s, st) => s + (st.price || 0), 0);
-
-  const formatCurrency = (v: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-
-  // ---------- status UI ----------
-  const getStatusConfig = (status?: string) => {
-    const s = (status || '').toLowerCase();
-    if (s === 'pendente')
-      return {
-        icon: Clock,
-        label: 'Pendente',
-        badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
-        bg: 'bg-orange-50',
-        border: 'border-orange-200',
-        color: 'text-orange-700',
-      };
-    if (s === 'em andamento' || s === 'em_andamento')
-      return {
-        icon: Clock,
-        label: 'Em Andamento',
-        badgeClass: 'bg-blue-100 text-blue-800 border-blue-300',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        color: 'text-blue-700',
-      };
-    if (s === 'concluída' || s === 'concluida')
-      return {
-        icon: CheckCircle,
-        label: 'Concluída',
-        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-        bg: 'bg-emerald-50',
-        border: 'border-emerald-200',
-        color: 'text-emerald-700',
-      };
-    if (s === 'cancelada')
-      return {
-        icon: XCircle,
-        label: 'Cancelada',
-        badgeClass: 'bg-red-100 text-red-800 border-red-300',
-        bg: 'bg-red-50',
-        border: 'border-red-200',
-        color: 'text-red-700',
-      };
-    return {
-      icon: Clock,
-      label: 'Pendente',
-      badgeClass: 'bg-orange-100 text-orange-800 border-orange-300',
-      bg: 'bg-orange-50',
-      border: 'border-orange-200',
-      color: 'text-orange-700',
-    };
-  };
 
   // ---------- state ----------
   const [showProposalModal, setShowProposalModal] = useState(false);
@@ -277,12 +186,12 @@ export default function Messages() {
 
   // ---------- handlers: proposta nova ----------
   const addProposalStep = () =>
-    setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0 }]);
+    setProposalSteps(ps => [...ps, { id: crypto.randomUUID(), title: '', price: 0, startDate: '', endDate: '' }]);
   const removeProposalStep = (id: string) =>
     setProposalSteps(ps => ps.filter(s => s.id !== id));
   const updateProposalStep = (
     id: string,
-    field: 'title' | 'price' | 'start_date' | 'end_date',
+    field: 'title' | 'price' | 'startDate' | 'endDate',
     value: string | number,
   ) =>
     setProposalSteps(ps =>
@@ -303,6 +212,14 @@ export default function Messages() {
 
   const handleSendProposal = () => {
     if (!currentConversation || !user || !canCreateProposal()) return;
+    if (!contractFile) {
+      toast({
+        title: 'Contrato obrigatório',
+        description: 'Anexe o PDF do contrato para enviar a proposta.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
     if (valid.length < 1) {
@@ -313,11 +230,21 @@ export default function Messages() {
       });
       return;
     }
+    const toIso = (value?: string) => {
+      if (!value) return undefined;
+      const parts = value.split('/');
+      if (parts.length === 3) {
+        const [d, m, y] = parts;
+        return `${y.length === 2 ? `20${y}` : y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      return value;
+    };
+
     const payloadSteps: ProposalStepPayload[] = valid.map(step => ({
       title: step.title.trim(),
       price: step.price,
-      startDate: step.startDate,
-      endDate: step.endDate,
+      startDate: toIso(step.startDate),
+      endDate: toIso(step.endDate),
     }));
     setPendingProposalData({
       steps: payloadSteps,
@@ -820,334 +747,48 @@ export default function Messages() {
     ? handleAgreeAndAskPassword
     : () => setShowPasswordField(true);
 
-  // ---------- componentes internos ----------
-  const ProposalCard = ({
-    ticket,
-    steps,
-    isLatest = false,
-  }: {
-    ticket: any;
-    steps: any[];
-    isLatest?: boolean;
-  }) => {
-    const total = calculateProposalTotal(steps);
-    const cfg = getStatusConfig(ticket.status);
-    const isSigned = ['concluída', 'concluida', 'cancelado'].includes(
-      (ticket.status || '').toLowerCase(),
-    );
-    const canSign =
-      user?.type === 'contratante' &&
-      (ticket.status || '').toLowerCase() === 'pendente' &&
-      !isSigned;
-
-    const formattedDuration = formatTotalDurationFromDays(ticket.total_date);
-
-    return (
-      <div
-        className={`flex flex-col justify-between p-3 shadow-sm border transition-all duration-200 hover:shadow-md ${cfg.bg} ${cfg.border}`}
-      >
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-1 rounded-lg bg-white shadow-sm">
-              <cfg.icon className={`h-5 w-5 ${cfg.color}`} />
-            </div>
-            <h3 className="font-semibold text-gray-900">Proposta #{ticket.id}</h3>
-          </div>
-          <Badge className={cfg.badgeClass}>{cfg.label}</Badge>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">{steps.length} etapas</span>
-            <span className="text-lg font-bold text-gray-900">
-              {formatCurrency(total)}
-            </span>
-          </div>
-
-          {formattedDuration && (
-            <div className="flex items-center text-sm text-gray-600">
-              <Clock className="h-4 w-4 mr-1.5 opacity-70" />
-              Duração total: {formattedDuration}
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleViewProposalDetails(ticket.id)}
-              className="flex-1 min-w-[120px]"
-            >
-              <Eye className="h-4 w-4 mr-2" /> Detalhes
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleViewPdf(ticket)}
-              className="flex-1 min-w-[120px]"
-            >
-              <FileText className="h-4 w-4 mr-2" /> Ver PDF
-            </Button>
-            {canSign && (
-              <Button
-                size="sm"
-                onClick={() => handleStartSignature(ticket)}
-                className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]"
-              >
-                <Shield className="h-4 w-4 mr-2" /> Eu assino e confirmo os termos
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <MessagesLayout>
       <div className="flex p-4 bg-gray-100 h-[calc(100dvh-58px)]">
-        {/* Sidebar conversas */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" /> Messages
-              </h1>
-              {unreadMessageCount > 0 && (
-                <Badge variant="destructive" className="ml-2">
-                  {unreadMessageCount}
-                </Badge>
-              )}
-            </div>
-          </div>
+        <ConversationsSidebar
+          conversations={conversations}
+          currentConversation={currentConversation}
+          loading={loadingConversations}
+          conversationsError={conversationsError}
+          unreadMessageCount={unreadMessageCount}
+          onSelectConversation={handleConversationClick}
+        />
 
-          <ScrollArea className="flex-1">
-            {loadingConversations ? (
-              <div className="p-4 text-center">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Carregando conversas...</p>
-              </div>
-            ) : conversationsError ? (
-              <div className="p-4 text-center">
-                <p className="text-sm text-red-600">Erro ao carregar conversas</p>
-              </div>
-            ) : conversations.length === 0 ? (
-              <div className="p-4 text-center">
-                <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Nenhuma conversa encontrada</p>
-              </div>
-            ) : (
-              <div className="p-2">
-                {conversations.map(conversation => (
-                  <div
-                    key={
-                      conversation.id ??
-                      conversation.otherUser?.id ??
-                      `conv-${conversation.id}`
-                    }
-                    onClick={() => handleConversationClick(conversation)}
-                    className={`p-3 rounded-lg cursor-pointer transition-colors mb-2 ${currentConversation?.id === conversation.id
-                      ? 'bg-orange-50 border border-orange-200'
-                      : 'hover:bg-gray-50'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src="" />
-                        <AvatarFallback className="bg-orange-100 text-orange-700">
-                          {getInitials(conversation.otherUser.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900 truncate">
-                            {conversation.otherUser.name}
-                          </p>
-                          <span className="text-xs text-gray-500">
-                            {formatConversationTime(conversation.updated_at)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-gray-600 truncate">
-                            {conversation.lastMessage?.content || 'Nenhuma mensagem'}
-                          </p>
-                          <Badge
-                            variant={
-                              conversation.otherUser.type === 'prestador'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                            className="text-xs"
-                          >
-                            {conversation.otherUser.type === 'prestador'
-                              ? 'Prestador'
-                              : 'Cliente'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </div>
-
-        {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {currentConversation ? (
             <>
-              <div className="p-4 bg-white border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="" />
-                    <AvatarFallback className="bg-orange-100 text-orange-700">
-                      {getInitials(currentConversation.otherUser.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h2 className="font-semibold text-gray-900">
-                      {currentConversation.otherUser.name}
-                    </h2>
-                    <Badge
-                      variant={
-                        currentConversation.otherUser.type === 'prestador'
-                          ? 'default'
-                          : 'secondary'
-                      }
-                      className="text-xs"
-                    >
-                      {currentConversation.otherUser.type === 'prestador'
-                        ? 'Prestador'
-                        : 'Cliente'}
-                    </Badge>
-                  </div>
-                </div>
-                {canCreateProposal() && (
-                  <Button
-                    onClick={() => setShowProposalModal(true)}
-                    className="bg-orange-600 hover:bg-orange-700"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Nova Proposta
-                  </Button>
-                )}
-              </div>
-
+              <ConversationHeader
+                conversation={currentConversation}
+                canCreateProposal={canCreateProposal()}
+                onOpenProposal={() => setShowProposalModal(true)}
+              />
               <div className="flex-1 flex overflow-hidden">
-                {/* Chat */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="flex-1 overflow-hidden">
-                    <ScrollArea className="h-full p-4">
-                      <div className="space-y-4">
-                        {messages.map((m, idx) => (
-                          <div
-                            key={m.id ?? m.tempId ?? `msg-${idx}`}
-                            className={`flex ${m.sender_id === user?.id
-                              ? 'justify-end'
-                              : 'justify-start'
-                              }`}
-                          >
-                            <div
-                              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${m.sender_id === user?.id
-                                ? 'bg-orange-600 text-white'
-                                : 'bg-white border border-gray-200 text-gray-900'
-                                }`}
-                            >
-                              <p className="text-sm">{m.content}</p>
-                              <p
-                                className={`text-xs mt-1 ${m.sender_id === user?.id
-                                  ? 'text-orange-100'
-                                  : 'text-gray-500'
-                                  }`}
-                              >
-                                {formatMessageTime(m.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    </ScrollArea>
-                  </div>
-
-                  <div className="p-4 bg-white border-t border-gray-200">
-                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                      <Input
-                        value={newMessage}
-                        onChange={e => setNewMessage(e.target.value)}
-                        placeholder="Digite sua mensagem..."
-                        className="flex-1"
-                        disabled={sendingMessage}
-                      />
-                      <Button
-                        type="submit"
-                        disabled={!newMessage.trim() || sendingMessage}
-                        className="bg-orange-600 hover:bg-orange-700"
-                      >
-                        {sendingMessage ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </form>
-                  </div>
-                </div>
-
-                {/* Sidebar Propostas */}
-                <div className="w-80 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
-                  <div className="p-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <FileText className="h-5 w-5" /> Propostas
-                    </h3>
-                  </div>
-
-                  <ScrollArea className="flex-1 p-4">
-                    {loadingTickets ? (
-                      <div className="text-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Carregando propostas...</p>
-                      </div>
-                    ) : tickets.length === 0 ? (
-                      <div className="text-center py-8">
-                        <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Nenhuma proposta ainda</p>
-                        {canCreateProposal() && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Crie uma proposta para começar
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {tickets
-                          .slice()
-                          .sort(sortTicketsDesc)
-                          .slice(0, 2)
-                          .map((ticket, index) => (
-                            <ProposalCard
-                              key={ticket.id ?? `ticket-${index}`}
-                              ticket={ticket}
-                              steps={ticketStepsMap[ticket.id] || []}
-                              isLatest={index === 0}
-                            />
-                          ))}
-                      </div>
-                    )}
-                  </ScrollArea>
-
-                  {tickets.length > 2 && (
-                    <div className="p-4 border-t border-gray-200">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowOlderTickets(true)}
-                      >
-                        Acessar outros contratos
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <ChatPanel
+                  messages={messages}
+                  currentUserId={user?.id}
+                  newMessage={newMessage}
+                  sendingMessage={sendingMessage}
+                  onMessageChange={setNewMessage}
+                  onSendMessage={handleSendMessage}
+                  messagesEndRef={messagesEndRef}
+                />
+                <ContractsPanel
+                  tickets={tickets}
+                  ticketStepsMap={ticketStepsMap}
+                  loadingTickets={loadingTickets}
+                  canCreateProposal={canCreateProposal()}
+                  sortTicketsDesc={sortTicketsDesc}
+                  onOpenOlderContracts={() => setShowOlderTickets(true)}
+                  onViewProposalDetails={handleViewProposalDetails}
+                  onViewPdf={handleViewPdf}
+                  onStartSignature={handleStartSignature}
+                  currentUserType={user?.type}
+                />
               </div>
             </>
           ) : (
@@ -1178,6 +819,9 @@ export default function Messages() {
         onContractFileChange={handleContractFileChange}
         onSendProposal={handleSendProposal}
         sendingProposal={sendingProposal}
+        showToast={({ title, description, variant }) =>
+          toast({ title, description, variant: variant ?? 'default' })
+        }
       />
 
       <ProposalDetailsDialog
@@ -1203,7 +847,9 @@ export default function Messages() {
         onMarkProviderCompleted={(id, ticketId) =>
           openFreelancerStepSignature(id, ticketId)
         }
-        onClientAccept={step => openClientStepSignature(step)}
+        onClientAccept={async step => {
+          openClientStepSignature(step);
+        }}
 
         onClientRejectStep={(step) => handleRejectStep(step)}
         onFeedbackCreated={handleFeedbackCreated}
@@ -1236,6 +882,10 @@ export default function Messages() {
               key={t.id ?? `ticket-old-${i}`}
               ticket={t}
               steps={ticketStepsMap[t.id] || []}
+              currentUserType={user?.type}
+              onViewDetails={handleViewProposalDetails}
+              onViewPdf={handleViewPdf}
+              onStartSignature={handleStartSignature}
             />
           ))}
       />
