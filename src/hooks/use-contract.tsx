@@ -407,16 +407,25 @@ export function useContract(conversationId?: number) {
         return false;
       }
 
+      const toIsoDate = (d: Date) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+
+      // usa meio-dia para evitar os saltos de data causados por fusos ao usar toISOString()
       const getFutureDateIso = (daysToAdd: number): string => {
         const date = new Date();
+        date.setHours(12, 0, 0, 0);
         date.setDate(date.getDate() + daysToAdd);
-        return date.toISOString().split('T')[0];
+        return toIsoDate(date);
       };
 
       const addDaysToIsoDate = (isoDate: string, days: number): string => {
-        const date = new Date(isoDate + 'T00:00:00');
+        const date = new Date(isoDate + "T12:00:00");
         date.setDate(date.getDate() + days);
-        return date.toISOString().split('T')[0];
+        return toIsoDate(date);
       };
 
       const parseBrToIso = (brDate: string): string | null => {
