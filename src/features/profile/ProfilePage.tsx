@@ -28,6 +28,7 @@ import { DocumentsCard } from "./components/DocumentsCard";
 import { AboutCard } from "./components/AboutCard";
 import { ServicesSection } from "./components/ServicesSection";
 import { RatingsModal } from "./components/RatingsModal";
+import { PaymentPreferenceCard } from "./components/PaymentPreferenceCard";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -67,6 +68,11 @@ export default function ProfilePage() {
   const [ratingsModalOpen, setRatingsModalOpen] = useState(false);
   const [ratingsModalLoading, setRatingsModalLoading] = useState(false);
   const [ratingsModalData, setRatingsModalData] = useState<{ average: number; count: number; list: any[] } | null>(null);
+
+  // payment preference
+  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | null>(null);
+  const [savingPaymentPreference, setSavingPaymentPreference] = useState(false);
+
 
   // === função para salvar/editar o "Sobre mim" ===
   const handleSaveAbout = async () => {
@@ -117,6 +123,7 @@ export default function ProfilePage() {
     if (!user || user.type !== "prestador") {
       setProviderProfile(null);
       setAbout("");
+      setPaymentPreference(null);
       return;
     }
     try {
@@ -130,11 +137,13 @@ export default function ProfilePage() {
       setProviderProfile(body.provider);
       setAbout(body.provider?.about || "");
       setProfession(body.provider?.profession || "");
+      setPaymentPreference(body.provider?.payment_preference || "per_step");
     } catch (error: any) {
       setProviderError(error?.message || "Falha ao carregar dados do prestador");
       setProviderProfile(null);
       setAbout("");
       setProfession("");
+      setPaymentPreference(null);
     } finally {
       setLoadingProviderInfo(false);
     }
@@ -204,6 +213,43 @@ export default function ProfilePage() {
       });
     } finally {
       setSavingProfession(false);
+    }
+  };
+
+  const handleSavePaymentPreference = async () => {
+    if (!user || user.type !== "prestador" || !providerProfile) return;
+    if (!paymentPreference) {
+      toast({
+        title: "Erro",
+        description: "Selecione uma preferência de pagamento",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingPaymentPreference(true);
+    try {
+      const payload = { payment_preference: paymentPreference };
+      const endpoint = `/providers/${providerProfile.provider_id}`;
+      const res = await apiRequest("PUT", endpoint, payload);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Não foi possível atualizar a preferência de pagamento");
+      }
+      setProviderProfile((prev: any) =>
+        prev ? { ...prev, payment_preference: paymentPreference } : prev
+      );
+      toast({ 
+        title: "Sucesso",
+        description: `Preferência de pagamento alterada para: ${paymentPreference === "per_step" ? "Por Etapa" : "Na Conclusão"}` 
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error?.message || "Falha ao salvar a preferência de pagamento",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPaymentPreference(false);
     }
   };
 
@@ -448,8 +494,13 @@ export default function ProfilePage() {
                     saving={savingProfession}
                     providerProfile={providerProfile}
                     onSave={handleSaveProfession}
-                    onOpenRatings={handleOpenRatingsModal}
-                    providerProfileId={providerProfileId}
+                  />
+                  <PaymentPreferenceCard
+                    paymentPreference={paymentPreference}
+                    onChange={setPaymentPreference}
+                    loading={loadingProviderInfo}
+                    saving={savingPaymentPreference}
+                    onSave={handleSavePaymentPreference}
                   />
                 </>
               )}

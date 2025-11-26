@@ -12,6 +12,7 @@ interface ProposalCardProps {
   onViewDetails: (ticketId: number) => void;
   onViewPdf: (ticket: any) => void;
   onStartSignature: (ticket: any) => void;
+  onRejectProposal?: (ticketId: number) => void;
 }
 
 const formatCurrency = (value: number) =>
@@ -68,6 +69,7 @@ export function ProposalCard({
   onViewDetails,
   onViewPdf,
   onStartSignature,
+  onRejectProposal,
 }: ProposalCardProps) {
   const total = useMemo(() => calculateProposalTotal(steps), [steps]);
   const cfg = getStatusConfig(ticket.status);
@@ -128,13 +130,23 @@ export function ProposalCard({
             <FileText className="h-4 w-4 mr-2" /> Ver PDF
           </Button>
           {canSign && (
-            <Button
-              size="sm"
-              onClick={() => onStartSignature(ticket)}
-              className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]"
-            >
-              <Shield className="h-4 w-4 mr-2" /> Eu assino e confirmo os termos
-            </Button>
+            <>
+              <Button
+                size="sm"
+                onClick={() => onStartSignature(ticket)}
+                className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]"
+              >
+                <Shield className="h-4 w-4 mr-2" /> Eu assino e confirmo os termos
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => onRejectProposal?.(ticket.id)}
+                className="flex-1 min-w-[120px]"
+              >
+                <XCircle className="h-4 w-4 mr-2" /> Recusar proposta
+              </Button>
+            </>
           )}
         </div>
       </div>

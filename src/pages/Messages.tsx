@@ -149,9 +149,27 @@ export default function Messages() {
   const [showOlderTickets, setShowOlderTickets] = useState(false);
   const [stepPaymentInfo, setStepPaymentInfo] = useState<{ step: Step; data: any } | null>(null);
   const [payingStepId, setPayingStepId] = useState<number | null>(null);
+  const [providerPaymentPreference, setProviderPaymentPreference] = useState<"per_step" | "at_end">("per_step");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- efeitos ----------
+  useEffect(() => {
+    const loadPaymentPreference = async () => {
+      if (user?.type !== "prestador") return;
+      try {
+        const res = await apiRequest("GET", `/providers/user/${user.id}`);
+        if (res.ok) {
+          const body = await res.json();
+          const preference = body.provider?.payment_preference || "per_step";
+          setProviderPaymentPreference(preference);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar preferência de pagamento:", error);
+      }
+    };
+    loadPaymentPreference();
+  }, [user?.id, user?.type]);
+
   useEffect(() => {
     const loadAllTicketSteps = async () => {
       if (tickets.length === 0) return;
@@ -221,11 +239,29 @@ export default function Messages() {
       return;
     }
 
-    const valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
+    // Validação diferente baseada no tipo de pagamento
+    let valid: ProposalStep[] = [];
+    if (providerPaymentPreference === "per_step") {
+      // Modo por etapa: cada etapa precisa de título e preço
+      valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
+    } else {
+      // Modo conclusão: cada etapa precisa só de título, e pelo menos uma etapa precisa ter preço
+      valid = proposalSteps.filter(s => s.title.trim());
+      const hasPrice = proposalSteps.some(s => s.price > 0);
+      if (!hasPrice) {
+        toast({
+          title: 'Erro',
+          description: 'Informe o valor total da proposta.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     if (valid.length < 1) {
       toast({
         title: 'Erro',
-        description: 'Adicione pelo menos 1 etapa além da assinatura.',
+        description: 'Adicione pelo menos 1 etapa com título.',
         variant: 'destructive',
       });
       return;
@@ -496,19 +532,25 @@ export default function Messages() {
   // ---------- handlers: recusar contrato ----------
   const handleRejectContract = async (ticketId: number) => {
     try {
-      const response = await apiRequest('DELETE', `/ticket/${ticketId}`);
-      if (response.ok) {
-        await updateTicketStatus(ticketId, 'cancelada');
-        toast({
-          title: 'Contrato recusado',
-          description: 'O contrato foi recusado e o ticket cancelado.',
-        });
-      }
+      // Apenas cancela o ticket, não deleta - permite que seja refeito
+      await updateTicketStatus(ticketId, 'cancelada');
+      
+      // Envia mensagem de sistema
+      await sendSystemMessage(
+        '❌ Proposta recusada. O prestador pode enviar uma nova proposta.',
+        'text',
+        { ticket_id: ticketId, action: 'proposal_rejected' }
+      );
+      
+      toast({
+        title: 'Proposta recusada',
+        description: 'O prestador pode enviar uma nova proposta.',
+      });
       setShowProposalDetails(false);
     } catch (e: any) {
       toast({
         title: 'Erro',
-        description: e?.message || 'Não foi possível recusar o contrato.',
+        description: e?.message || 'Não foi possível recusar a proposta.',
         variant: 'destructive',
       });
     }
@@ -835,6 +877,7 @@ export default function Messages() {
                   onViewProposalDetails={handleViewProposalDetails}
                   onViewPdf={handleViewPdf}
                   onStartSignature={handleStartSignature}
+                  onRejectProposal={handleRejectContract}
                   currentUserType={user?.type}
                 />
               </div>
@@ -867,6 +910,7 @@ export default function Messages() {
         onContractFileChange={handleContractFileChange}
         onSendProposal={handleSendProposal}
         sendingProposal={sendingProposal}
+        paymentPreference={providerPaymentPreference}
         showToast={({ title, description, variant }) =>
           toast({ title, description, variant: variant ?? 'default' })
         }

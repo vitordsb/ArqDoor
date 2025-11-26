@@ -13,6 +13,7 @@ interface ContractsPanelProps {
   onViewProposalDetails: (ticketId: number) => void;
   onViewPdf: (ticket: any) => void;
   onStartSignature: (ticket: any) => void;
+  onRejectProposal?: (ticketId: number) => void;
   currentUserType?: string;
 }
 
@@ -26,6 +27,7 @@ export function ContractsPanel({
   onViewProposalDetails,
   onViewPdf,
   onStartSignature,
+  onRejectProposal,
   currentUserType,
 }: ContractsPanelProps) {
   return (
@@ -68,6 +70,7 @@ export function ContractsPanel({
                   onViewDetails={onViewProposalDetails}
                   onViewPdf={onViewPdf}
                   onStartSignature={onStartSignature}
+                  onRejectProposal={onRejectProposal}
                 />
               ))}
           </div>

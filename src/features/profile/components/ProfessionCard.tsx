@@ -4,15 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Save, X, Edit2 } from "lucide-react";
 
 interface ProfessionCardProps {
-  profession: string;
-  isEditing: boolean;
-  setIsEditing: (value: boolean) => void;
-  setProfession: (value: string) => void;
-  saving: boolean;
-  providerProfile?: any;
-  onSave: () => void;
-  onOpenRatings?: () => void;
-  providerProfileId?: number | null;
+  readonly profession: string;
+  readonly isEditing: boolean;
+  readonly setIsEditing: (value: boolean) => void;
+  readonly setProfession: (value: string) => void;
+  readonly saving: boolean;
+  readonly providerProfile?: any;
+  readonly onSave: () => void;
 }
 
 export function ProfessionCard({
@@ -23,8 +21,6 @@ export function ProfessionCard({
   saving,
   providerProfile,
   onSave,
-  onOpenRatings,
-  providerProfileId,
 }: ProfessionCardProps) {
   return (
     <Card>
@@ -62,24 +58,13 @@ export function ProfessionCard({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-slate-700">
-                {profession?.trim() || "Profissão ainda não informada"}
-              </p>
-              <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-                <Edit2 className="w-4 h-4 mr-1" /> Editar
-              </Button>
-            </div>
-            {providerProfileId && onOpenRatings && (
-              <Button
-                size="sm"
-                className="w-full bg-orange-600 text-white"
-                onClick={onOpenRatings}
-              >
-                Ver avaliações
-              </Button>
-            )}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-slate-700">
+              {profession?.trim() || "Profissão ainda não informada"}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+              <Edit2 className="w-4 h-4 mr-1" /> Editar
+            </Button>
           </div>
         )}
       </CardContent>

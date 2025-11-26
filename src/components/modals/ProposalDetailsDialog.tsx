@@ -176,6 +176,23 @@ export function ProposalDetailsDialog({
                     </p>
 
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {userType === "prestador" && !isSignatureStep && (() => {
+                        const prev = steps[index - 1]
+                        const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
+
+                        // Se etapa foi marcada como concluída pelo prestador, mostra mensagem
+                        if (prevDone && providerMarkedDone && !isConcluded(step)) {
+                          return (
+                            <div className="w-full">
+                              <p className="text-sm text-gray-500 mb-2">
+                                Aguardando a confirmação do cliente.
+                              </p>
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
+
                       {userType === "prestador" && !isSignatureStep && (
                         <>
                           {!isConcluded(step) && (
@@ -246,6 +263,33 @@ export function ProposalDetailsDialog({
                           );
                         }
                         return null
+                      })()}
+
+                      {userType === "prestador" && !isSignatureStep && (() => {
+                        const prev = steps[index - 1]
+                        const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
+
+                        if (prevDone && providerMarkedDone && !isConcluded(step)) {
+                          // Mensagem já aparece acima do botão
+                          return null
+                        }
+                        return null
+                      })()}
+
+                      {userType === "contratante" && isSignatureStep && (() => {
+                        // Botão de rejeição para cliente na etapa de assinatura (etapa 0)
+                        const ticketId = (step as any)?.ticket_id;
+                        return (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => ticketId && onRejectContract(ticketId)}
+                            className="w-full"
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Recusar proposta
+                          </Button>
+                        )
                       })()}
 
                       {userType === "contratante" && !isSignatureStep && providerMarkedDone && isConcluded(step) && (

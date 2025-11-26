@@ -7,6 +7,7 @@ export interface ProviderApi {
   about: string | null;
   rating_mid?: string;
   created_at: string;
+  payment_preference?: "per_step" | "at_end";
 }
 
 export interface UserApi {
