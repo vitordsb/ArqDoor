@@ -52,6 +52,11 @@ export function ProposalDetailsDialog({
   onFeedbackCreated,
   onClientPayStep,
   payingStepId,
+  ticketStatus,
+  ticketId,
+  onDeleteTicket,
+  deletingTicket,
+  onRefreshPayment,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -75,7 +80,12 @@ export function ProposalDetailsDialog({
   onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void,
   onClientPayStep?: (step: Step) => void,
   payingStepId?: number | null,
-  currentIndex: number
+  currentIndex: number,
+  ticketStatus?: string,
+  ticketId?: number | null,
+  onDeleteTicket?: (ticketId: number) => void,
+  deletingTicket?: boolean,
+  onRefreshPayment?: (ticketId: number) => void,
 }) {
   const [viewingFeedbackStep, setViewingFeedbackStep] = React.useState<Step | null>(null);
   const [viewingFeedbackType, setViewingFeedbackType] = React.useState<'normal' | 'problem'>('normal');
@@ -124,9 +134,43 @@ export function ProposalDetailsDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes da Proposta</DialogTitle>
-            <DialogDescription>Veja o status e as ações disponíveis para cada etapa.</DialogDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <DialogTitle>Detalhes da Proposta</DialogTitle>
+                <DialogDescription>Veja o status e as ações disponíveis para cada etapa.</DialogDescription>
+              </div>
+              {userType === "prestador" &&
+                ticketId &&
+                ["pendente", "cancelada"].includes((ticketStatus || "").toLowerCase()) && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => onDeleteTicket?.(ticketId)}
+                    disabled={deletingTicket}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deletingTicket ? "Excluindo..." : "Excluir proposta"}
+                  </Button>
+                )}
+            </div>
           </DialogHeader>
+          {ticketStatus && (ticketStatus as string).toLowerCase() !== "em andamento" && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <div className="flex items-center justify-between gap-3">
+                <span>Aguardando pagamento do depósito em garantia para liberar as ações do projeto.</span>
+                {onRefreshPayment && ticketId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onRefreshPayment(ticketId)}
+                  >
+                    Verificar pagamento
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="text-center py-8">Carregando…</div>
@@ -139,6 +183,12 @@ export function ProposalDetailsDialog({
 
               {steps.map((step, index) => {
                 const isSignatureStep = step.title === SIGNATURE_STEP_TITLE || index === 0
+                const signatureSigned =
+                  isSignatureStep &&
+                  ((step as any)?.confirm_contractor ||
+                    (step as any)?.confirmContractor ||
+                    ((step.status || "") as string).toLowerCase() === "concluido")
+                const ticketIsActive = (ticketStatus || "").toLowerCase() === "em andamento"
 
                 // helpers para auxiliar
                 const isConcluded = (s: any) =>
@@ -200,6 +250,7 @@ export function ProposalDetailsDialog({
                               size="sm"
                               className="bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
+                              disabled={!ticketIsActive}
                             >
                               <CheckCircle className="h-4 w-4 mr-2" />
                               {(() => {
@@ -240,7 +291,7 @@ export function ProposalDetailsDialog({
                         if (prevDone && providerMarkedDone && !isConcluded(step)) {
                           return (
                             <>
-                              <Button size="sm" onClick={() => onClientAccept(step)}>
+                              <Button size="sm" onClick={() => onClientAccept(step)} disabled={!ticketIsActive}>
                                 <CheckCircle className="h-4 w-4 mr-2" />
                                 Aceitar etapa
                               </Button>
@@ -248,6 +299,7 @@ export function ProposalDetailsDialog({
                                 size="sm"
                                 variant="destructive"
                                 onClick={() => handleRejectStepClick(step)}
+                                disabled={!ticketIsActive}
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
                                 Recusar etapa
@@ -276,7 +328,7 @@ export function ProposalDetailsDialog({
                         return null
                       })()}
 
-                      {userType === "contratante" && isSignatureStep && (() => {
+                      {userType === "contratante" && isSignatureStep && !signatureSigned && (() => {
                         // Botão de rejeição para cliente na etapa de assinatura (etapa 0)
                         const ticketId = (step as any)?.ticket_id;
                         return (
@@ -292,12 +344,18 @@ export function ProposalDetailsDialog({
                         )
                       })()}
 
+                      {userType === "contratante" && isSignatureStep && signatureSigned && (
+                        <p className="text-sm text-gray-600">
+                          Contrato assinado. Não é mais possível recusar esta proposta.
+                        </p>
+                      )}
+
                       {userType === "contratante" && !isSignatureStep && providerMarkedDone && isConcluded(step) && (
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => onClientPayStep?.(step)}
-                          disabled={!!payingStepId && payingStepId === step.id}
+                          disabled={!!payingStepId && payingStepId === step.id || !ticketIsActive}
                         >
                           {payingStepId === step.id ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -357,6 +415,7 @@ export function ProposalDetailsDialog({
                                 setFeedbackFormType('normal');
                                 setAddingFeedbackStep(step);
                               }}
+                              disabled={!ticketIsActive}
                             >
                               <MessageCircle className="h-4 w-4 mr-2" />
                               Feedback avulso
@@ -368,6 +427,7 @@ export function ProposalDetailsDialog({
                                 setViewingFeedbackType('normal');
                                 setViewingFeedbackStep(step);
                               }}
+                              disabled={!ticketIsActive}
                             >
                               <MessageCircle className="h-4 w-4 mr-2" />
                               Listar feedbacks
@@ -381,6 +441,7 @@ export function ProposalDetailsDialog({
                                 setFeedbackFormType('problem');
                                 setAddingFeedbackStep(step);
                               }}
+                              disabled={!ticketIsActive}
                             >
                               <AlertTriangle className="h-4 w-4 mr-2" />
                               Relatar problema
@@ -393,6 +454,7 @@ export function ProposalDetailsDialog({
                                 setViewingFeedbackType('problem');
                                 setViewingFeedbackStep(step);
                               }}
+                              disabled={!ticketIsActive}
                             >
                               <AlertTriangle className="h-4 w-4 mr-2" />
                               Listar problemas

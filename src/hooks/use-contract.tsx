@@ -57,7 +57,8 @@ export function useContract(conversationId?: number) {
   } = useQuery<Ticket[]>({
     queryKey: ["tickets", conversationId],
     enabled: !!conversationId && !!isLoggedIn,
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 7_000,
     queryFn: async () => {
       if (!conversationId) return [];
       const res = await apiRequest("GET", `/ticket/conversation/${conversationId}`);

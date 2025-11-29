@@ -34,7 +34,7 @@ export async function apiRequest(
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 10000,
+      staleTime: 15_000,
       retry: false,
       refetchOnWindowFocus: false,
     },
@@ -43,6 +43,5 @@ export const queryClient = new QueryClient({
     },
   },
 });
-
 
 

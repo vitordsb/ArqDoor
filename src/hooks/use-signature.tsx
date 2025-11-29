@@ -105,7 +105,11 @@ export function useSignature(conversationId?: number) {
     };
   }, []);
 
-  const signContract = async (ticketId: number, password: string) => {
+  const signContract = async (
+    ticketId: number,
+    password: string,
+    opts?: { setStatus?: boolean }
+  ) => {
     try {
       const res = await apiRequest('PATCH', `/attchment/ticket/${ticketId}`, {
         signature: true,
@@ -127,7 +131,9 @@ export function useSignature(conversationId?: number) {
             });
           }
         }
-        await updateTicketStatus(ticketId, 'em andamento');
+        if (opts?.setStatus ?? true) {
+          await updateTicketStatus(ticketId, 'em andamento');
+        }
       } catch (e) {
         console.warn('Assinou, mas falhou ao sincronizar step/ticket:', e);
       }

@@ -95,10 +95,12 @@ export default function Messages() {
     updateTicketStatus,
     updateStep,
     deleteStep,
+    deleteTicket,
     markStepCompleted,
     confirmFreelancerStep,
     rejectStep,
     sendSystemMessage,
+    refetchTickets,
   } = useContract(currentConversation?.id);
 
   const {
@@ -137,9 +139,11 @@ export default function Messages() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string>('');
   const [fullscreenPdf, setFullscreenPdf] = useState(false);
+  const [deletingTicket, setDeletingTicket] = useState(false);
 
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [selectedTicketForSignature, setSelectedTicketForSignature] = useState<any>(null);
+  const [signatureTicketPaymentPref, setSignatureTicketPaymentPref] = useState<"per_step" | "at_end" | null>(null);
   const [signaturePassword, setSignaturePassword] = useState('');
   const [ackChecked, setAckChecked] = useState(false);
   const [signingDocument, setSigningDocument] = useState(false);
@@ -150,6 +154,7 @@ export default function Messages() {
   const [stepPaymentInfo, setStepPaymentInfo] = useState<{ step: Step; data: any } | null>(null);
   const [payingStepId, setPayingStepId] = useState<number | null>(null);
   const [providerPaymentPreference, setProviderPaymentPreference] = useState<"per_step" | "at_end">("per_step");
+  const [providerPreferenceCache, setProviderPreferenceCache] = useState<Record<number, "per_step" | "at_end">>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- efeitos ----------
@@ -529,9 +534,188 @@ export default function Messages() {
     [toast, user]
   );
 
+  const handleDeleteTicket = useCallback(
+    async (ticketId: number) => {
+      const ticket = tickets.find((t: any) => t.id === ticketId);
+      if (!ticket) {
+        toast({
+          title: 'Ticket não encontrado',
+          description: 'Reabra a tela e tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const status = (ticket.status || '').toLowerCase();
+      if (status === 'em andamento' || status === 'concluída') {
+        toast({
+          title: 'Ação não permitida',
+          description: 'Não é possível excluir propostas já aceitas ou em andamento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      try {
+        setDeletingTicket(true);
+        const ok = await deleteTicket(ticketId);
+        if (ok) {
+          toast({
+            title: 'Proposta excluída',
+            description: 'Ela não aparecerá mais na lista.',
+          });
+          setShowProposalDetails(false);
+          setSelectedTicketSteps([]);
+          await refetchTickets();
+        }
+      } catch (error: any) {
+        toast({
+          title: 'Erro ao excluir',
+          description: error?.message || 'Não foi possível excluir a proposta.',
+          variant: 'destructive',
+        });
+      } finally {
+        setDeletingTicket(false);
+      }
+    },
+    [deleteTicket, refetchTickets, tickets, toast]
+  );
+
+  const handleRefreshTicketPayment = useCallback(
+    async (ticketId: number) => {
+      try {
+        const res = await apiRequest("GET", `/payments/tickets/${ticketId}/refresh`);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || body?.success === false) {
+          throw new Error(body?.message || "Não foi possível verificar o pagamento.");
+        }
+        await refetchTickets();
+        const steps = await getStepsForTicket(ticketId);
+        setSelectedTicketSteps(steps);
+        toast({
+          title: body?.data?.paid ? "Pagamento confirmado" : "Pagamento pendente",
+          description: body?.message || "",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Erro ao verificar pagamento",
+          description: error?.message || "Tente novamente.",
+          variant: "destructive",
+        });
+      }
+    },
+    [getStepsForTicket, refetchTickets, toast]
+  );
+  const getProviderPaymentPreference = useCallback(
+    async (providerId?: number | null) => {
+      if (!providerId) return null;
+      if (providerPreferenceCache[providerId]) return providerPreferenceCache[providerId];
+      try {
+        const res = await apiRequest("GET", `/providers/${providerId}`);
+        if (!res.ok) return null;
+        const body = await res.json();
+        const pref =
+          body?.provider?.payment_preference ||
+          body?.payment_preference ||
+          null;
+        if (pref) {
+          setProviderPreferenceCache((prev) => ({ ...prev, [providerId]: pref }));
+        }
+        return pref;
+      } catch (error) {
+        console.error("Erro ao carregar preferência do prestador:", error);
+        return null;
+      }
+    },
+    [providerPreferenceCache]
+  );
+
+  const generateTicketDepositPayment = useCallback(
+    async (ticketId: number) => {
+      if (user?.type !== "contratante") return;
+
+      const ticket = tickets.find((t: any) => t.id === ticketId);
+      let pref = await getProviderPaymentPreference(ticket?.provider_id);
+
+      if (!pref && currentConversation?.otherUser?.type === "prestador") {
+        try {
+          const res = await apiRequest("GET", `/providers/user/${currentConversation.otherUser.id}`);
+          if (res.ok) {
+            const body = await res.json();
+            pref =
+              body?.provider?.payment_preference ||
+              body?.payment_preference ||
+              null;
+            if (body?.provider?.provider_id) {
+              setProviderPreferenceCache((prev) => ({
+                ...prev,
+                [body.provider.provider_id]: pref as any,
+              }));
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao buscar preferência (user/provider):", error);
+        }
+      }
+
+      const effectivePref = pref || providerPaymentPreference;
+
+      if (effectivePref !== "at_end") return;
+
+      try {
+        const response = await apiRequest("POST", `/payments/tickets/${ticketId}`);
+        let payload: any = {};
+        try {
+          payload = await response.json();
+        } catch {
+          payload = {};
+        }
+
+        if (!response.ok || payload?.success === false) {
+          throw new Error(payload?.message || "Não foi possível gerar o pagamento do contrato.");
+        }
+
+        const amount = Number(payload?.data?.amount) || 0;
+        const depositStep: Step = {
+          id: -Math.abs(ticketId || 1),
+          ticket_id: ticketId,
+          title: "Depósito em garantia do contrato",
+          price: amount,
+          status: "Pendente",
+        };
+
+        setStepPaymentInfo({ step: depositStep, data: payload.data });
+        toast({
+          title: "Depósito gerado",
+          description: "Exibindo o PIX para depósito em garantia do contrato.",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Erro ao gerar depósito",
+          description: error?.message || "Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+      }
+    },
+    [currentConversation, getProviderPaymentPreference, providerPaymentPreference, tickets, toast, user?.type]
+  );
+
   // ---------- handlers: recusar contrato ----------
   const handleRejectContract = async (ticketId: number) => {
     try {
+      const steps = await getStepsForTicket(ticketId);
+      const signatureStep = steps[0];
+      const alreadySigned =
+        signatureStep?.confirm_contractor ||
+        (signatureStep?.status || '').toLowerCase() === 'concluido';
+
+      if (alreadySigned) {
+        toast({
+          title: 'Contrato já assinado',
+          description: 'Após a assinatura não é possível recusar a proposta.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Apenas cancela o ticket, não deleta - permite que seja refeito
       await updateTicketStatus(ticketId, 'cancelada');
       
@@ -562,12 +746,18 @@ export default function Messages() {
     setShowPasswordField(false);
     setSignatureFlow(null);
     setSelectedTicketForSignature(null);
+    setSignatureTicketPaymentPref(null);
   };
 
   const openContractSignatureDialog = (ticket: any) => {
     if (!ticket) return;
     resetSignatureDialogState();
     setSelectedTicketForSignature(ticket);
+    setSignatureTicketPaymentPref(null);
+    (async () => {
+      const pref = await getProviderPaymentPreference(ticket?.provider_id);
+      if (pref) setSignatureTicketPaymentPref(pref as any);
+    })();
     setSignatureFlow({
       type: 'contract',
       ticket,
@@ -739,7 +929,9 @@ export default function Messages() {
 
       if (signatureFlow.type === 'contract') {
         const ticketId = selectedTicketForSignature!.id as number;
-        const ok = await signContract(ticketId, password);
+        const ok = await signContract(ticketId, password, {
+          setStatus: signatureTicketPaymentPref !== 'at_end',
+        });
         if (!ok) return;
 
         toast({
@@ -749,6 +941,7 @@ export default function Messages() {
         setShowSignatureModal(false);
         resetSignatureDialogState();
 
+        await generateTicketDepositPayment(ticketId);
         await handleViewPdf(ticketId);
         return;
       }
@@ -929,6 +1122,15 @@ export default function Messages() {
         loading={loadingSteps}
         userType={user?.type as 'prestador' | 'contratante' | undefined}
         tickets={tickets}
+        ticketStatus={
+          selectedTicketSteps[0]
+            ? tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)?.status
+            : undefined
+        }
+        ticketId={selectedTicketSteps[0]?.ticket_id}
+        onDeleteTicket={handleDeleteTicket}
+        deletingTicket={deletingTicket}
+        onRefreshPayment={handleRefreshTicketPayment}
         onEditStep={step => handleEditStep(step)}
         onDeleteStep={id => handleDeleteStep(id)}
         editingStepId={editingStep}
