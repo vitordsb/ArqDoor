@@ -316,15 +316,15 @@ export function NewProposalDialog({
                 <div className="rounded-2xl border p-4 shadow-sm bg-blue-50 space-y-3">
                   <div>
                     <p className="text-sm font-semibold text-gray-900">
-                      Valor Total da Proposta
+                      Valor para depósito em garantia
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      O cliente pagará este valor único após a conclusão de todas as etapas.
+                      Ao aceitar/assinar o contrato o cliente já deposita este valor integral via Asaas. Ele fica sob garantia da ArqDoor até a entrega final.
                     </p>
                   </div>
                   <div className="bg-white rounded-lg p-3 border border-blue-200">
                     <Label className="text-xs uppercase text-muted-foreground block mb-2">
-                      Digite o valor total aqui
+                      Informe o valor total a ser depositado na assinatura
                     </Label>
                     <Input
                       type="text"
@@ -348,6 +348,9 @@ export function NewProposalDialog({
                         });
                       }}
                     />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      O projeto fica em "aguardando pagamento" até a confirmação do depósito; o prazo começa após a confirmação. Na entrega final, o prestador marca como concluído e o cliente aceita ou pede ajustes antes da liberação do pagamento.
+                    </p>
                   </div>
                 </div>
               )}

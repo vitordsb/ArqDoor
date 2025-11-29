@@ -251,7 +251,7 @@ export default function Messages() {
       if (!hasPrice) {
         toast({
           title: 'Erro',
-          description: 'Informe o valor total da proposta.',
+          description: 'Informe o valor total para depósito em garantia.',
           variant: 'destructive',
         });
         return;

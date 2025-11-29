@@ -240,7 +240,7 @@ export default function ProfilePage() {
       );
       toast({ 
         title: "Sucesso",
-        description: `Preferência de pagamento alterada para: ${paymentPreference === "per_step" ? "Por Etapa" : "Na Conclusão"}` 
+        description: `Preferência de pagamento alterada para: ${paymentPreference === "per_step" ? "Pagamento por fase" : "Depósito em garantia"}`
       });
     } catch (error: any) {
       toast({

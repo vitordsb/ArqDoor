@@ -45,13 +45,13 @@ export function PaymentPreferenceCard({
                     <RadioGroupItem value="per_step" id="per_step" />
                     <div className="flex-1">
                       <Label htmlFor="per_step" className="cursor-pointer font-medium">
-                        Pagamento por Etapa
+                        Pagamento por fase
                       </Label>
                       <p className="text-sm text-gray-500 mt-1">
-                        Cliente paga cada etapa conforme ela é aceita
+                        O cliente paga por cada fase finalizada no momento da sua finalização.
                       </p>
                       <p className="text-xs text-orange-600 mt-2 font-medium">
-                        ✓ Mais seguro para o prestador
+                        ✓ Cobrança fase a fase conforme aprovação
                       </p>
                     </div>
                   </div>
@@ -66,13 +66,13 @@ export function PaymentPreferenceCard({
                     <RadioGroupItem value="at_end" id="at_end" />
                     <div className="flex-1">
                       <Label htmlFor="at_end" className="cursor-pointer font-medium">
-                        Pagamento na Conclusão
+                        Depósito em garantia
                       </Label>
                       <p className="text-sm text-gray-500 mt-1">
-                        Cliente paga apenas quando o projeto está completamente finalizado
+                        Cliente paga o valor integral do contrato, ficando sob garantia da ArqDoor até o cumprimento das etapas. Os valores correspondentes a cada fase finalizada serão transferidos para o Arquiteto.
                       </p>
                       <p className="text-xs text-blue-600 mt-2 font-medium">
-                        ✓ Mais simples, mas requer confiança
+                        ✓ Valor integral garantido desde a assinatura
                       </p>
                     </div>
                   </div>
@@ -84,15 +84,16 @@ export function PaymentPreferenceCard({
               <p className="font-medium mb-1">ℹ️ Como funciona:</p>
               {displayValue === "per_step" ? (
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Cada etapa aceita gera um QR Code para pagamento</li>
-                  <li>Cliente paga por cada etapa individualmente</li>
-                  <li>Próxima etapa liberada após confirmação de pagamento</li>
+                  <li>O cliente paga por cada fase logo após a finalização e aprovação.</li>
+                  <li>Cada aprovação gera a rota/cobrança específica daquela fase.</li>
+                  <li>A próxima fase só inicia depois da confirmação do pagamento.</li>
                 </ul>
               ) : (
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Nenhum pagamento até projeto estar 100% concluído</li>
-                  <li>Um único QR Code gerado ao final com valor total</li>
-                  <li>Projeto marcado como concluído após pagamento</li>
+                  <li>Ao aceitar/assinar o contrato já emitimos a cobrança (Asaas) do valor total para depósito em garantia.</li>
+                  <li>O valor fica com a ArqDoor e as liberações acontecem conforme as fases são finalizadas e validadas, mantendo o saldo protegido.</li>
+                  <li>O projeto fica em "aguardando pagamento" e o prazo começa a contar após a confirmação do depósito.</li>
+                  <li>No fim, o prestador marca o projeto como concluído e o cliente aceita ou pede ajustes; só após a aceitação liberamos o pagamento ao prestador.</li>
                 </ul>
               )}
             </div>
