@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,13 @@ export function useContract(conversationId?: number) {
   const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isVisible, setIsVisible] = useState<boolean>(!document.hidden);
+
+  useEffect(() => {
+    const onVisibility = () => setIsVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   const norm = (v?: string) => (v || "").toLowerCase();
   const truthy = (v: any) => v === true || v === 1 || v === "1" || v === "true";
@@ -58,7 +65,14 @@ export function useContract(conversationId?: number) {
     queryKey: ["tickets", conversationId],
     enabled: !!conversationId && !!isLoggedIn,
     staleTime: 5_000,
-    refetchInterval: 7_000,
+    refetchInterval: (data?: Ticket[]) => {
+      const list = Array.isArray(data) ? data : [];
+      const critical = list.some((t) =>
+        ["pendente", "em andamento"].includes((t.status || "").toLowerCase())
+      );
+      if (!isVisible) return 15_000;
+      return critical ? 3_000 : 30_000;
+    },
     queryFn: async () => {
       if (!conversationId) return [];
       const res = await apiRequest("GET", `/ticket/conversation/${conversationId}`);
@@ -179,7 +193,8 @@ export function useContract(conversationId?: number) {
         (truthy(sNorm.confirmContractor) || truthy(sNorm.confirm_contractor)) &&
         (truthy(sNorm.confirmFreelancer) || truthy(sNorm.confirm_freelancer));
       const isConcluded = norm(sNorm.status) === "Concluido";
-      if (bothConfirmed && !isConcluded) {
+      const isFree = Number(sNorm.price || 0) <= 0;
+      if (bothConfirmed && !isConcluded && isFree) {
         await updateStep(sNorm.id, { status: "Concluido" } as any);
       }
       try {
@@ -264,11 +279,17 @@ export function useContract(conversationId?: number) {
         return true;
       } catch (err: any) {
         console.error("❌ Erro ao marcar etapa como concluída:", err);
-        toast({
-          title: "Erro",
-          description: err?.message || "Erro ao marcar etapa como concluída",
-          variant: "destructive",
-        });
+        let description = err?.message || "Erro ao marcar etapa como concluída";
+        let variant: "destructive" | "warning" | "default" = "destructive";
+        try {
+          const parsed = JSON.parse(err?.message || "{}");
+          if (parsed?.message) description = parsed.message;
+        } catch { /* keep original */ }
+        if (description.toLowerCase().includes("pagamento pendente")) {
+          description = "Cliente não efetuou o pagamento da etapa anterior. Entre em contato com o suporte.";
+          variant = "warning";
+        }
+        toast({ title: "Erro", description, variant });
         return false;
       }
     },
@@ -389,21 +410,30 @@ export function useContract(conversationId?: number) {
     ) => {
       if (!conversationId) return false;
       if (!user || user.type !== "prestador") return false;
+      if (!contractFile) {
+        toast({
+          title: "Contrato obrigatório",
+          description: "Anexe o PDF do contrato antes de enviar a proposta.",
+          variant: "warning",
+        });
+        return false;
+      }
       const sanitizedPassword = (signaturePassword || "").trim();
       if (!sanitizedPassword) {
         toast({
           title: "Senha obrigatória",
           description: "Informe sua senha para confirmar a etapa de assinatura.",
-          variant: "destructive",
+          variant: "warning",
         });
         return false;
       }
-      const validSteps = steps.filter((s) => s.title?.trim() && s.price > 0);
+      const minPrice = 5;
+      const validSteps = steps.filter((s) => s.title?.trim() && s.price >= minPrice);
       if (validSteps.length < 1) {
         toast({
           title: "Erro na Proposta",
-          description: "Adicione pelo menos uma etapa com título e preço válidos.",
-          variant: "destructive",
+          description: `Adicione pelo menos uma etapa com título e preço mínimo de R$ ${minPrice.toFixed(2)}.`,
+          variant: "warning",
         });
         return false;
       }
@@ -414,6 +444,7 @@ export function useContract(conversationId?: number) {
         const day = String(d.getDate()).padStart(2, "0");
         return `${year}-${month}-${day}`;
       };
+      const extractIsoDate = (value: string) => value.split("T")[0] || value;
 
       // usa meio-dia para evitar os saltos de data causados por fusos ao usar toISOString()
       const getFutureDateIso = (daysToAdd: number): string => {
@@ -424,7 +455,7 @@ export function useContract(conversationId?: number) {
       };
 
       const addDaysToIsoDate = (isoDate: string, days: number): string => {
-        const date = new Date(isoDate + "T12:00:00");
+        const date = new Date(extractIsoDate(isoDate) + "T12:00:00");
         date.setDate(date.getDate() + days);
         return toIsoDate(date);
       };
@@ -439,7 +470,8 @@ export function useContract(conversationId?: number) {
         if (!value || typeof value !== 'string') return null;
         const trimmed = value.trim();
         if (!trimmed) return null;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+        const isoPart = extractIsoDate(trimmed);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(isoPart)) return isoPart;
         if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) return parseBrToIso(trimmed);
         return null;
       };
@@ -447,6 +479,12 @@ export function useContract(conversationId?: number) {
       const formatIsoToBr = (iso: string) => {
         const [y, m, d] = iso.split('-');
         return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+      };
+      const toDateAtNoon = (iso?: string | null): Date | null => {
+        if (!iso) return null;
+        const datePart = extractIsoDate(iso);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
+        return new Date(`${datePart}T12:00:00`);
       };
 
       const tomorrowDate = getFutureDateIso(1);
@@ -463,15 +501,23 @@ export function useContract(conversationId?: number) {
         return acc + (s.price || 0);
       }, 0);
 
+      let createdTicketId: number | null = null;
+      const cleanupAndThrow = async (message: string) => {
+        if (createdTicketId) {
+          try { await deleteTicket(createdTicketId); } catch { /* ignore */ }
+          createdTicketId = null;
+        }
+        throw new Error(message);
+      };
       try {
         const tRes = await apiRequest("POST", "/ticket", { conversation_id: conversationId });
         if (!tRes.ok) throw new Error(await tRes.text());
         const tJson = await tRes.json();
         const ticketId: number = tJson.ticketService?.id || tJson.ticket?.id;
+        createdTicketId = ticketId;
         if (!ticketId) throw new Error("ID do ticket não retornado pela API");
 
         const createdSteps: any[] = [];
-        const todayIso = new Date().toISOString().split('T')[0];
         let previousEndIso: string | null = null;
         for (let index = 0; index < stepsToCreate.length; index++) {
           const s = stepsToCreate[index];
@@ -494,9 +540,9 @@ export function useContract(conversationId?: number) {
               toast({
                 title: "Sequência de datas inválida",
                 description: `A etapa "${s.title}" deve iniciar a partir de ${formatIsoToBr(previousEndIso)}.`,
-                variant: "destructive",
+                variant: "warning",
               });
-              return false;
+              await cleanupAndThrow(`Sequência de datas inválida na etapa "${s.title}".`);
             }
 
             if (!endIso) {
@@ -511,20 +557,41 @@ export function useContract(conversationId?: number) {
             endIso = addDaysToIsoDate(startIso, 1);
           }
 
-          const startDateObj = new Date(startIso + 'T00:00:00');
-          const todayDateObj = new Date(todayIso + 'T00:00:00');
-          if (startDateObj < todayDateObj) {
+          let startDateAtNoon = toDateAtNoon(startIso);
+          let endDateAtNoon = toDateAtNoon(endIso);
+
+          if (!startDateAtNoon) {
             toast({
               title: "Data de Início Inválida",
-              description: `A data de início da etapa "${s.title}" (${startIso}) não pode ser anterior a hoje (${todayIso}).`,
-              variant: "destructive",
+              description: `Não foi possível interpretar a data de início da etapa "${s.title}".`,
+              variant: "warning",
             });
-            return false;
+            await cleanupAndThrow(`Data de início inválida na etapa "${s.title}".`);
           }
 
-          if (new Date(endIso) <= new Date(startIso)) {
-            console.warn(`Data final (${endIso}) <= data inicial (${startIso}) para "${s.title}". Ajustando...`);
+          const todayAtStart = new Date();
+          todayAtStart.setHours(0, 0, 0, 0);
+          if (startDateAtNoon < todayAtStart) {
+            toast({
+              title: "Data de Início Inválida",
+              description: `A data de início da etapa "${s.title}" (${formatIsoToBr(startIso)}) não pode ser anterior a hoje.`,
+              variant: "warning",
+            });
+            await cleanupAndThrow(`Data de início anterior a hoje na etapa "${s.title}".`);
+          }
+
+          if (!endDateAtNoon) {
             endIso = addDaysToIsoDate(startIso, 1);
+            endDateAtNoon = toDateAtNoon(endIso);
+          }
+
+          if (endDateAtNoon && endDateAtNoon < startDateAtNoon) {
+            toast({
+              title: "Datas inválidas",
+              description: `A data final da etapa "${s.title}" não pode ser anterior à data inicial.`,
+              variant: "warning",
+            });
+            await cleanupAndThrow(`Data final anterior à inicial na etapa "${s.title}".`);
           }
 
           // Cria o payload - agora com start_date e end_date sempre presentes
@@ -532,8 +599,8 @@ export function useContract(conversationId?: number) {
             ticket_id: ticketId,
             title: s.title,
             price: s.price || 0,
-            start_date: startIso,
-            end_date: endIso,
+            start_date: startDateAtNoon.toISOString(),
+            end_date: (endDateAtNoon ?? startDateAtNoon).toISOString(),
           };
 
           const sRes = await apiRequest("POST", "/step", stepPayload);
@@ -547,8 +614,8 @@ export function useContract(conversationId?: number) {
             id: sJson.step?.id || sJson.id,
             title: s.title,
             price: s.price || 0,
-            start_date: startIso,
-            end_date: endIso,
+            start_date: startDateAtNoon.toISOString(),
+            end_date: (endDateAtNoon ?? startDateAtNoon).toISOString(),
           });
           previousEndIso = endIso;
         }
@@ -561,7 +628,12 @@ export function useContract(conversationId?: number) {
             throw new Error("Não foi possível confirmar a etapa de assinatura.");
           }
         }
-        if (contractFile) await uploadPDF(ticketId, contractFile);
+        const uploaded = await uploadPDF(ticketId, contractFile);
+        if (!uploaded || (uploaded as any)?.success === false) {
+          await deleteTicket(ticketId);
+          createdTicketId = null;
+          throw new Error("Falha ao enviar o contrato PDF. A proposta foi cancelada.");
+        }
         await sendSystemMessage(
           `📋 Nova proposta enviada! Ticket #${ticketId} - Etapas: ${stepsToCreate.length} - Total: R$ ${totalPrice.toFixed(2)}`,
           "proposal",
@@ -581,10 +653,16 @@ export function useContract(conversationId?: number) {
           description: err?.message || "Verifique os dados e tente novamente.",
           variant: "destructive",
         });
+        if (createdTicketId) {
+          // Tenta limpar ticket gerado se falhar após criação (ex.: upload não enviado)
+          try { await deleteTicket(createdTicketId); } catch (cleanupErr) {
+            console.warn("Falha ao remover ticket após erro:", cleanupErr);
+          }
+        }
         return false;
       }
     },
-    [conversationId, user, queryClient, toast, sendSystemMessage, uploadPDF, preConfirmFirstStepFreelancer] // Adicionei as dependências que faltavam
+    [conversationId, user, queryClient, toast, sendSystemMessage, uploadPDF, preConfirmFirstStepFreelancer, deleteTicket] // Adicionei as dependências que faltavam
   );
 
   /** =================== PDF/CONTRATO =================== */

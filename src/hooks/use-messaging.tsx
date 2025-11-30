@@ -15,6 +15,13 @@ export function useMessaging(initialPartnerId?: string | null) {
   const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isVisible, setIsVisible] = useState<boolean>(!document.hidden);
+
+  useEffect(() => {
+    const onVisibility = () => setIsVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [newMessage, setNewMessage] = useState("");
@@ -29,7 +36,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     queryKey: ["conversations"],
     enabled: isLoggedIn && !!user,
     staleTime: 5_000,
-    refetchInterval: 10_000,
+    refetchInterval: isVisible ? 2_000 : 10_000, // conversas: rápido visível, mais lento em bg
     queryFn: async () => {
       const response = await apiRequest("GET", "/conversation");
       if (!response.ok) throw new Error("Erro ao buscar conversas");
@@ -113,7 +120,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     queryKey: ["messages", currentConversation?.id],
     enabled: !!currentConversation?.id && isLoggedIn,
     staleTime: 1_000,
-    refetchInterval: 1_000,
+    refetchInterval: isVisible ? 1_000 : 5_000,
     queryFn: async () => {
       if (!currentConversation?.id) return [];
       const response = await apiRequest("GET", `/message/conversation/${currentConversation.id}`);

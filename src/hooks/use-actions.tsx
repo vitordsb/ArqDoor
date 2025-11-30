@@ -79,10 +79,66 @@ export function useStepFeedbackActions(idStep?: number) {
     },
   });
 
+  const updateFeedbackMutation = useMutation({
+    mutationFn: async ({ id, comment, isProblem }: { id: number; comment: string; isProblem?: boolean }) => {
+      const encodedComment = encodeFeedbackComment(comment, isProblem);
+      const response = await apiRequest('PATCH', `/stepfeedback/item/${id}`, {
+        comment: encodedComment,
+        type: isProblem ? 'issue' : 'feedback',
+      });
+      if (!response.ok) {
+        let errorMessage = 'Erro ao atualizar feedback';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {}
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      if (idStep) queryClient.invalidateQueries({ queryKey: ['stepFeedback', idStep] });
+      toast({ title: "Sucesso", description: "Feedback atualizado!" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível atualizar o feedback.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteFeedbackMutation = useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      const response = await apiRequest('DELETE', `/stepfeedback/item/${id}`);
+      if (!response.ok) {
+        let errorMessage = 'Erro ao remover feedback';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {}
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      if (idStep) queryClient.invalidateQueries({ queryKey: ['stepFeedback', idStep] });
+      toast({ title: "Removido", description: "Feedback removido." });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível remover o feedback.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Função para chamar a criação de feedback
   const createStepFeedback = useCallback(async (step_id: number, comment: string, options?: { isProblem?: boolean }) => {
     if (!comment?.trim()) {
-      toast({ description: "O comentário não pode estar vazio.", variant: "destructive" }); //
+      toast({ description: "O comentário não pode estar vazio.", variant: "warning" }); //
       return false;
     }
     try {
@@ -93,10 +149,42 @@ export function useStepFeedbackActions(idStep?: number) {
     }
   }, [createFeedbackMutation, toast]); //
 
+  const updateStepFeedback = useCallback(
+    async (id: number, comment: string, options?: { isProblem?: boolean }) => {
+      if (!comment?.trim()) {
+        toast({ description: "O comentário não pode estar vazio.", variant: "warning" });
+        return false;
+      }
+      try {
+        await updateFeedbackMutation.mutateAsync({ id, comment: comment.trim(), isProblem: options?.isProblem });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [toast, updateFeedbackMutation]
+  );
+
+  const deleteStepFeedback = useCallback(
+    async (id: number) => {
+      try {
+        await deleteFeedbackMutation.mutateAsync({ id });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [deleteFeedbackMutation]
+  );
+
   return {
     feedbackData,
     isLoadingFeedback,
     createStepFeedback,
     isCreatingFeedback: createFeedbackMutation.isPending,
+    updateStepFeedback,
+    deleteStepFeedback,
+    isUpdatingFeedback: updateFeedbackMutation.isPending,
+    isDeletingFeedback: deleteFeedbackMutation.isPending,
   };
 }

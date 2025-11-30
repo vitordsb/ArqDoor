@@ -5,10 +5,12 @@ export const API_BASE_URL = "https://api.arqdoor.com";
 export async function apiRequest(
   method: string,
   path: string,
-  data?: unknown): Promise<Response> {
+  data?: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<Response> {
   const url = API_BASE_URL + path;
   const token = sessionStorage.getItem("token");
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(extraHeaders || {}) };
 
   let bodyContent: BodyInit | undefined;
 
@@ -43,5 +45,4 @@ export const queryClient = new QueryClient({
     },
   },
 });
-
 

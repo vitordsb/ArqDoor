@@ -33,31 +33,7 @@ import { useStepFeedbackActions } from "@/hooks/use-actions"
 import { Textarea } from "@/components/ui/textarea"
 import { SIGNATURE_STEP_TITLE } from "@/constants/contracts"
 
-export function ProposalDetailsDialog({
-  open,
-  onOpenChange,
-  steps,
-  loading,
-  userType,
-  onMarkProviderCompleted,
-  onEditStep,
-  onDeleteStep,
-  editingStepId,
-  editStepData,
-  onEditStepDataChange,
-  onSaveStep,
-  onCancelEdit,
-  onClientAccept,
-  onClientRejectStep,
-  onFeedbackCreated,
-  onClientPayStep,
-  payingStepId,
-  ticketStatus,
-  ticketId,
-  onDeleteTicket,
-  deletingTicket,
-  onRefreshPayment,
-}: {
+type ProposalDetailsDialogProps = {
   open: boolean
   onOpenChange: (v: boolean) => void
   steps: Step[]
@@ -76,53 +52,114 @@ export function ProposalDetailsDialog({
   onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
   onClientAccept: (step: Step) => Promise<void>
-  onClientRejectStep: (step: Step) => Promise<boolean>,
-  onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void,
-  onClientPayStep?: (step: Step) => void,
-  payingStepId?: number | null,
-  currentIndex: number,
-  ticketStatus?: string,
-  ticketId?: number | null,
-  onDeleteTicket?: (ticketId: number) => void,
-  deletingTicket?: boolean,
-  onRefreshPayment?: (ticketId: number) => void,
-}) {
-  const [viewingFeedbackStep, setViewingFeedbackStep] = React.useState<Step | null>(null);
-  const [viewingFeedbackType, setViewingFeedbackType] = React.useState<'normal' | 'problem'>('normal');
-  const [addingFeedbackStep, setAddingFeedbackStep] = React.useState<Step | null>(null);
-  const [feedbackFormType, setFeedbackFormType] = React.useState<'normal' | 'problem'>('normal');
-  const [newFeedbackComment, setNewFeedbackComment] = React.useState("");
+  onClientRejectStep: (step: Step) => Promise<boolean>
+  onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void
+  onClientPayStep?: (step: Step) => void
+  onRefreshStepPayment?: (step: Step) => void
+  payingStepId?: number | null
+  currentIndex: number
+  ticketStatus?: string
+  ticketId?: number | null
+  onDeleteTicket?: (ticketId: number) => void
+  deletingTicket?: boolean
+  onRefreshPayment?: (ticketId: number) => void
+  paymentPreference?: "per_step" | "at_end" | null
+}
+
+export function ProposalDetailsDialog({
+  open,
+  onOpenChange,
+  steps,
+  loading,
+  userType,
+  onMarkProviderCompleted,
+  onEditStep,
+  onDeleteStep,
+  editingStepId,
+  editStepData,
+  onEditStepDataChange,
+  onSaveStep,
+  onCancelEdit,
+  onStartSignature: _onStartSignature,
+  onOpenSignature: _onOpenSignature,
+  onRejectContract,
+  onClientAccept,
+  onClientRejectStep,
+  onFeedbackCreated,
+  onClientPayStep,
+  onRefreshStepPayment,
+  payingStepId,
+  ticketStatus,
+  ticketId,
+  onDeleteTicket,
+  deletingTicket,
+  onRefreshPayment,
+  currentIndex: _currentIndex,
+  paymentPreference = null,
+}: ProposalDetailsDialogProps) {
+  const [feedbackModalStep, setFeedbackModalStep] = React.useState<Step | null>(null);
+  const [feedbackModalType, setFeedbackModalType] = React.useState<'feedback' | 'problem'>('feedback');
+  const [feedbackModalInput, setFeedbackModalInput] = React.useState("");
+  const [editingFeedbackId, setEditingFeedbackId] = React.useState<number | null>(null);
+  const [pendingRejectStep, setPendingRejectStep] = React.useState<Step | null>(null);
 
   const {
     feedbackData,
-    isLoadingFeedback
-  } = useStepFeedbackActions(viewingFeedbackStep?.id);
-
-  const {
+    isLoadingFeedback,
     createStepFeedback,
-    isCreatingFeedback
-  } = useStepFeedbackActions();
+    updateStepFeedback,
+    deleteStepFeedback,
+    isCreatingFeedback,
+    isUpdatingFeedback,
+    isDeletingFeedback,
+  } = useStepFeedbackActions(feedbackModalStep?.id);
+
+  const resetFeedbackModal = () => {
+    setFeedbackModalStep(null);
+    setFeedbackModalInput("");
+    setEditingFeedbackId(null);
+    setPendingRejectStep(null);
+    setFeedbackModalType('feedback');
+  };
+
+  const openFeedbackModal = (step: Step, type: 'feedback' | 'problem', rejectAfterSubmit?: boolean) => {
+    setFeedbackModalStep(step);
+    setFeedbackModalType(type);
+    setFeedbackModalInput("");
+    setEditingFeedbackId(null);
+    setPendingRejectStep(rejectAfterSubmit ? step : null);
+  };
 
   const handleSubmitFeedback = async () => {
-    if (addingFeedbackStep && newFeedbackComment.trim()) {
-      const comment = newFeedbackComment.trim();
-      const isProblem = feedbackFormType === 'problem';
-      const success = await createStepFeedback(addingFeedbackStep.id, comment, { isProblem });
-      if (success) {
-        onFeedbackCreated?.(addingFeedbackStep, comment, isProblem);
-        setNewFeedbackComment("");
-        setAddingFeedbackStep(null);
-        setFeedbackFormType('normal');
+    if (!feedbackModalStep || !feedbackModalInput.trim()) return;
+    const isProblem = feedbackModalType === 'problem';
+    let ok = false;
+    if (editingFeedbackId) {
+      ok = await updateStepFeedback(editingFeedbackId, feedbackModalInput.trim(), { isProblem });
+    } else {
+      ok = await createStepFeedback(feedbackModalStep.id, feedbackModalInput.trim(), { isProblem });
+    }
+    if (ok) {
+      onFeedbackCreated?.(feedbackModalStep, feedbackModalInput.trim(), isProblem);
+      setFeedbackModalInput("");
+      setEditingFeedbackId(null);
+      if (pendingRejectStep && pendingRejectStep.id === feedbackModalStep.id && isProblem) {
+        await onClientRejectStep(pendingRejectStep);
+        setPendingRejectStep(null);
       }
     }
   };
 
-  const handleRejectStepClick = async (step: Step) => {
-    const result = await onClientRejectStep(step);
-    if (result) {
-      setFeedbackFormType('problem');
-      setAddingFeedbackStep(step);
-      setNewFeedbackComment("");
+  const handleEditFeedback = (fb: any) => {
+    setEditingFeedbackId(fb.id);
+    setFeedbackModalInput(fb.comment || "");
+  };
+
+  const handleDeleteFeedback = async (fb: any) => {
+    await deleteStepFeedback(fb.id);
+    if (editingFeedbackId === fb.id) {
+      setEditingFeedbackId(null);
+      setFeedbackModalInput("");
     }
   };
 
@@ -155,7 +192,7 @@ export function ProposalDetailsDialog({
                 )}
             </div>
           </DialogHeader>
-          {ticketStatus && (ticketStatus as string).toLowerCase() !== "em andamento" && (
+          {paymentPreference === "at_end" && ticketStatus && (ticketStatus as string).toLowerCase() !== "em andamento" && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <div className="flex items-center justify-between gap-3">
                 <span>Aguardando pagamento do depósito em garantia para liberar as ações do projeto.</span>
@@ -189,6 +226,7 @@ export function ProposalDetailsDialog({
                     (step as any)?.confirmContractor ||
                     ((step.status || "") as string).toLowerCase() === "concluido")
                 const ticketIsActive = (ticketStatus || "").toLowerCase() === "em andamento"
+                const paid = Boolean((step as any).paid);
 
                 // helpers para auxiliar
                 const isConcluded = (s: any) =>
@@ -245,7 +283,7 @@ export function ProposalDetailsDialog({
 
                       {userType === "prestador" && !isSignatureStep && (
                         <>
-                          {!isConcluded(step) && (
+                          {!isConcluded(step) && (!providerMarkedDone || status === "recusado") && (
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700 text-white"
@@ -288,23 +326,58 @@ export function ProposalDetailsDialog({
                         const prev = steps[index - 1]
                         const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
 
-                        if (prevDone && providerMarkedDone && !isConcluded(step)) {
+                        if (prevDone && providerMarkedDone && (!isConcluded(step) || !paid)) {
+                          if (paid) {
+                            return (
+                              <p className="text-sm text-gray-500">
+                                Pagamento desta etapa já foi identificado. Aguarde o fluxo seguir para a próxima etapa.
+                              </p>
+                            );
+                          }
                           return (
-                            <>
-                              <Button size="sm" onClick={() => onClientAccept(step)} disabled={!ticketIsActive}>
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Aceitar etapa
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleRejectStepClick(step)}
-                                disabled={!ticketIsActive}
-                              >
-                                <XCircle className="h-4 w-4 mr-2" />
-                                Recusar etapa
-                              </Button>
-                            </>
+                            <div className="flex flex-col gap-2 w-full">
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => onClientAccept(step)}
+                                  disabled={!ticketIsActive}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Aceitar etapa e pagar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => openFeedbackModal(step, 'problem', true)}
+                                  disabled={!ticketIsActive}
+                                >
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Relatar problema e recusar etapa
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openFeedbackModal(step, 'feedback')}
+                                  disabled={!ticketIsActive}
+                                >
+                                  <MessageCircle className="h-4 w-4 mr-2" />
+                                  Feedbacks
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-red-400 text-red-600 hover:text-red-700 hover:border-red-500"
+                                  onClick={() => openFeedbackModal(step, 'problem')}
+                                  disabled={!ticketIsActive}
+                                >
+                                  <AlertTriangle className="h-4 w-4 mr-2" />
+                                  Problemas
+                                </Button>
+                              </div>
+                            </div>
                           )
                         }
                         if (prevDone && !providerMarkedDone) {
@@ -350,11 +423,11 @@ export function ProposalDetailsDialog({
                         </p>
                       )}
 
-                      {userType === "contratante" && !isSignatureStep && providerMarkedDone && isConcluded(step) && (
+                      {userType === "contratante" && !isSignatureStep && providerMarkedDone && !paid && (
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => onClientPayStep?.(step)}
+                          onClick={() => onRefreshStepPayment?.(step)}
                           disabled={!!payingStepId && payingStepId === step.id || !ticketIsActive}
                         >
                           {payingStepId === step.id ? (
@@ -362,7 +435,7 @@ export function ProposalDetailsDialog({
                           ) : (
                             <QrCode className="h-4 w-4 mr-2" />
                           )}
-                          Gerar pagamento PIX
+                          Confirmar pagamento novamente
                         </Button>
                       )}
 
@@ -404,65 +477,6 @@ export function ProposalDetailsDialog({
                         </div>
                       </div>
                     )}
-                    {!isSignatureStep && !isConcluded(step) && userType === "contratante" && (
-                      <div className="mt-3 pt-3 border-t">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setFeedbackFormType('normal');
-                                setAddingFeedbackStep(step);
-                              }}
-                              disabled={!ticketIsActive}
-                            >
-                              <MessageCircle className="h-4 w-4 mr-2" />
-                              Feedback avulso
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setViewingFeedbackType('normal');
-                                setViewingFeedbackStep(step);
-                              }}
-                              disabled={!ticketIsActive}
-                            >
-                              <MessageCircle className="h-4 w-4 mr-2" />
-                              Listar feedbacks
-                            </Button>
-                          </div>
-                          <div className="flex flex-wrap gap-2 justify-end">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setFeedbackFormType('problem');
-                                setAddingFeedbackStep(step);
-                              }}
-                              disabled={!ticketIsActive}
-                            >
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              Relatar problema
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-red-400 text-red-600 hover:text-red-700 hover:border-red-500"
-                              onClick={() => {
-                                setViewingFeedbackType('problem');
-                                setViewingFeedbackStep(step);
-                              }}
-                              disabled={!ticketIsActive}
-                            >
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              Listar problemas
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                 )
@@ -483,112 +497,114 @@ export function ProposalDetailsDialog({
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+      </DialogContent>
+    </Dialog>
 
       <Dialog
-        open={!!viewingFeedbackStep}
+        open={!!feedbackModalStep}
         onOpenChange={(open) => {
-          if (!open) {
-            setViewingFeedbackStep(null);
-            setViewingFeedbackType('normal');
-          }
+          if (!open) resetFeedbackModal();
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {viewingFeedbackType === 'problem' ? 'Problemas relatados' : 'Feedbacks da etapa'}{' '}
-              {viewingFeedbackStep ? steps.findIndex(s => s.id === viewingFeedbackStep.id) + 1 : ''}
+              {feedbackModalType === 'problem' ? 'Problemas da etapa' : 'Feedbacks da etapa'}{" "}
+              {feedbackModalStep ? steps.findIndex(s => s.id === feedbackModalStep.id) + 1 : ''}
             </DialogTitle>
-            <DialogDescription>{viewingFeedbackStep?.title}</DialogDescription>
+            <DialogDescription>{feedbackModalStep?.title}</DialogDescription>
           </DialogHeader>
           <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
             {isLoadingFeedback ? (
-              <p>Carregando feedbacks...</p>
+              <p>Carregando...</p>
             ) : (() => {
-              const filteredFeedbacks = (feedbackData || []).filter(fb =>
-                viewingFeedbackType === 'problem' ? fb.isProblem : !fb.isProblem
+              const filtered = (feedbackData || []).filter(fb =>
+                feedbackModalType === 'problem' ? fb.isProblem : !fb.isProblem
               );
-              if (filteredFeedbacks.length === 0) {
+              if (filtered.length === 0) {
                 return (
                   <p className="text-sm text-gray-600">
-                    {viewingFeedbackType === 'problem'
+                    {feedbackModalType === 'problem'
                       ? 'Nenhum problema relatado para esta etapa.'
                       : 'Nenhum feedback encontrado para esta etapa.'}
                   </p>
                 );
               }
-              return filteredFeedbacks.map(fb => (
+              return filtered.map(fb => (
                 <div
                   key={fb.id}
-                  className={`border p-3 rounded-lg ${
+                  className={`border p-3 rounded-lg flex justify-between gap-3 ${
                     fb.isProblem
                       ? 'border-red-300 bg-red-50 text-red-900'
                       : 'border-gray-200 bg-gray-50'
                   }`}
                 >
-                  <p className="text-sm">{fb.comment}</p>
-                  <p className={`text-xs mt-1 ${fb.isProblem ? 'text-red-700/80' : 'text-gray-500'}`}>
-                    {formatDate(fb.createdAt)}
-                  </p>
+                  <div>
+                    <p className="text-sm">{fb.comment}</p>
+                    <p className={`text-xs mt-1 ${fb.isProblem ? 'text-red-700/80' : 'text-gray-500'}`}>
+                      {formatDate(fb.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => handleEditFeedback(fb)}>
+                      Editar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteFeedback(fb)}
+                      disabled={isDeletingFeedback}
+                    >
+                      Excluir
+                    </Button>
+                  </div>
                 </div>
               ));
             })()}
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* --- Modal para Adicionar Feedback (Novo) --- */}
-      <Dialog
-        open={!!addingFeedbackStep}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddingFeedbackStep(null);
-            setFeedbackFormType('normal');
-            setNewFeedbackComment("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {feedbackFormType === 'problem' ? 'Relatar problema' : 'Adicionar feedback'} para etapa{' '}
-              {addingFeedbackStep ? steps.findIndex(s => s.id === addingFeedbackStep.id) + 1 : ''}
-            </DialogTitle>
-            <DialogDescription>{addingFeedbackStep?.title}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {feedbackFormType === 'problem' && (
-              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                <AlertTriangle className="h-4 w-4 mt-0.5" />
-                <p>
-                  Detalhe o problema encontrado nesta etapa. Ele aparecerá destacado para a equipe acompanhar
-                  com prioridade.
-                </p>
-              </div>
-            )}
+          <div className="space-y-3 pt-3 border-t">
+            <p className="text-sm font-medium">
+              {editingFeedbackId
+                ? `Editar ${feedbackModalType === 'problem' ? 'problema' : 'feedback'}`
+                : `Novo ${feedbackModalType === 'problem' ? 'problema' : 'feedback'}`}
+            </p>
             <Textarea
-              value={newFeedbackComment}
-              onChange={(e) => setNewFeedbackComment(e.target.value)}
+              value={feedbackModalInput}
+              onChange={(e) => setFeedbackModalInput(e.target.value)}
               placeholder={
-                feedbackFormType === 'problem'
-                  ? 'Descreva o problema encontrado...'
-                  : 'Escreva seu feedback aqui...'
+                feedbackModalType === 'problem'
+                  ? 'Descreva o problema encontrado nesta etapa...'
+                  : 'Deixe seu feedback sobre esta etapa...'
               }
               rows={4}
             />
-            <Button
-              onClick={handleSubmitFeedback}
-              disabled={isCreatingFeedback || !newFeedbackComment.trim()}
-              className={`w-full ${feedbackFormType === 'problem' ? 'bg-red-600 hover:bg-red-700' : ''}`}
-            >
-              {isCreatingFeedback
-                ? "Enviando..."
-                : feedbackFormType === 'problem'
-                  ? "Relatar problema"
-                  : "Enviar feedback"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={handleSubmitFeedback}
+                disabled={isCreatingFeedback || isUpdatingFeedback || !feedbackModalInput.trim()}
+              >
+                {editingFeedbackId ? "Salvar alterações" : "Enviar"}
+              </Button>
+              {editingFeedbackId && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingFeedbackId(null);
+                    setFeedbackModalInput("");
+                  }}
+                >
+                  Cancelar edição
+                </Button>
+              )}
+            </div>
+            {pendingRejectStep && feedbackModalType === 'problem' && (
+              <p className="text-xs text-red-600">
+                Ao enviar o problema a etapa será recusada automaticamente.
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

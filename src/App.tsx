@@ -15,8 +15,9 @@ import LandingLayout from "@/components/layouts/LandingLayout";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";
 import ServicesFeed from "@/pages/ServicesFeed.tsx";
 import Profile from "@/pages/Profile";
+import Admin from "@/pages/Admin";
 
-const LANDING_ROUTES = ["/", "/auth"];
+const LANDING_ROUTES = ["/", "/auth", "/admin"];
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/providers/:provider_id" component={ProviderProfile} />
       <Route path="/user/:user_id" component={ClientProfile} />
       <Route path="/messages/:userId?" component={Messages} />
+      <Route path="/admin" component={Admin} />
       <Route path="/termos-de-uso" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

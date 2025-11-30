@@ -187,16 +187,6 @@ export function useSignature(conversationId?: number) {
         password,
       });
       if (!res.ok) throw new Error(await res.text());
-      await updateStep(stepId, { status: 'Concluido' });
-
-      // envia mensagem de sistema
-      await sendSystemMessage(
-        `✅ Cliente aceitou/assinou a etapa ${stepId}.`,
-        'text',
-        { step_id: stepId, action: 'client_signed' }
-      );
-
-      queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
       return true;
     } catch (err: any) {
       console.error('❌ Erro ao assinar etapa:', err);
@@ -213,29 +203,16 @@ export function useSignature(conversationId?: number) {
     async (stepId: number, password: string) => {
       const ok = await signStepContract(stepId, password);
       if (ok) {
-        try {
-          const metaRes = await apiRequest('GET', `/step/meta/${stepId}`);
-          const meta = await metaRes.json();
-          const ticketId = meta.ticket_id;
-          const stepsRes = await apiRequest('GET', `/step/${ticketId}`);
-          const stepsJson = await stepsRes.json();
-          const allDone = (stepsJson.steps || []).every(
-            (s: any) => (s.status || '').toLowerCase() === 'concluido'
-          );
-          if (allDone) {
-            await updateTicketStatus(ticketId, 'concluída');
-            await sendSystemMessage(
-              `🎉 Ticket #${ticketId} concluído! Todas as etapas foram finalizadas.`,
-              'text',
-              { ticket_id: ticketId, action: 'ticket_concluded' }
-            );
-          }
-        } catch {
-        }
+        await sendSystemMessage(
+          `✅ Cliente aceitou/assinou a etapa ${stepId}.`,
+          'text',
+          { step_id: stepId, action: 'client_signed' }
+        );
+        queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
       }
       return ok;
     },
-    [signStepContract, updateTicketStatus, sendSystemMessage]
+    [signStepContract, sendSystemMessage, queryClient, conversationId]
   );
 
   return { signContract, signStepContract, acceptStep, uploadPDF, buscarPDF };

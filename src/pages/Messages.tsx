@@ -300,8 +300,8 @@ export default function Messages() {
     setLoadingSteps(true);
     setSelectedTicketSteps([]);
     try {
-      const steps = await getStepsForTicket(ticketId);
-      setSelectedTicketSteps(Array.isArray(steps) ? steps : []);
+      const withPayments = await getStepsWithPayment(ticketId);
+      setSelectedTicketSteps(withPayments);
     } catch (e: any) {
       toast({
         title: 'Erro',
@@ -312,6 +312,33 @@ export default function Messages() {
       setLoadingSteps(false);
     }
   };
+  const getStepsWithPayment = useCallback(
+    async (ticketId: number) => {
+      const steps = await getStepsForTicket(ticketId);
+      return await Promise.all(
+        (Array.isArray(steps) ? steps : []).map(async (s: any) => {
+          try {
+            const payRes = await apiRequest("GET", `/payments/steps/${s.id}`);
+            if (!payRes.ok) return s;
+            const payJson = await payRes.json();
+            const paid = !!payJson?.data?.summary?.has_successful_payment;
+            return { ...s, paid };
+          } catch {
+            return s;
+          }
+        })
+      );
+    },
+    [getStepsForTicket]
+  );
+
+  useEffect(() => {
+    if (!showProposalDetails || !selectedTicketSteps.length) return;
+    const allPaid = selectedTicketSteps.every((s: any) => s.paid);
+    if (allPaid) {
+      void refetchTickets();
+    }
+  }, [selectedTicketSteps, showProposalDetails, refetchTickets]);
   const handleEditStep = (step: any) => {
     if (!step) return;
     const isSignatureStep =
@@ -321,7 +348,7 @@ export default function Messages() {
       toast({
         title: "Etapa protegida",
         description: "A etapa de assinatura não pode ser editada.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -349,7 +376,7 @@ export default function Messages() {
       toast({
         title: "Etapa protegida",
         description: "A etapa de assinatura não pode ser excluída.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -436,7 +463,7 @@ export default function Messages() {
       toast({
         title: 'Aguardando prestador',
         description: 'O prestador precisa marcar a etapa como concluída antes da sua aprovação.',
-        variant: 'destructive',
+        variant: 'warning',
       });
       return false;
     }
@@ -494,6 +521,32 @@ export default function Messages() {
         toast({
           title: 'Aguardando prestador',
           description: 'O prestador precisa marcar a etapa como concluída antes do pagamento.',
+          variant: 'warning',
+        });
+        return;
+      }
+
+      // Busca o usuário atualizado para checar CPF/CNPJ antes de gerar pagamento
+      let freshUser: any = user;
+      try {
+        if (user?.id) {
+          const userRes = await apiRequest("GET", `/users/${user.id}`);
+          if (userRes.ok) {
+            const body = await userRes.json();
+            freshUser = body?.user || freshUser;
+          }
+        }
+      } catch {
+        /* se falhar, usa os dados atuais */
+      }
+
+      const hasDocs =
+        !!(freshUser as any)?.cpf?.trim?.() ||
+        !!(freshUser as any)?.cnpj?.trim?.();
+      if (!hasDocs) {
+        toast({
+          title: 'CPF/CNPJ obrigatório',
+          description: 'Cadastre CPF ou CNPJ no seu perfil antes de gerar pagamento.',
           variant: 'destructive',
         });
         return;
@@ -532,6 +585,50 @@ export default function Messages() {
       }
     },
     [toast, user]
+  );
+
+  const handleRefreshStepPayment = useCallback(
+    async (step: Step) => {
+      if (!step?.id) return;
+      if (user?.type !== 'contratante') {
+        toast({
+          title: 'Acesso negado',
+          description: 'Somente contratantes podem confirmar o pagamento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      try {
+        setPayingStepId(step.id);
+        const response = await apiRequest('GET', `/payments/steps/${step.id}/refresh`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.success === false) {
+          throw new Error(payload?.message || 'Não foi possível atualizar o pagamento.');
+        }
+        const ticketId = (step as any)?.ticket_id || (step as any)?.ticketId;
+        if (ticketId) {
+          const steps = await getStepsWithPayment(ticketId);
+          setSelectedTicketSteps(steps);
+          const allPaid = Array.isArray(steps) && steps.length > 0 && steps.every((s: any) => s.paid);
+          if (allPaid) {
+            await refetchTickets();
+          }
+        }
+        toast({
+          title: payload?.data?.paid ? 'Pagamento confirmado' : 'Pagamento ainda pendente',
+          description: payload?.message || '',
+        });
+      } catch (error: any) {
+        toast({
+          title: 'Erro ao atualizar pagamento',
+          description: error?.message || 'Tente novamente mais tarde.',
+          variant: 'destructive',
+        });
+      } finally {
+        setPayingStepId(null);
+      }
+    },
+    [getStepsWithPayment, refetchTickets, toast, user]
   );
 
   const handleDeleteTicket = useCallback(
@@ -588,7 +685,7 @@ export default function Messages() {
           throw new Error(body?.message || "Não foi possível verificar o pagamento.");
         }
         await refetchTickets();
-        const steps = await getStepsForTicket(ticketId);
+        const steps = await getStepsWithPayment(ticketId);
         setSelectedTicketSteps(steps);
         toast({
           title: body?.data?.paid ? "Pagamento confirmado" : "Pagamento pendente",
@@ -596,14 +693,40 @@ export default function Messages() {
         });
       } catch (error: any) {
         toast({
-          title: "Erro ao verificar pagamento",
-          description: error?.message || "Tente novamente.",
-          variant: "destructive",
+          title: "Pagamento não encontrado",
+          description: error?.message || "Nenhum pagamento registrado ainda. Tente novamente mais tarde.",
+          variant: "warning",
         });
       }
     },
     [getStepsForTicket, refetchTickets, toast]
   );
+
+  // Polling rápido para atualizar pagamento enquanto o modal de detalhes estiver aberto
+  useEffect(() => {
+    if (!showProposalDetails || !selectedTicketSteps.length) return;
+    const ticketId = (selectedTicketSteps[0] as any)?.ticket_id;
+    if (!ticketId) return;
+    const hasUnpaid = selectedTicketSteps.some((s: any) => !s.paid);
+    if (!hasUnpaid) return;
+
+    const interval = setInterval(async () => {
+      try {
+        // força sincronizar pagamentos no backend antes de ler
+        await apiRequest("GET", `/payments/tickets/${ticketId}/refresh`);
+        const steps = await getStepsWithPayment(ticketId);
+        setSelectedTicketSteps(steps);
+        const allPaid = Array.isArray(steps) && steps.length > 0 && steps.every((s: any) => s.paid);
+        if (allPaid) {
+          await refetchTickets();
+        }
+      } catch {
+        /* ignore polling errors */
+      }
+    }, 2_000);
+
+    return () => clearInterval(interval);
+  }, [showProposalDetails, selectedTicketSteps, getStepsWithPayment]);
   const getProviderPaymentPreference = useCallback(
     async (providerId?: number | null) => {
       if (!providerId) return null;
@@ -961,6 +1084,8 @@ export default function Messages() {
       if (signatureFlow.type === 'step-accept') {
         const ok = await handleAcceptStep(signatureFlow.step, password);
         if (ok === false) return;
+        // Gera pagamento imediatamente após aceitar a etapa
+        await handleClientPayStep(signatureFlow.step as any);
         setShowSignatureModal(false);
         resetSignatureDialogState();
       }
@@ -1127,6 +1252,13 @@ export default function Messages() {
             ? tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)?.status
             : undefined
         }
+        paymentPreference={
+          selectedTicketSteps[0]
+            ? (tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)?.payment_preference as any) ||
+              providerPaymentPreference ||
+              null
+            : providerPaymentPreference || null
+        }
         ticketId={selectedTicketSteps[0]?.ticket_id}
         onDeleteTicket={handleDeleteTicket}
         deletingTicket={deletingTicket}
@@ -1148,6 +1280,7 @@ export default function Messages() {
         onClientRejectStep={(step) => handleRejectStep(step)}
         onFeedbackCreated={handleFeedbackCreated}
         onClientPayStep={handleClientPayStep}
+        onRefreshStepPayment={handleRefreshStepPayment}
         payingStepId={payingStepId}
         currentIndex={(() => {
           const firstNotDone = selectedTicketSteps.findIndex(
