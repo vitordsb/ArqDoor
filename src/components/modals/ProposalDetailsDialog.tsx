@@ -114,6 +114,8 @@ export function ProposalDetailsDialog({
     isDeletingFeedback,
   } = useStepFeedbackActions(feedbackModalStep?.id);
 
+  const isPerStepPayment = paymentPreference === "per_step";
+
   const resetFeedbackModal = () => {
     setFeedbackModalStep(null);
     setFeedbackModalInput("");
@@ -273,7 +275,7 @@ export function ProposalDetailsDialog({
                           return (
                             <div className="w-full">
                               <p className="text-sm text-gray-500 mb-2">
-                                Aguardando a confirmação do cliente.
+                                {isPerStepPayment ? "Aguardando pagamento do cliente." : "Aguardando a confirmação do cliente."}
                               </p>
                             </div>
                           )
@@ -296,7 +298,9 @@ export function ProposalDetailsDialog({
                                 const attempt = reworks + 1;
                                 return attempt > 1
                                   ? `Concluir novamente (${attempt}ª vez)`
-                                  : "Marcar como concluído";
+                                  : isPerStepPayment
+                                    ? "Iniciar fase"
+                                    : "Marcar como concluído";
                               })()}
                             </Button>
                           )}
@@ -344,7 +348,7 @@ export function ProposalDetailsDialog({
                                   disabled={!ticketIsActive}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
-                                  Aceitar etapa e pagar
+                                  {isPerStepPayment ? "Desbloquear pagamento" : "Aceitar etapa e pagar"}
                                 </Button>
                                 <Button
                                   size="sm"
