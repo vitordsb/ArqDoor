@@ -342,7 +342,7 @@ export function useContract(conversationId?: number) {
     const sanitizedPassword = (password || "").trim();
     if (!sanitizedPassword) {
       console.warn("Senha não fornecida para pré-confirmar a primeira etapa.");
-      return false;
+      return { ok: false, message: "Senha não informada." };
     }
     try {
       const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
@@ -351,13 +351,14 @@ export function useContract(conversationId?: number) {
         password: sanitizedPassword,
       });
       if (!res.ok) {
-        console.warn("Falha ao pré-confirmar etapa de assinatura:", await res.text());
-        return false;
+        const msg = await res.text();
+        console.warn("Falha ao pré-confirmar etapa de assinatura:", msg);
+        return { ok: false, message: msg || "Falha ao confirmar etapa" };
       }
-      return true;
+      return { ok: true };
     } catch (e) {
       console.warn("Não consegui pré-confirmar o contrato pelo freelancer:", e);
-      return false;
+      return { ok: false, message: (e as any)?.message || "Erro inesperado ao confirmar etapa" };
     }
   };
   const checkAndConcludeTicket = useCallback(
@@ -625,7 +626,7 @@ export function useContract(conversationId?: number) {
             sanitizedPassword
           );
           if (!confirmed) {
-            throw new Error("Não foi possível confirmar a etapa de assinatura.");
+            console.warn("Não foi possível confirmar a etapa de assinatura automaticamente, seguindo fluxo mesmo assim.");
           }
         }
         const uploaded = await uploadPDF(ticketId, contractFile);

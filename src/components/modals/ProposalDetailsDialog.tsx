@@ -435,19 +435,30 @@ export function ProposalDetailsDialog({
                       )}
 
                       {userType === "contratante" && isPerStepPayment && !isSignatureStep && providerMarkedDone && !paid && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => onRefreshStepPayment?.(step)}
-                          disabled={!!payingStepId && payingStepId === step.id || !ticketIsActive}
-                        >
-                          {payingStepId === step.id ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-orange-600 hover:bg-orange-700 text-white"
+                            onClick={() => onClientPayStep?.(step)}
+                            disabled={!ticketIsActive}
+                          >
                             <QrCode className="h-4 w-4 mr-2" />
-                          )}
-                          Confirmar pagamento novamente
-                        </Button>
+                            Gerar/abrir pagamento
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => onRefreshStepPayment?.(step)}
+                            disabled={!!payingStepId && payingStepId === step.id || !ticketIsActive}
+                          >
+                            {payingStepId === step.id ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <QrCode className="h-4 w-4 mr-2" />
+                            )}
+                            Confirmar pagamento
+                          </Button>
+                        </div>
                       )}
 
                     </div>
