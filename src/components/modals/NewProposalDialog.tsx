@@ -214,44 +214,33 @@ export function NewProposalDialog({
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
-                    {paymentPreference === "per_step" ? (
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase text-muted-foreground">
-                          Valor desta etapa
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            className="pl-3"
-                            placeholder="R$ 0,00"
-                            value={getDisplayPrice(step)}
-                            onChange={(e) => handleCurrencyChange(step.id, e.target.value)}
-                            onFocus={() => {
-                              setPriceDigits(prev => {
-                                if (prev[step.id] !== undefined) return prev;
-                                return {
-                                  ...prev,
-                                  [step.id]: getDigitsFromPrice(step.price),
-                                };
-                              });
-                            }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Informe o valor bruto desta entrega.
-                        </p>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">
+                        Valor desta etapa
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          className="pl-3"
+                          placeholder="R$ 0,00"
+                          value={getDisplayPrice(step)}
+                          onChange={(e) => handleCurrencyChange(step.id, e.target.value)}
+                          onFocus={() => {
+                            setPriceDigits(prev => {
+                              if (prev[step.id] !== undefined) return prev;
+                              return {
+                                ...prev,
+                                [step.id]: getDigitsFromPrice(step.price),
+                              };
+                            });
+                          }}
+                        />
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase text-muted-foreground">
-                          Título da etapa
-                        </Label>
-                        <p className="text-sm text-slate-600">
-                          Digite apenas o título e datas. O valor será o total da proposta.
-                        </p>
-                      </div>
-                    )}
+                      <p className="text-xs text-muted-foreground">
+                        Informe o valor bruto desta entrega. Em garantia, o total das etapas é cobrado na assinatura.
+                      </p>
+                    </div>
 
                     <div className="space-y-2">
                       <Label className="text-xs uppercase text-muted-foreground">
@@ -312,48 +301,16 @@ export function NewProposalDialog({
                   </div>
                 </div>
               ))}
-              {paymentPreference === "at_end" && (
-                <div className="rounded-2xl border p-4 shadow-sm bg-blue-50 space-y-3">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      Valor para depósito em garantia
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Ao aceitar/assinar o contrato o cliente já deposita este valor integral via Asaas. Ele fica sob garantia da ArqDoor até a entrega final.
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-blue-200">
-                    <Label className="text-xs uppercase text-muted-foreground block mb-2">
-                      Informe o valor total a ser depositado na assinatura
-                    </Label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      className="pl-3 text-lg font-bold"
-                      placeholder="R$ 0,00"
-                      value={proposalSteps.length > 0 && proposalSteps[0].price > 0 
-                        ? formatCurrencyFromDigits(getDigitsFromPrice(proposalSteps[0].price))
-                        : ''
-                      }
-                      onChange={(e) => {
-                        const totalPrice = e.target.value.replace(/\D/g, '').slice(0, 11);
-                        const parsed = totalPrice ? Number(totalPrice) / 100 : 0;
-                        // Atualiza todas as etapas com o mesmo preço
-                        proposalSteps.forEach((step, idx) => {
-                          if (idx === 0) {
-                            onUpdateStep(step.id, 'price', parsed);
-                          } else {
-                            onUpdateStep(step.id, 'price', 0);
-                          }
-                        });
-                      }}
-                    />
-                    <p className="text-xs text-muted-foreground mt-2">
-                      O projeto fica em "aguardando pagamento" até a confirmação do depósito; o prazo começa após a confirmação. Na entrega final, o prestador marca como concluído e o cliente aceita ou pede ajustes antes da liberação do pagamento.
-                    </p>
-                  </div>
+              <div className="flex items-center justify-between bg-muted/40 border rounded-xl px-4 py-3">
+                <div className="text-sm text-muted-foreground">
+                  Total do projeto ({proposalSteps.length} etapas)
                 </div>
-              )}
+                <div className="text-xl font-semibold text-gray-900">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                    proposalSteps.reduce((acc, step) => acc + (Number(step.price) || 0), 0)
+                  )}
+                </div>
+              </div>
               <Button variant="outline" onClick={onAddStep} className="w-full">
                 <PlusCircle className="h-4 w-4 mr-2" /> Adicionar nova etapa
               </Button>

@@ -8,6 +8,9 @@ import PortfolioModal, { PortfolioComment } from "@/components/modals/PortfolioM
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { ProviderApi, UserApi, Service, PortfolioItem } from "./types";
 import { ProviderHeaderCard } from "./components/ProviderHeaderCard";
 import { ProviderInfoCard } from "./components/ProviderInfoCard";
@@ -281,6 +284,15 @@ export default function ProviderProfilePage() {
     }
   };
 
+  const hasAbout = !!provider?.about?.trim();
+  const hasDocuments = !!(user?.cpf?.trim?.() || user?.cnpj?.trim?.());
+  const hasProfession = !!provider?.profession?.trim();
+  const baseTotal = 3;
+  const baseCompleted = Number(hasAbout) + Number(hasDocuments) + Number(hasProfession);
+  const trustPercent = Math.round((baseCompleted / baseTotal) * 100);
+  const hasPortfolio = portfolio.length > 0;
+  const hasServices = services.length > 0;
+
   if (loadingProvider || loadingUser) {
     return (
       <ApplicationLayout>
@@ -312,7 +324,43 @@ export default function ProviderProfilePage() {
         />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,_320px)_minmax(0,_1fr)_minmax(0,_320px)]">
-          <ProviderInfoCard createdAt={user.createdAt} about={provider.about} />
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Nível de confiança</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">Perfil verificado</span>
+                  <span className="font-semibold text-slate-900">{trustPercent}%</span>
+                </div>
+                <Progress value={trustPercent} />
+                <div className="space-y-1 text-sm text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={hasAbout ? "default" : "secondary"}>Sobre mim</Badge>
+                    <span>{hasAbout ? "Preenchido" : "Pendente"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={hasDocuments ? "default" : "secondary"}>Documentos</Badge>
+                    <span>{hasDocuments ? "CPF/CNPJ cadastrado" : "Pendente"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={hasProfession ? "default" : "secondary"}>Profissão</Badge>
+                    <span>{hasProfession ? "Informada" : "Pendente"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={hasPortfolio ? "default" : "outline"}>Portfólio</Badge>
+                    <span>{hasPortfolio ? "Destaques publicados" : "Opcional (impulsiona confiança)"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={hasServices ? "default" : "outline"}>Serviços</Badge>
+                    <span>{hasServices ? "Serviços na plataforma" : "Opcional (impulsiona confiança)"}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <ProviderInfoCard createdAt={user.createdAt} about={provider.about} />
+          </div>
 
           <div className="space-y-6">
             <ProviderServicesSection services={services} loading={loadingExtra} />

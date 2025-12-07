@@ -50,6 +50,7 @@ export interface Conversation {
     name: string;
     email: string;
     type: "prestador" | "contratante";
+    provider_id?: number | null;
   };
   lastMessage?: {
     id: number;
@@ -191,4 +192,3 @@ export interface Ticket {
   updated_at?: string
   status: 'pendente' | 'cancelada' | 'em_andamento' | 'concluída'
 }
-

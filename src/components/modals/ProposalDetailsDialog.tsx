@@ -51,7 +51,7 @@ type ProposalDetailsDialogProps = {
   onStartSignature: (ticket: any) => void
   onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
-  onClientAccept: (step: Step) => Promise<void>
+  onClientAccept: (step: Step, paymentPreference?: "per_step" | "at_end" | null) => Promise<void>
   onClientRejectStep: (step: Step) => Promise<boolean>
   onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void
   onClientPayStep?: (step: Step) => void
@@ -330,8 +330,8 @@ export function ProposalDetailsDialog({
                         const prev = steps[index - 1]
                         const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
 
-                        if (prevDone && providerMarkedDone && (!isConcluded(step) || !paid)) {
-                          if (paid) {
+                        if (prevDone && providerMarkedDone && !isConcluded(step)) {
+                          if (isPerStepPayment && paid) {
                             return (
                               <p className="text-sm text-gray-500">
                                 Pagamento desta etapa já foi identificado. Aguarde o fluxo seguir para a próxima etapa.
@@ -344,11 +344,11 @@ export function ProposalDetailsDialog({
                                 <Button
                                   size="sm"
                                   className="bg-green-600 hover:bg-green-700 text-white"
-                                  onClick={() => onClientAccept(step)}
+                                  onClick={() => onClientAccept(step, paymentPreference)}
                                   disabled={!ticketIsActive}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
-                                  {isPerStepPayment ? "Desbloquear pagamento" : "Aceitar etapa e pagar"}
+                                  {isPerStepPayment ? "Desbloquear pagamento" : "Aceitar etapa"}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -382,7 +382,14 @@ export function ProposalDetailsDialog({
                                 </Button>
                               </div>
                             </div>
-                          )
+                          );
+                        }
+                        if (prevDone && providerMarkedDone && isConcluded(step)) {
+                          return (
+                            <p className="text-sm text-gray-500">
+                              Aguardando o prestador concluir a próxima etapa.
+                            </p>
+                          );
                         }
                         if (prevDone && !providerMarkedDone) {
                           return (
@@ -427,7 +434,7 @@ export function ProposalDetailsDialog({
                         </p>
                       )}
 
-                      {userType === "contratante" && !isSignatureStep && providerMarkedDone && !paid && (
+                      {userType === "contratante" && isPerStepPayment && !isSignatureStep && providerMarkedDone && !paid && (
                         <Button
                           size="sm"
                           variant="secondary"

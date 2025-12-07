@@ -9,12 +9,14 @@ interface ConversationHeaderProps {
   conversation: Conversation;
   canCreateProposal: boolean;
   onOpenProposal: () => void;
+  onViewProfile: () => void;
 }
 
 export function ConversationHeader({
   conversation,
   canCreateProposal,
   onOpenProposal,
+  onViewProfile,
 }: ConversationHeaderProps) {
   return (
     <div className="p-4 bg-white border-b border-gray-200 flex items-center justify-between">
@@ -43,14 +45,19 @@ export function ConversationHeader({
           </Badge>
         </div>
       </div>
-      {canCreateProposal && (
-        <Button
-          onClick={onOpenProposal}
-          className="bg-orange-600 hover:bg-orange-700"
-        >
-          <Plus className="h-4 w-4 mr-2" /> Nova Proposta
+      <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={onViewProfile}>
+          Ver perfil
         </Button>
-      )}
+        {canCreateProposal && (
+          <Button
+            onClick={onOpenProposal}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            <Plus className="h-4 w-4 mr-2" /> Nova Proposta
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -25,8 +25,10 @@ export function ProviderInfoCard({ createdAt, about }: ProviderInfoCardProps) {
         <CardHeader>
           <CardTitle>Sobre mim</CardTitle>
         </CardHeader>
-        <CardContent>
-          {about || "Este prestador ainda não adicionou uma descrição."}
+        <CardContent className="text-slate-700">
+          <p className="whitespace-pre-wrap break-words">
+            {about || "Este prestador ainda não adicionou uma descrição."}
+          </p>
         </CardContent>
       </Card>
     </div>

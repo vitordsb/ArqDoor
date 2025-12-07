@@ -59,7 +59,7 @@ export function AboutCard({
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-slate-700">
+            <p className="text-slate-700 whitespace-pre-wrap break-words">
               {about && about.trim() !== "" ? about : "Nenhum 'Sobre mim' cadastrado ainda."}
             </p>
             <Button size="sm" variant="outline" onClick={() => setIsEditing(true)} className="w-fit">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 
 type DashboardData = {
@@ -40,6 +40,8 @@ export default function Admin() {
   const [adminId, setAdminId] = useState<number | null>(null);
   const [msgInput, setMsgInput] = useState("");
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [refreshFlag, setRefreshFlag] = useState(0);
+  const [ticketSearch, setTicketSearch] = useState("");
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +110,38 @@ export default function Admin() {
       }
     };
     fetchData();
-  }, [authHeader]);
+  }, [authHeader, refreshFlag]);
+
+  const handleDeleteTicket = async (ticketId: number) => {
+    if (!authHeader) return;
+    const confirmPwd = prompt("Confirme a senha de administrador para excluir o ticket:");
+    if (!confirmPwd || !confirmPwd.trim()) return;
+    const basicHeader = btoa(`${email}:${confirmPwd}`);
+    try {
+      const res = await apiRequest(
+        "DELETE",
+        `/admin/contracts/${ticketId}`,
+        undefined,
+        { Authorization: `Basic ${basicHeader}` }
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Falha ao excluir o ticket");
+      }
+      alert("Ticket excluído com sucesso.");
+      setRefreshFlag((prev) => prev + 1);
+    } catch (err: any) {
+      alert(err?.message || "Erro ao excluir ticket.");
+    }
+  };
+
+  const sortedFilteredTickets = useMemo(() => {
+    const list = Array.isArray(data?.tickets) ? [...data.tickets] : [];
+    const sorted = list.sort((a, b) => a.id - b.id);
+    const term = ticketSearch.trim();
+    if (!term) return sorted;
+    return sorted.filter((t) => String(t.id).includes(term));
+  }, [data?.tickets, ticketSearch]);
 
   if (!authHeader) {
     return (
@@ -195,13 +228,36 @@ export default function Admin() {
           </div>
 
           {activeTab === "contratos" && (
-            <section className="grid gap-4 md:grid-cols-2">
-              {data.tickets.map((t: any) => (
-                <div key={t.id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">Ticket #{t.id}</span>
-                    {badge(t.status || "—", (t.status || "").toLowerCase() === "concluída" ? "green" : "amber")}
-                  </div>
+            <section className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <p className="text-sm text-slate-600">
+                  {sortedFilteredTickets.length} ticket(s) listado(s) · ordenados por ID
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={ticketSearch}
+                    onChange={(e) => setTicketSearch(e.target.value)}
+                    placeholder="Pesquisar pelo ID do ticket"
+                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  />
+                  {ticketSearch && (
+                    <button
+                      className="text-sm text-slate-500 hover:text-slate-700"
+                      onClick={() => setTicketSearch("")}
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {sortedFilteredTickets.map((t: any) => (
+                  <div key={t.id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">Ticket #{t.id}</span>
+                      {badge(t.status || "—", (t.status || "").toLowerCase() === "concluída" ? "green" : "amber")}
+                    </div>
                   <p className="text-xs text-slate-600 mt-1">
                     Conv {t.conversation_id} · Provider {t.provider_id} · Etapas: {t.steps_count}
                   </p>
@@ -238,9 +294,16 @@ export default function Admin() {
                     >
                       Ver PDF do contrato
                     </button>
+                    <button
+                      className="px-3 py-1 text-xs border border-rose-200 text-rose-700 rounded-lg hover:bg-rose-50"
+                      onClick={() => handleDeleteTicket(t.id)}
+                    >
+                      Excluir ticket
+                    </button>
                   </div>
                 </div>
-              ))}
+                ))}
+              </div>
             </section>
           )}
 
@@ -315,16 +378,29 @@ export default function Admin() {
           )}
 
           {activeTab === "conversas" && (
-            <section className="grid gap-3 md:grid-cols-2">
+            <section className="grid gap-3 md:grid-cols-3">
               {data.conversations.map((c: any) => (
                 <div key={c.conversation_id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Conv #{c.conversation_id}</span>
                     <span className="text-xs text-slate-600">{c.updatedAt}</span>
                   </div>
-                  <p className="text-xs text-slate-600">
-                    users: {c.user1_id} & {c.user2_id}
-                  </p>
+                  <div className="mt-2 space-y-2 text-xs text-slate-700">
+                    <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
+                      <p className="font-semibold text-slate-900">Usuário 1</p>
+                      <p>ID: {c.user1_id}</p>
+                      <p>Email: {c.user1_email || "-"}</p>
+                      {c.user1_provider_id ? <p>Prestador ID: {c.user1_provider_id}</p> : null}
+                      {c.user1_type ? <p>Tipo: {c.user1_type}</p> : null}
+                    </div>
+                    <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
+                      <p className="font-semibold text-slate-900">Usuário 2</p>
+                      <p>ID: {c.user2_id}</p>
+                      <p>Email: {c.user2_email || "-"}</p>
+                      {c.user2_provider_id ? <p>Prestador ID: {c.user2_provider_id}</p> : null}
+                      {c.user2_type ? <p>Tipo: {c.user2_type}</p> : null}
+                    </div>
+                  </div>
                 </div>
               ))}
             </section>

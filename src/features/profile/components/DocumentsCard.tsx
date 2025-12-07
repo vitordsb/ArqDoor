@@ -27,7 +27,7 @@ export function DocumentsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Documentos para pagamento</CardTitle>
+        <CardTitle>Documentos para preencher cadastro</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (

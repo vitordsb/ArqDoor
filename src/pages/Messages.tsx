@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
 import { useContract } from '@/hooks/use-contract';
@@ -13,6 +13,10 @@ import {
   MessageCircle,
   QrCode,
   Copy,
+  CreditCard,
+  Banknote,
+  Barcode,
+  Loader2,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import type { Step, CreateStepRequest } from '@/lib/Interfaces';
@@ -35,6 +39,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 type ProposalStep = {
   id: string;
@@ -56,7 +61,7 @@ type SignatureDialogOverrides = {
 type SignatureFlow =
   | ({ type: 'contract'; ticket: any } & SignatureDialogOverrides)
   | ({ type: 'step-complete'; stepId: number; ticketId: number } & SignatureDialogOverrides)
-  | ({ type: 'step-accept'; step: any } & SignatureDialogOverrides)
+  | ({ type: 'step-accept'; step: any; paymentPreference?: 'per_step' | 'at_end' | null } & SignatureDialogOverrides)
   | ({ type: 'proposal-first-step' } & SignatureDialogOverrides);
 
 type ProposalStepPayload = Omit<CreateStepRequest, 'ticket_id'> & {
@@ -64,6 +69,16 @@ type ProposalStepPayload = Omit<CreateStepRequest, 'ticket_id'> & {
   endDate?: string;
   start_date?: string;
   end_date?: string;
+};
+
+type PaymentMethod = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'DEBIT_CARD';
+
+type PaymentDialogState = {
+  step: Step;
+  type: 'step' | 'deposit';
+  data: any | null;
+  method: PaymentMethod;
+  loading: boolean;
 };
 
 export default function Messages() {
@@ -151,11 +166,22 @@ export default function Messages() {
   const [signatureFlow, setSignatureFlow] = useState<SignatureFlow | null>(null);
 
   const [showOlderTickets, setShowOlderTickets] = useState(false);
-  const [stepPaymentInfo, setStepPaymentInfo] = useState<{ step: Step; data: any } | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<PaymentDialogState | null>(null);
   const [payingStepId, setPayingStepId] = useState<number | null>(null);
+  const [lastPaymentMethod, setLastPaymentMethod] = useState<PaymentMethod>("PIX");
   const [providerPaymentPreference, setProviderPaymentPreference] = useState<"per_step" | "at_end">("per_step");
   const [providerPreferenceCache, setProviderPreferenceCache] = useState<Record<number, "per_step" | "at_end">>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const paymentMethodLabels = useMemo<Record<PaymentMethod, string>>(
+    () => ({
+      PIX: "PIX",
+      BOLETO: "Boleto",
+      CREDIT_CARD: "Cartão de crédito",
+      DEBIT_CARD: "Cartão de débito",
+    }),
+    []
+  );
 
   // ---------- efeitos ----------
   useEffect(() => {
@@ -488,12 +514,12 @@ export default function Messages() {
     }
   };
 
-  const handleCopyPixCode = useCallback(
-    async (code?: string) => {
+  const handleCopyPaymentCode = useCallback(
+    async (code?: string, label: string = 'Código copiado') => {
       if (!code) return;
       try {
         await navigator.clipboard.writeText(code);
-        toast({ title: 'Código copiado', description: 'PIX copiado para a área de transferência.' });
+        toast({ title: label, description: 'Copiado para a área de transferência.' });
       } catch {
         toast({
           title: 'Não foi possível copiar',
@@ -505,6 +531,76 @@ export default function Messages() {
     [toast]
   );
 
+  const openPaymentModal = useCallback(
+    (step: Step, type: 'step' | 'deposit' = 'step') => {
+      setPaymentDialog({
+        step,
+        type,
+        data: null,
+        method: lastPaymentMethod,
+        loading: false,
+      });
+    },
+    [lastPaymentMethod]
+  );
+
+  const requestPayment = useCallback(
+    async (target: PaymentDialogState) => {
+      const endpoint =
+        target.type === "deposit"
+          ? `/payments/tickets/${target.step.ticket_id}`
+          : `/payments/steps/${target.step.id}`;
+
+      const response = await apiRequest("POST", endpoint, {
+        description:
+          target.type === "deposit"
+            ? `Depósito em garantia do ticket #${target.step.ticket_id}`
+            : `Pagamento da etapa "${target.step.title}"`,
+        method: target.method,
+      });
+
+      let payload: any = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+
+      if (!response.ok || payload?.success === false) {
+        throw new Error(payload?.message || "Não foi possível gerar o pagamento.");
+      }
+
+      return payload.data;
+    },
+    []
+  );
+
+  const handleGeneratePayment = useCallback(async () => {
+    if (!paymentDialog) return;
+    const current = paymentDialog;
+    setPaymentDialog({ ...current, loading: true });
+    try {
+      const data = await requestPayment(current);
+      setPaymentDialog((prev) => (prev ? { ...prev, data, loading: false } : prev));
+      toast({
+        title: `${paymentMethodLabels[current.method]} gerado`,
+        description: "Exibindo os dados para pagamento.",
+      });
+    } catch (error: any) {
+      setPaymentDialog((prev) => (prev ? { ...prev, loading: false } : prev));
+      toast({
+        title: "Erro ao gerar pagamento",
+        description: error?.message || "Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+    }
+  }, [paymentDialog, requestPayment, toast, paymentMethodLabels]);
+
+  const handleChangePaymentMethod = useCallback((method: PaymentMethod) => {
+    setLastPaymentMethod(method);
+    setPaymentDialog((prev) => (prev ? { ...prev, method, data: null } : prev));
+  }, []);
+
   const handleClientPayStep = useCallback(
     async (step: Step) => {
       if (!step?.id) return;
@@ -513,6 +609,15 @@ export default function Messages() {
           title: 'Acesso negado',
           description: 'Somente contratantes podem gerar pagamentos.',
           variant: 'destructive',
+        });
+        return;
+      }
+
+      const ticket = tickets.find((t: any) => t.id === (step as any)?.ticket_id);
+      if ((ticket?.payment_preference || providerPaymentPreference) === "at_end") {
+        toast({
+          title: "Pagamento já em garantia",
+          description: "Você já depositou o total na assinatura. Não é necessário pagar por etapa.",
         });
         return;
       }
@@ -552,39 +657,13 @@ export default function Messages() {
         return;
       }
 
-      try {
-        setPayingStepId(step.id);
-        const response = await apiRequest('POST', `/payments/steps/${step.id}`, {
-          description: `Pagamento da etapa "${step.title}"`,
-        });
-
-        let payload: any = {};
-        try {
-          payload = await response.json();
-        } catch {
-          payload = {};
-        }
-
-        if (!response.ok || payload?.success === false) {
-          throw new Error(payload?.message || 'Não foi possível gerar o pagamento.');
-        }
-
-        setStepPaymentInfo({ step, data: payload.data });
-        toast({
-          title: 'Pagamento gerado',
-          description: 'Exibindo o QR Code e o código copia e cola.',
-        });
-      } catch (error: any) {
-        toast({
-          title: 'Erro ao gerar pagamento',
-          description: error?.message || 'Tente novamente mais tarde.',
-          variant: 'destructive',
-        });
-      } finally {
-        setPayingStepId(null);
-      }
+      openPaymentModal(step, "step");
+      toast({
+        title: "Gerar pagamento",
+        description: "Escolha PIX, boleto ou cartão para finalizar o pagamento.",
+      });
     },
-    [toast, user]
+    [openPaymentModal, toast, user]
   );
 
   const handleRefreshStepPayment = useCallback(
@@ -783,42 +862,27 @@ export default function Messages() {
 
       if (effectivePref !== "at_end") return;
 
-      try {
-        const response = await apiRequest("POST", `/payments/tickets/${ticketId}`);
-        let payload: any = {};
-        try {
-          payload = await response.json();
-        } catch {
-          payload = {};
-        }
+      const stepsForTicket = ticketStepsMap[ticketId] || [];
+      const amount = stepsForTicket.reduce(
+        (total, s) => total + (Number((s as any)?.price) || 0),
+        0
+      );
 
-        if (!response.ok || payload?.success === false) {
-          throw new Error(payload?.message || "Não foi possível gerar o pagamento do contrato.");
-        }
+      const depositStep: Step = {
+        id: -Math.abs(ticketId || 1),
+        ticket_id: ticketId,
+        title: "Depósito em garantia do contrato",
+        price: amount,
+        status: "Pendente",
+      };
 
-        const amount = Number(payload?.data?.amount) || 0;
-        const depositStep: Step = {
-          id: -Math.abs(ticketId || 1),
-          ticket_id: ticketId,
-          title: "Depósito em garantia do contrato",
-          price: amount,
-          status: "Pendente",
-        };
-
-        setStepPaymentInfo({ step: depositStep, data: payload.data });
-        toast({
-          title: "Depósito gerado",
-          description: "Exibindo o PIX para depósito em garantia do contrato.",
-        });
-      } catch (error: any) {
-        toast({
-          title: "Erro ao gerar depósito",
-          description: error?.message || "Tente novamente mais tarde.",
-          variant: "destructive",
-        });
-      }
+      openPaymentModal(depositStep, "deposit");
+      toast({
+        title: "Depósito em garantia",
+        description: "Escolha PIX, boleto ou cartão para pagar o depósito.",
+      });
     },
-    [currentConversation, getProviderPaymentPreference, providerPaymentPreference, tickets, toast, user?.type]
+    [currentConversation, getProviderPaymentPreference, openPaymentModal, providerPaymentPreference, ticketStepsMap, tickets, toast, user?.type]
   );
 
   // ---------- handlers: recusar contrato ----------
@@ -915,11 +979,12 @@ export default function Messages() {
     setShowSignatureModal(true);
   };
 
-  const openClientStepSignature = (step: any) => {
+  const openClientStepSignature = (step: any, paymentPreference?: 'per_step' | 'at_end' | null) => {
     resetSignatureDialogState();
     setSignatureFlow({
       type: 'step-accept',
       step,
+      paymentPreference,
       title: 'Aceitar etapa',
       description: 'Informe sua senha para aceitar esta etapa.',
       confirmLabel: 'Aceitar etapa',
@@ -1084,8 +1149,10 @@ export default function Messages() {
       if (signatureFlow.type === 'step-accept') {
         const ok = await handleAcceptStep(signatureFlow.step, password);
         if (ok === false) return;
-        // Gera pagamento imediatamente após aceitar a etapa
-        await handleClientPayStep(signatureFlow.step as any);
+        // Gera pagamento apenas para modelo por fase; em garantia não cobra por etapa
+        if (signatureFlow.paymentPreference !== 'at_end') {
+          await handleClientPayStep(signatureFlow.step as any);
+        }
         setShowSignatureModal(false);
         resetSignatureDialogState();
       }
@@ -1155,6 +1222,33 @@ export default function Messages() {
     ? handleAgreeAndAskPassword
     : () => setShowPasswordField(true);
 
+  const handleViewProfile = useCallback(async () => {
+    if (!currentConversation?.otherUser) return;
+    const target = currentConversation.otherUser as any;
+    try {
+      if (target.type === "prestador") {
+        let providerId = target.provider_id;
+        if (!providerId) {
+          const res = await apiRequest("GET", `/providers/user/${target.id}`);
+          if (res.ok) {
+            const body = await res.json().catch(() => ({}));
+            providerId =
+              body?.provider?.provider_id ||
+              body?.provider_id ||
+              body?.id_provider;
+          }
+        }
+        if (providerId) {
+          setLocation(`/providers/${providerId}`);
+          return;
+        }
+      }
+      setLocation(`/user/${target.id}`);
+    } catch {
+      setLocation(`/user/${target.id}`);
+    }
+  }, [currentConversation?.otherUser, setLocation]);
+
   return (
     <MessagesLayout>
       <div className="flex p-4 bg-gray-100 h-[calc(100dvh-58px)]">
@@ -1174,6 +1268,7 @@ export default function Messages() {
                 conversation={currentConversation}
                 canCreateProposal={canCreateProposal()}
                 onOpenProposal={() => setShowProposalModal(true)}
+                onViewProfile={handleViewProfile}
               />
               <div className="flex-1 flex overflow-hidden">
                 <ChatPanel
@@ -1253,11 +1348,17 @@ export default function Messages() {
             : undefined
         }
         paymentPreference={
-          selectedTicketSteps[0]
-            ? (tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)?.payment_preference as any) ||
+          (() => {
+            const currentTicket = selectedTicketSteps[0]
+              ? tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)
+              : null;
+            const pref =
+              (currentTicket?.payment_preference as any) ||
+              (currentTicket?.payment ? 'at_end' : null) ||
               providerPaymentPreference ||
-              null
-            : providerPaymentPreference || null
+              null;
+            return pref;
+          })()
         }
         ticketId={selectedTicketSteps[0]?.ticket_id}
         onDeleteTicket={handleDeleteTicket}
@@ -1273,8 +1374,8 @@ export default function Messages() {
         onMarkProviderCompleted={(id, ticketId) =>
           openFreelancerStepSignature(id, ticketId)
         }
-        onClientAccept={async step => {
-          openClientStepSignature(step);
+        onClientAccept={async (step, paymentPref) => {
+          openClientStepSignature(step, paymentPref);
         }}
 
         onClientRejectStep={(step) => handleRejectStep(step)}
@@ -1337,69 +1438,221 @@ export default function Messages() {
       />
 
       <Dialog
-        open={!!stepPaymentInfo}
+        open={!!paymentDialog}
         onOpenChange={(open) => {
-          if (!open) setStepPaymentInfo(null);
+          if (!open) setPaymentDialog(null);
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Pagamento da etapa {stepPaymentInfo?.step?.title ? `- ${stepPaymentInfo.step.title}` : ''}
+              {paymentDialog?.type === "deposit" ? "Depósito em garantia" : "Pagamento da etapa"}
+              {paymentDialog?.step?.title ? ` - ${paymentDialog.step.title}` : ''}
             </DialogTitle>
             <DialogDescription>
-              Use o QR Code ou copie o código PIX para finalizar o pagamento desta etapa.
+              Escolha a forma de pagamento e gere a cobrança diretamente pelo Asaas.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {(() => {
-              const enc = stepPaymentInfo?.data?.pix?.qr_code_image;
-              if (!enc) return null;
-              const src = enc.startsWith('data:image') ? enc : `data:image/png;base64,${enc}`;
-              return (
-                <div className="flex flex-col items-center gap-2">
-                  <img src={src} alt="QR Code PIX" className="w-44 h-44 object-contain" />
-                  <span className="text-xs text-gray-500">Escaneie para pagar</span>
+          {paymentDialog && (
+            <div className="space-y-4">
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Forma de pagamento</span>
+                  {(() => {
+                    const amountToShow = paymentDialog.data?.amount ?? paymentDialog.step?.price;
+                    if (typeof amountToShow !== "number" || amountToShow <= 0) return null;
+                    return (
+                      <span className="text-gray-600">
+                        Valor:{" "}
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(amountToShow || 0)}
+                      </span>
+                    );
+                  })()}
                 </div>
-              );
-            })()}
-
-            <div>
-              <p className="text-sm font-medium mb-1">Código copia e cola</p>
-              <div className="bg-gray-100 rounded-md p-2 text-xs break-all">
-                {stepPaymentInfo?.data?.pix?.copy_and_paste || 'Não disponível'}
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleCopyPixCode(stepPaymentInfo?.data?.pix?.copy_and_paste)}
-                  disabled={!stepPaymentInfo?.data?.pix?.copy_and_paste}
+                <RadioGroup
+                  value={paymentDialog.method}
+                  onValueChange={(v) => handleChangePaymentMethod(v as PaymentMethod)}
+                  className="grid gap-2 sm:grid-cols-2"
                 >
-                  <Copy className="h-3.5 w-3.5 mr-1" /> Copiar código
-                </Button>
-                {stepPaymentInfo?.data?.invoice_url && (
-                  <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
-                    <a
-                      href={stepPaymentInfo.data.invoice_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <QrCode className="h-3.5 w-3.5 mr-1" /> Abrir no Asaas
-                    </a>
+                  {[
+                    { value: "PIX", title: "PIX", description: "QR Code e copia e cola", icon: QrCode },
+                    { value: "BOLETO", title: "Boleto", description: "Linha digitável e PDF", icon: Barcode },
+                    { value: "CREDIT_CARD", title: "Crédito", description: "Checkout seguro Asaas", icon: CreditCard },
+                    { value: "DEBIT_CARD", title: "Débito", description: "Checkout seguro Asaas", icon: Banknote },
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <label
+                        key={option.value}
+                        htmlFor={`payment-${option.value}`}
+                        className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:border-orange-500"
+                      >
+                        <RadioGroupItem value={option.value} id={`payment-${option.value}`} />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 font-medium">
+                            <Icon className="h-4 w-4 text-orange-600" />
+                            {option.title}
+                          </div>
+                          <p className="text-xs text-gray-600">{option.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleGeneratePayment}
+                    disabled={paymentDialog.loading}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    {paymentDialog.loading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="mr-2 h-4 w-4" />
+                    )}
+                    {paymentDialog.data ? "Atualizar cobrança" : "Gerar cobrança"}
                   </Button>
-                )}
+                  {paymentDialog.data?.invoice_url && (
+                    <Button asChild variant="outline">
+                      <a
+                        href={paymentDialog.data.invoice_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir no Asaas
+                      </a>
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {stepPaymentInfo?.data?.pix?.expires_at && (
-              <p className="text-xs text-gray-500">
-                Expira em{' '}
-                {new Date(stepPaymentInfo.data.pix.expires_at).toLocaleString('pt-BR')}
-              </p>
-            )}
-          </div>
+              {(() => {
+                const paymentData = paymentDialog.data;
+                const activeMethod = (paymentData?.method as PaymentMethod) || paymentDialog.method;
+
+                if (!paymentData) {
+                  return (
+                    <p className="text-sm text-gray-600">
+                      Clique em &quot;Gerar cobrança&quot; para ver os dados de pagamento.
+                    </p>
+                  );
+                }
+
+                const pixData = paymentData?.pix;
+                const boletoData = paymentData?.boleto;
+                const checkoutUrl = paymentData?.checkout_url || paymentData?.invoice_url;
+
+                if (activeMethod === "PIX") {
+                  const enc = pixData?.qr_code_image;
+                  const src = enc
+                    ? enc.startsWith("data:image")
+                      ? enc
+                      : `data:image/png;base64,${enc}`
+                    : null;
+                  return (
+                    <div className="space-y-3">
+                      {src && (
+                        <div className="flex flex-col items-center gap-2">
+                          <img src={src} alt="QR Code PIX" className="w-44 h-44 object-contain" />
+                          <span className="text-xs text-gray-500">Escaneie para pagar</span>
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-sm font-medium mb-1">Código copia e cola</p>
+                        <div className="bg-gray-100 rounded-md p-2 text-xs break-all">
+                          {pixData?.copy_and_paste || "Não disponível"}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCopyPaymentCode(pixData?.copy_and_paste, "Código PIX copiado")}
+                            disabled={!pixData?.copy_and_paste}
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-1" /> Copiar código
+                          </Button>
+                          {paymentData?.invoice_url && (
+                            <Button asChild size="sm" variant="outline">
+                              <a href={paymentData.invoice_url} target="_blank" rel="noreferrer">
+                                <QrCode className="h-3.5 w-3.5 mr-1" /> Abrir no Asaas
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {pixData?.expires_at && (
+                        <p className="text-xs text-gray-500">
+                          Expira em {new Date(pixData.expires_at).toLocaleString("pt-BR")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (activeMethod === "BOLETO") {
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-600">
+                        Use a linha digitável ou abra o boleto para finalizar o pagamento.
+                      </p>
+                      <div className="bg-gray-100 rounded-md p-2 text-xs break-all">
+                        {boletoData?.digitable_line || "Não disponível"}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyPaymentCode(boletoData?.digitable_line, "Linha digitável copiada")}
+                          disabled={!boletoData?.digitable_line}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-1" /> Copiar código
+                        </Button>
+                        {(boletoData?.pdf_url || paymentData?.invoice_url) && (
+                          <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
+                            <a
+                              href={boletoData?.pdf_url || paymentData?.invoice_url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <Barcode className="h-3.5 w-3.5 mr-1" /> Abrir boleto
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                      {boletoData?.due_date && (
+                        <p className="text-xs text-gray-500">
+                          Vencimento em {new Date(boletoData.due_date).toLocaleDateString("pt-BR")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">
+                      Você será direcionado ao checkout seguro do Asaas para inserir os dados do cartão.
+                    </p>
+                    {checkoutUrl && (
+                      <Button asChild className="bg-orange-600 hover:bg-orange-700">
+                        <a href={checkoutUrl} target="_blank" rel="noreferrer">
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Abrir checkout do cartão
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

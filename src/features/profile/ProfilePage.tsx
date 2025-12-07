@@ -9,6 +9,14 @@ import AplicationLayout from "@/components/layouts/ApplicationLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import {
   Loader2,
@@ -22,6 +30,8 @@ import {
   Image as ImageIcon,
   Star,
 } from "lucide-react";
+import PortfolioModal from "@/components/modals/PortfolioModal";
+import { API_BASE_URL } from "@/lib/queryClient";
 import { ProfileHeader } from "./components/ProfileHeader";
 import { ProfessionCard } from "./components/ProfessionCard";
 import { DocumentsCard } from "./components/DocumentsCard";
@@ -29,10 +39,18 @@ import { AboutCard } from "./components/AboutCard";
 import { ServicesSection } from "./components/ServicesSection";
 import { RatingsModal } from "./components/RatingsModal";
 import { PaymentPreferenceCard } from "./components/PaymentPreferenceCard";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const buildImageUrl = (path?: string) => {
+    if (!path) return "";
+    return path.startsWith("http")
+      ? path
+      : `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
+  };
 
   const [services, setServices] = useState<any[]>([]);
   const [demands, setDemands] = useState<any[]>([]);
@@ -47,6 +65,20 @@ export default function ProfilePage() {
 
   const [portfolio, setPortfolio] = useState<any[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [newPortfolioTitle, setNewPortfolioTitle] = useState("");
+  const [newPortfolioDescription, setNewPortfolioDescription] = useState("");
+  const [newPortfolioFile, setNewPortfolioFile] = useState<File | null>(null);
+  const [newPortfolioPreview, setNewPortfolioPreview] = useState<string | null>(null);
+  const [newPortfolioImageId, setNewPortfolioImageId] = useState<number | null>(null);
+  const [savingPortfolio, setSavingPortfolio] = useState(false);
+  const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
+  const [selectedPortfolioItem, setSelectedPortfolioItem] = useState<any | null>(null);
+  const [editingPortfolioId, setEditingPortfolioId] = useState<number | null>(null);
+  const [ratingsPreview, setRatingsPreview] = useState<{ average: number; count: number; latest: any[] }>({
+    average: 0,
+    count: 0,
+    latest: [],
+  });
 
   // about me
   const [about, setAbout] = useState<string>("");
@@ -153,6 +185,36 @@ export default function ProfilePage() {
     loadProviderInfo();
   }, [loadProviderInfo]);
 
+  useEffect(() => {
+    if (!newPortfolioFile) {
+      if (!newPortfolioImageId) {
+        setNewPortfolioPreview(null);
+      }
+      return;
+    }
+    const url = URL.createObjectURL(newPortfolioFile);
+    setNewPortfolioPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [newPortfolioFile, newPortfolioImageId]);
+
+  useEffect(() => {
+    if (!isUploadingImage) {
+      setNewPortfolioFile(null);
+      setNewPortfolioTitle("");
+      setNewPortfolioDescription("");
+      setNewPortfolioImageId(null);
+      setEditingPortfolioId(null);
+    }
+  }, [isUploadingImage]);
+
+  useEffect(() => {
+    if (!isUploadingImage) {
+      setNewPortfolioFile(null);
+      setNewPortfolioTitle("");
+      setNewPortfolioDescription("");
+    }
+  }, [isUploadingImage]);
+
   const loadDocumentsData = useCallback(async () => {
     if (!user?.id) return;
     setLoadingDocuments(true);
@@ -228,6 +290,27 @@ export default function ProfilePage() {
     }
     setSavingPaymentPreference(true);
     try {
+      const activeRes = await apiRequest("GET", "/ticket/provider/active");
+      const activeBody = await activeRes.json().catch(() => ({}));
+      if (!activeRes.ok) {
+        throw new Error(activeBody?.message || `Erro ao verificar contratos: ${activeRes.status}`);
+      }
+
+      const hasActiveContract =
+        activeBody?.hasActive ||
+        (Array.isArray(activeBody?.activeTickets) && activeBody.activeTickets.length > 0);
+
+      if (hasActiveContract) {
+        setPaymentPreference(providerProfile.payment_preference || "per_step");
+        toast({
+          title: "Ação bloqueada",
+          description:
+            "Você tem um contrato em aberto pendente, por favor finalize o último projeto para trocar a preferência de pagamento.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const payload = { payment_preference: paymentPreference };
       const endpoint = `/providers/${providerProfile.provider_id}`;
       const res = await apiRequest("PUT", endpoint, payload);
@@ -290,18 +373,24 @@ export default function ProfilePage() {
 
   const providerProfileId = providerProfile?.provider_id ?? providerProfile?.id_provider ?? null;
 
-  const handleOpenRatingsModal = async () => {
+  const handleOpenRatingsModal = async (shouldOpen = true) => {
     if (!providerProfileId) return;
-    setRatingsModalOpen(true);
+    if (shouldOpen) setRatingsModalOpen(true);
     setRatingsModalLoading(true);
     try {
       const res = await apiRequest("GET", `/providers/${providerProfileId}/ratings`);
       if (!res.ok) throw new Error("Não foi possível carregar as avaliações");
       const data = await res.json();
+      const latest = Array.isArray(data.ratings) ? data.ratings.slice(0, 3) : [];
       setRatingsModalData({
         average: data.average || 0,
         count: data.count || 0,
         list: data.ratings || [],
+      });
+      setRatingsPreview({
+        average: data.average || 0,
+        count: data.count || 0,
+        latest,
       });
     } catch (error: any) {
       console.error(error);
@@ -314,6 +403,11 @@ export default function ProfilePage() {
       setRatingsModalLoading(false);
     }
   };
+  useEffect(() => {
+    if (!providerProfileId || user?.type !== "prestador") return;
+    void handleOpenRatingsModal(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerProfileId]);
 
   // === Load ===
   const loadItems = async () => {
@@ -351,6 +445,106 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDeletePortfolio = async (id: number) => {
+    try {
+      const res = await apiRequest("DELETE", `/portfolio/${id}`);
+      if (!res.ok) throw new Error("Não foi possível excluir o destaque.");
+      toast({ title: "Destaque removido" });
+      setPortfolioModalOpen(false);
+      setSelectedPortfolioItem(null);
+      await loadPortfolio();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir",
+        description: error?.message || "Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditPortfolio = (item: any) => {
+    if (!item) return;
+    setEditingPortfolioId(item.id);
+    setNewPortfolioTitle(item.title || "");
+    setNewPortfolioDescription(item.description || "");
+    setNewPortfolioImageId(item.image_id || item.imageId || null);
+    const preview = buildImageUrl(item?.UserImage?.image_path);
+    setNewPortfolioPreview(preview || null);
+    setPortfolioModalOpen(false);
+    setIsUploadingImage(true);
+  };
+
+  const handleCreatePortfolio = async () => {
+    if (!user) return;
+    if (!newPortfolioFile && !newPortfolioImageId) {
+      toast({
+        title: "Selecione uma imagem",
+        description: "Envie ou mantenha uma imagem para o destaque.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!newPortfolioTitle.trim()) {
+      toast({
+        title: "Título obrigatório",
+        description: "Informe um título para o destaque.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingPortfolio(true);
+    try {
+      const formData = new FormData();
+      let imageId = newPortfolioImageId;
+      if (newPortfolioFile) {
+        formData.append("file", newPortfolioFile);
+        formData.append("type", "portfolio");
+        const uploadRes = await apiRequest("POST", "/upload/image", formData);
+        const uploadBody = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok || uploadBody?.success === false) {
+          throw new Error(uploadBody?.message || "Falha ao enviar a imagem.");
+        }
+        imageId =
+          uploadBody?.userImage?.id ||
+          uploadBody?.imageUpload?.id ||
+          uploadBody?.id;
+        if (!imageId) {
+          throw new Error("Não foi possível obter o ID da imagem.");
+        }
+      }
+
+      const payload = {
+        title: newPortfolioTitle.trim(),
+        description: newPortfolioDescription.trim(),
+        image_id: imageId,
+      };
+      const endpoint = editingPortfolioId ? `/portfolio/${editingPortfolioId}` : "/portfolio";
+      const method = editingPortfolioId ? "PUT" : "POST";
+      const res = await apiRequest(method, endpoint, payload);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Não foi possível criar o destaque.");
+      }
+
+      toast({ title: "Destaque adicionado", description: "Seu portfólio foi atualizado." });
+      setNewPortfolioTitle("");
+      setNewPortfolioDescription("");
+      setNewPortfolioFile(null);
+      setNewPortfolioImageId(null);
+      setIsUploadingImage(false);
+      setEditingPortfolioId(null);
+      await loadPortfolio();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar destaque",
+        description: error?.message || "Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPortfolio(false);
     }
   };
 
@@ -437,6 +631,15 @@ export default function ProfilePage() {
     }
   };
 
+  const hasAbout = !!providerProfile?.about?.trim?.();
+  const hasDocuments = !!(documentsData.cpf?.trim?.() || documentsData.cnpj?.trim?.());
+  const hasProfession = !!providerProfile?.profession?.trim?.();
+  const baseTotal = 3;
+  const baseCompleted = Number(hasAbout) + Number(hasDocuments) + Number(hasProfession);
+  const trustPercent = Math.round((baseCompleted / baseTotal) * 100);
+  const hasPortfolio = portfolio.length > 0;
+  const hasServices = services.length > 0;
+
   if (!user) {
     return (
       <AplicationLayout>
@@ -465,9 +668,12 @@ export default function ProfilePage() {
                     <User className="w-4 h-4" /> {user.name}
                   </div>
               <Separator className="my-3" />
-                  {user.type !== "prestador" && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" /> Email: {user.email || "Não informado"}
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" /> Email: {user.email || "Não informado"}
+                  </div>
+                  {user.type === "prestador" && providerProfile && (
+                    <div className="mt-3 text-sm text-slate-600">
+                      Visualizações do perfil: <span className="font-semibold">{providerProfile.views_profile || 0}</span>
                     </div>
                   )}
                 </CardContent>
@@ -541,10 +747,42 @@ export default function ProfilePage() {
                         {portfolio.map((item) => (
                           <div
                             key={item.id}
-                            className="border rounded-lg p-2 cursor-pointer hover:shadow"
+                            className="border rounded-lg p-2 hover:shadow relative group"
+                            onClick={() => {
+                              setSelectedPortfolioItem(item);
+                              setPortfolioModalOpen(true);
+                            }}
                           >
-                            <ImageIcon className="w-6 h-6 text-slate-400 mx-auto" />
-                            <p className="text-sm mt-2 text-center">{item.title}</p>
+                            <div className="flex items-center justify-center h-16 text-slate-500">
+                              <ImageIcon className="w-6 h-6" />
+                            </div>
+                            <p className="text-sm mt-2 text-center truncate">{item.title}</p>
+                            <div className="absolute top-1 right-1 hidden gap-1 group-hover:flex">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditPortfolio(item);
+                                }}
+                                title="Editar destaque"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-red-600 hover:text-red-700"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await handleDeletePortfolio(item.id);
+                                }}
+                                title="Excluir destaque"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -570,19 +808,40 @@ export default function ProfilePage() {
                   <CardContent>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-2xl font-bold">{ratingsModalData?.average?.toFixed(1) || "--"}</p>
+                        <p className="text-2xl font-bold">
+                          {ratingsPreview.average ? ratingsPreview.average.toFixed(1) : "--"}
+                        </p>
                         <p className="text-sm text-slate-500">
-                          {ratingsModalData?.count ?? 0} avaliação{(ratingsModalData?.count ?? 0) !== 1 ? "es" : ""}
+                          {ratingsPreview.count} avaliação{ratingsPreview.count !== 1 ? "es" : ""}
                         </p>
                       </div>
                       <Button
                         size="sm"
                         className="bg-orange-600 text-white"
                         disabled={!providerProfileId}
-                        onClick={handleOpenRatingsModal}
+                        onClick={() => handleOpenRatingsModal(true)}
                       >
-                        Ver avaliações
+                        Ver todas
                       </Button>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {ratingsPreview.latest.length === 0 ? (
+                        <p className="text-sm text-slate-500">Nenhuma avaliação ainda.</p>
+                      ) : (
+                        ratingsPreview.latest.map((r, idx) => (
+                          <div key={idx} className="rounded-md border p-2">
+                            <p className="text-sm font-semibold">
+                              Nota {r.grade ?? r.rating ?? "--"}
+                            </p>
+                            {r.comment && <p className="text-sm text-slate-600">{r.comment}</p>}
+                            {r.createdAt && (
+                              <p className="text-xs text-slate-500">
+                                {new Date(r.createdAt).toLocaleDateString("pt-BR")}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -608,10 +867,122 @@ export default function ProfilePage() {
                 onSave={handleSaveDocuments}
                 onCancel={handleCancelDocuments}
               />
+              {user.type === "prestador" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Nível de confiança</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Perfil verificado</span>
+                      <span className="font-semibold text-slate-900">{trustPercent}%</span>
+                    </div>
+                    <Progress value={trustPercent} />
+                    <div className="space-y-1 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasAbout ? "default" : "secondary"}>Sobre mim</Badge>
+                        <span>{hasAbout ? "Preenchido" : "Pendente"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasDocuments ? "default" : "secondary"}>Documentos</Badge>
+                        <span>{hasDocuments ? "CPF/CNPJ cadastrado" : "Pendente"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasProfession ? "default" : "secondary"}>Profissão</Badge>
+                        <span>{hasProfession ? "Informada" : "Pendente"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasPortfolio ? "default" : "outline"}>Portfólio</Badge>
+                        <span>{hasPortfolio ? "Destaques publicados" : "Opcional (impulsiona confiança)"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasServices ? "default" : "outline"}>Serviços</Badge>
+                        <span>{hasServices ? "Serviços na plataforma" : "Opcional (impulsiona confiança)"}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </div>
       </div>
+      <Dialog open={isUploadingImage} onOpenChange={setIsUploadingImage}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingPortfolioId ? "Editar destaque" : "Novo destaque do portfólio"}</DialogTitle>
+            <DialogDescription>Envie uma imagem e adicione título e descrição.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="portfolio-title">Título</label>
+              <Input
+                id="portfolio-title"
+                value={newPortfolioTitle}
+                onChange={(e) => setNewPortfolioTitle(e.target.value)}
+                placeholder="Ex: Apartamento minimalista"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="portfolio-description">Descrição</label>
+              <Textarea
+                id="portfolio-description"
+                value={newPortfolioDescription}
+                onChange={(e) => setNewPortfolioDescription(e.target.value)}
+                placeholder="Detalhes do projeto, materiais, escopo..."
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="portfolio-file">Imagem</label>
+              <Input
+                id="portfolio-file"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setNewPortfolioFile(e.target.files?.[0] || null)}
+              />
+              {newPortfolioPreview && (
+                <div className="mt-2 rounded-md border overflow-hidden">
+                  <img src={newPortfolioPreview} alt="Pré-visualização" className="w-full h-48 object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsUploadingImage(false);
+                setNewPortfolioFile(null);
+                setNewPortfolioTitle("");
+                setNewPortfolioDescription("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleCreatePortfolio} disabled={savingPortfolio}>
+              {savingPortfolio ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {savingPortfolio ? "Salvando..." : "Salvar destaque"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <PortfolioModal
+        isOpen={portfolioModalOpen}
+        onClose={() => {
+          setPortfolioModalOpen(false);
+          setSelectedPortfolioItem(null);
+        }}
+        item={selectedPortfolioItem}
+        imageUrl={buildImageUrl(selectedPortfolioItem?.UserImage?.image_path)}
+        userName={user.name}
+        viewerName={user.name}
+        initialLikes={0}
+        initialLiked={false}
+        initialComments={[]}
+        onDelete={(id) => handleDeletePortfolio(id)}
+        onEdit={(item) => handleEditPortfolio(item)}
+      />
       <RatingsModal
         open={ratingsModalOpen}
         onOpenChange={(open) => {
@@ -619,7 +990,7 @@ export default function ProfilePage() {
           if (!open) {
             setRatingsModalData(null);
           } else if (!ratingsModalData && providerProfileId) {
-            handleOpenRatingsModal();
+            handleOpenRatingsModal(true);
           }
         }}
         loading={ratingsModalLoading}
