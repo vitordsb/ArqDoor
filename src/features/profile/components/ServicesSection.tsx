@@ -73,11 +73,25 @@ export function ServicesSection({
                   value={newItem.title}
                   onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
                 />
-                <Textarea
-                  placeholder="Descrição"
-                  value={newItem.description}
-                  onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                />
+               <div className="space-y-1">
+                  <Textarea
+                    placeholder="Descrição"
+                    value={newItem.description}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, description: e.target.value })
+                    }
+                  />
+
+                  <div className="flex justify-end">
+                    <span className={`text-xs ${
+                      newItem.description.length < 30
+                        ? "text-red-500"
+                        : "text-slate-500"
+                    }`}>
+                      {newItem.description.length} caracteres
+                    </span>
+                  </div>
+                </div>
                   <Input
                     type="text"
                     placeholder="Preço"
