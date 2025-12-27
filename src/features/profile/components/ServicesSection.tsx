@@ -69,14 +69,12 @@ export function ServicesSection({
                   value={newItem.description}
                   onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                 />
-                {userType === "prestador" && (
                   <Input
                     type="number"
                     placeholder="Preço"
                     value={newItem.price}
                     onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
                   />
-                )}
                 <Button onClick={handleCreate} disabled={creatingItem} className="w-full">
                   {creatingItem ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                   {creatingItem ? "Salvando..." : "Salvar"}
