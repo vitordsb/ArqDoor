@@ -4,6 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Save, Edit2, Trash2, X } from "lucide-react";
 
+const onlyDigits = (v: string) => (v || '').toString().replace(/\D/g, '');
+
+const formatCentsToDisplay = (cents: string) => {
+  const digits = onlyDigits(cents);
+  if (!digits) return '';
+  const n = parseInt(digits, 10);
+  return (n / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 interface ServicesSectionProps {
   userType: string;
   serviceItems: any[];
@@ -70,10 +79,10 @@ export function ServicesSection({
                   onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                 />
                   <Input
-                    type="number"
+                    type="text"
                     placeholder="Preço"
-                    value={newItem.price}
-                    onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                    value={formatCentsToDisplay(newItem.price)}
+                    onChange={(e) => setNewItem({ ...newItem, price: onlyDigits(e.target.value) })}
                   />
                 <Button onClick={handleCreate} disabled={creatingItem} className="w-full">
                   {creatingItem ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
@@ -106,9 +115,9 @@ export function ServicesSection({
                         />
                         {userType === "prestador" && (
                           <Input
-                            type="number"
-                            value={draftItem.price}
-                            onChange={(e) => setDraftItem({ ...draftItem, price: e.target.value })}
+                            type="text"
+                            value={formatCentsToDisplay(draftItem.price)}
+                            onChange={(e) => setDraftItem({ ...draftItem, price: onlyDigits(e.target.value) })}
                           />
                         )}
                         <div className="flex gap-2">
@@ -127,13 +136,13 @@ export function ServicesSection({
                       <>
                         <h4 className="font-semibold">{item.title}</h4>
                         <p className="text-sm text-slate-600">{item.description}</p>
-                        {item.price && <p className="text-orange-600 font-bold">R$ {item.price}</p>}
+                        {item.price !== undefined && item.price !== null && <p className="text-orange-600 font-bold">R$ {Number(item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                         <div className="flex gap-2 mt-2">
                           <Button
                             size="sm"
                             onClick={() => {
                               setEditingId(item.id_serviceFreelancer || item.id_demand);
-                              setDraftItem(item);
+                              setDraftItem({ ...item, price: item.price ? String(Math.round(Number(item.price) * 100)) : "" });
                             }}
                           >
                             <Edit2 className="w-4 h-4 mr-1" /> Editar

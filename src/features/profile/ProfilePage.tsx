@@ -52,6 +52,12 @@ export default function ProfilePage() {
       : `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
   };
 
+  const onlyDigits = (v: string) => (v || '').toString().replace(/\D/g, '');
+  const priceFromDigits = (v: string) => {
+    const d = onlyDigits(v);
+    return d ? parseInt(d, 10) / 100 : 0;
+  };
+
   const [services, setServices] = useState<any[]>([]);
   const [demands, setDemands] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -552,34 +558,37 @@ export default function ProfilePage() {
   const handleCreate = async () => {
     if (!user) return;
     if (!newItem.title || !newItem.description) return;
+
+    if (newItem.description.length < 30) {
+      toast({
+        title: "Poucos caracteres na descrição",
+        description: "A descrição precisa ter pelo menos 30 caracteres",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const digits = onlyDigits(newItem.price);
+    if (!digits || Number(digits) === 0) {
+      toast({
+        title: "Preço inválido",
+        description: "O preço precisa ser maior que zero",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setCreatingItem(true);
     try {
-      const payload = { ...newItem, price: parseFloat(newItem.price) || 0, user_id: user.id };
+      const payload = { ...newItem, price: priceFromDigits(newItem.price), user_id: user.id };
       const endpoint = user.type === "prestador" ? "/servicesfreelancer" : "/demands";
       const res = await apiRequest("POST", endpoint, payload);
-      if (newItem.description.length < 30) {
-        toast({
-          title: "Poucos caracteres na descrição",
-          description: "A descrição precisa ter pelo menos 30 caracteres",
-          variant: "destructive"
-        });
-        return;
-      }
-      if (newItem.price.toString().length < 1) {
-        toast({
-          title: "Preço inválido",
-          description: "O preço precisa ser maior que zero",
-          variant: "destructive"
-        });
-        return;
-      }
       const sla = await res.json();
       // verificar se é prestador pra mandar mensagem de criação
       const messageType = user.type === "prestador" ? "service" : "demand";
       if (sla.id) {
         await apiRequest("POST", `/messages/${sla.id}`, { type: messageType });
       }
-      console.log(sla)
       if (res.ok) {
         toast({
           title: "Sucesso",
@@ -590,6 +599,8 @@ export default function ProfilePage() {
         setIsCreating(false);
         loadItems();
       }
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar item", description: error?.message || "Tente novamente mais tarde.", variant: "destructive" });
     } finally {
       setCreatingItem(false);
     }
@@ -602,7 +613,8 @@ export default function ProfilePage() {
         user.type === "prestador"
           ? `/servicesfreelancer/${id}`
           : `/demands/${id}`;
-      const res = await apiRequest("PUT", endpoint, draftItem);
+      const payload = { ...draftItem, price: priceFromDigits(draftItem.price) };
+      const res = await apiRequest("PUT", endpoint, payload);
       if (res.ok) {
         toast({ title: "Atualizado", description: "Item editado com sucesso!" });
         setEditingId(null);
