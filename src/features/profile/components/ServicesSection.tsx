@@ -127,7 +127,7 @@ export function ServicesSection({
                           value={draftItem.description}
                           onChange={(e) => setDraftItem({ ...draftItem, description: e.target.value })}
                         />
-                        {userType === "prestador" && (
+                        {(userType === "prestador" || item.price !== undefined) && (
                           <Input
                             type="text"
                             value={formatCentsToDisplay(draftItem.price)}
@@ -151,7 +151,7 @@ export function ServicesSection({
                         <h4 className="font-semibold">{item.title}</h4>
                         <p className="text-sm text-slate-600">{item.description}</p>
                         {item.price !== undefined && item.price !== null && <p className="text-orange-600 font-bold">R$ {Number(item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        <div className="flex gap-2 mt-2">
+                        <div className="flex  gap-2 mt-2">
                           <Button
                             size="sm"
                             onClick={() => {

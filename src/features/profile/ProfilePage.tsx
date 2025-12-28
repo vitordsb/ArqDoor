@@ -427,7 +427,8 @@ export default function ProfilePage() {
       } else {
         const res = await apiRequest("GET", "/demands");
         const body = await res.json();
-        setDemands(body.demands || []);
+        // API returns demands under `demand`; keep fallback to `demands` for safety
+        setDemands(Array.isArray(body.demand) ? body.demand : (body.demands || []));
       }
     } catch (err) {
       console.error(err);
@@ -585,14 +586,15 @@ export default function ProfilePage() {
       const res = await apiRequest("POST", endpoint, payload);
       const sla = await res.json();
       // verificar se é prestador pra mandar mensagem de criação
-      const messageType = user.type === "prestador" ? "service" : "demand";
+      const messageType = user.type === "prestador" ? "Serviço" : "Demanda";  
+      // "service" : "demand";
       if (sla.id) {
         await apiRequest("POST", `/messages/${sla.id}`, { type: messageType });
       }
       if (res.ok) {
         toast({
           title: "Sucesso",
-          description: `${messageType} criado com sucesso!`,
+          description: `${messageType} criado(a) com sucesso!`,
           variant: "default",
         });
         setNewItem({ title: "", description: "", price: "" });
