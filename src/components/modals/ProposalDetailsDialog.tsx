@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   QrCode,
   Loader2,
+  Lock,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import * as React from "react"
@@ -72,6 +73,7 @@ export function ProposalDetailsDialog({
   steps,
   loading,
   userType,
+  tickets,
   onMarkProviderCompleted,
   onEditStep,
   onDeleteStep,
@@ -115,6 +117,7 @@ export function ProposalDetailsDialog({
   } = useStepFeedbackActions(feedbackModalStep?.id);
 
   const isPerStepPayment = paymentPreference === "per_step";
+  const isProvider = userType === "prestador";
 
   const resetFeedbackModal = () => {
     setFeedbackModalStep(null);
@@ -164,6 +167,7 @@ export function ProposalDetailsDialog({
       setFeedbackModalInput("");
     }
   };
+
 
 
   return (
@@ -219,7 +223,6 @@ export function ProposalDetailsDialog({
             </div>
           ) : (
             <div className="space-y-4">
-
               {steps.map((step, index) => {
                 const isSignatureStep = step.title === SIGNATURE_STEP_TITLE || index === 0
                 const signatureSigned =
@@ -230,11 +233,26 @@ export function ProposalDetailsDialog({
                 const ticketIsActive = (ticketStatus || "").toLowerCase() === "em andamento"
                 const paid = Boolean((step as any).paid);
 
+                const prev = steps[index - 1];
+                const prevIsSignature = !!(prev && (prev.title === SIGNATURE_STEP_TITLE || (index - 1) === 0));
+                const prevDone = prev && ((prev.status || '').toLowerCase() === 'concluido' || ((prev as any).confirm_freelancer && (prev as any).confirm_contractor));
+                const prevPaid = prevIsSignature ? true : Boolean((prev as any)?.paid);
+                // bloqueia se a anterior não foi concluída ou (pagamento por etapa e anterior não foi paga) 
+                const prevBlocking = !!(prev && (!prevDone || (isPerStepPayment && !prevPaid)));
+                let prevBlockReason: string | null = null;
+                if (prev && !prevDone) {
+                  prevBlockReason = prevIsSignature ? 'Aguardando assinatura do contrato' : 'Aguardando a conclusão da etapa anterior';
+                } else if (isPerStepPayment && prevDone && !prevPaid && !prevIsSignature) {
+                  prevBlockReason = 'Aguardando pagamento do cliente.';
+                }
+
                 // helpers para auxiliar
                 const isConcluded = (s: any) =>
                   (s?.status || '').toLowerCase() === 'concluido' ||
                   (s?.confirm_freelancer && s?.confirm_contractor);
                 const providerMarkedDone = !!step.confirm_freelancer;
+
+                const stepConcluded = isConcluded(step);
 
                 // padroniza status
                 const status = (step.status || "").toLowerCase()
@@ -245,6 +263,12 @@ export function ProposalDetailsDialog({
                     : status === "recusado"
                       ? "Recusado"
                       : "—"
+
+                // variáveis pra controle de bloqueio de botões de feedback/problema
+                const reworks = Number((step as any).rework_count) || 0;
+                const isRework = reworks > 0;
+                const waitingStart = isPerStepPayment && !providerMarkedDone && status !== "recusado" && !isRework;
+                const isBlocked = prevBlocking || waitingStart;
 
                 return (
                   <div key={step.id} className="border rounded-lg p-4">
@@ -267,10 +291,29 @@ export function ProposalDetailsDialog({
 
                     <div className="mt-3 flex flex-wrap gap-2">
                       {userType === "prestador" && !isSignatureStep && (() => {
-                        const prev = steps[index - 1]
-                        const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
+                        // se a etapa anterior não foi concluída, informa que aguarda a conclusão
+                        if (prev && !prevDone) {
+                          return (
+                            <div className="w-full">
+                              <p className="text-sm text-gray-500 mb-2">
+                                Aguardando a conclusão da etapa anterior.
+                              </p>
+                            </div>
+                          )
+                        }
 
-                        // Se etapa foi marcada como concluída pelo prestador, mostra mensagem
+                        // se pagamento por etapa está ativo e a etapa anterior, mesmo concluída, ainda não foi paga
+                        if (isPerStepPayment && prevDone && !prevPaid && !prevIsSignature) {
+                          return (
+                            <div className="w-full">
+                              <p className="text-sm text-gray-500 mb-2">
+                                Aguardando pagamento do cliente.
+                              </p>
+                            </div>
+                          )
+                        }
+
+                        // se etapa foi marcada como concluída pelo prestador, mostra mensagem de confirmação/pagamento
                         if (prevDone && providerMarkedDone && !isConcluded(step)) {
                           return (
                             <div className="w-full">
@@ -290,9 +333,14 @@ export function ProposalDetailsDialog({
                               size="sm"
                               className="bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
-                              disabled={!ticketIsActive}
+                              disabled={!ticketIsActive || prevBlocking}
+                              title={prevBlockReason || undefined}
                             >
-                              <CheckCircle className="h-4 w-4 mr-2" />
+                              {prevBlocking ? (
+                                <Lock className="h-4 w-4 mr-2" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                              )}
                               {(() => {
                                 const reworks = Number((step as any).rework_count) || 0;
                                 const attempt = reworks + 1;
@@ -305,7 +353,39 @@ export function ProposalDetailsDialog({
                             </Button>
                           )}
 
-                          <DropdownMenu>
+                        {/* mostrar os botões de feedback/problema só na etapa ativa ou em etapas já concluídas */}   
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openFeedbackModal(step, 'feedback')}
+                              disabled={isBlocked || (!ticketIsActive && !stepConcluded)}
+                            >
+                              {isBlocked ? (
+                                <Lock className="h-4 w-4 mr-2" />
+                              ) : (
+                                <MessageCircle className="h-4 w-4 mr-2" />
+                              )}
+                              Feedbacks
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-red-400 text-red-600 hover:text-red-700 hover:border-red-500 disabled:border-slate-200 disabled:text-slate-400"
+                              onClick={() => openFeedbackModal(step, 'problem')}
+                              disabled={isBlocked || (!ticketIsActive && !stepConcluded)}
+                            >
+                              {isBlocked ? (
+                                <Lock className="h-4 w-4 mr-2" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 mr-2" />
+                              )}
+                              Problemas
+                            </Button>
+                          </>
+                         
+                          {/* <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button size="sm" variant="outline">
                                 <MoreVertical className="h-4 w-4" />
@@ -322,7 +402,27 @@ export function ProposalDetailsDialog({
                                 <Trash2 className="h-4 w-4 mr-2" /> Excluir
                               </DropdownMenuItem>
                             </DropdownMenuContent>
-                          </DropdownMenu>
+                          </DropdownMenu> */}
+                          {userType === "prestador" && !isSignatureStep && !ticketIsActive && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="sm" variant="outline">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => onEditStep(step)}>
+                                    <Edit2 className="h-4 w-4 mr-2" /> Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => onDeleteStep(step.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                          )}
                         </>
                       )}
 
@@ -348,7 +448,8 @@ export function ProposalDetailsDialog({
                                   disabled={!ticketIsActive}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
-                                  {isPerStepPayment ? "Desbloquear pagamento" : "Aceitar etapa"}
+                                  {/* {isPerStepPayment ? "Desbloquear pagamento" : "Aceitar etapa"} */}
+                                  Aceitar Etapa
                                 </Button>
                                 <Button
                                   size="sm"
@@ -380,7 +481,7 @@ export function ProposalDetailsDialog({
                                   <AlertTriangle className="h-4 w-4 mr-2" />
                                   Problemas
                                 </Button>
-                              </div>
+                              </div> 
                             </div>
                           );
                         }
@@ -434,7 +535,7 @@ export function ProposalDetailsDialog({
                         </p>
                       )}
 
-                      {userType === "contratante" && isPerStepPayment && !isSignatureStep && providerMarkedDone && !paid && (
+                      {userType === "contratante" && isPerStepPayment && !isSignatureStep && providerMarkedDone && !paid && ((step as any).confirm_contractor || (step as any).confirmContractor) && (
                         <div className="flex flex-wrap gap-2">
                           <Button
                             size="sm"
@@ -568,66 +669,78 @@ export function ProposalDetailsDialog({
                     </p>
                   </div>
                   <div className="flex gap-2 shrink-0">
-                    <Button variant="outline" size="sm" onClick={() => handleEditFeedback(fb)}>
-                      Editar
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteFeedback(fb)}
-                      disabled={isDeletingFeedback}
-                    >
-                      Excluir
-                    </Button>
+                    {!isProvider ? (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => handleEditFeedback(fb)}>
+                          Editar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteFeedback(fb)}
+                          disabled={isDeletingFeedback}
+                        >
+                          Excluir
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-500">Somente visualização</span>
+                    )}
                   </div>
                 </div>
               ));
             })()}
           </div>
 
-          <div className="space-y-3 pt-3 border-t">
-            <p className="text-sm font-medium">
-              {editingFeedbackId
-                ? `Editar ${feedbackModalType === 'problem' ? 'problema' : 'feedback'}`
-                : `Novo ${feedbackModalType === 'problem' ? 'problema' : 'feedback'}`}
-            </p>
-            <Textarea
-              value={feedbackModalInput}
-              onChange={(e) => setFeedbackModalInput(e.target.value)}
-              placeholder={
-                feedbackModalType === 'problem'
-                  ? 'Descreva o problema encontrado nesta etapa...'
-                  : 'Deixe seu feedback sobre esta etapa...'
-              }
-              rows={4}
-            />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleSubmitFeedback}
-                disabled={isCreatingFeedback || isUpdatingFeedback || !feedbackModalInput.trim()}
-              >
-                {editingFeedbackId ? "Salvar alterações" : "Enviar"}
-              </Button>
-              {editingFeedbackId && (
+          {!isProvider ? (
+            <div className="space-y-3 pt-3 border-t">
+              <p className="text-sm font-medium">
+                {editingFeedbackId
+                  ? `Editar ${feedbackModalType === 'problem' ? 'problema' : 'feedback'}`
+                  : `Novo ${feedbackModalType === 'problem' ? 'problema' : 'feedback'}`}
+              </p>
+              <Textarea
+                value={feedbackModalInput}
+                onChange={(e) => setFeedbackModalInput(e.target.value)}
+                placeholder={
+                  feedbackModalType === 'problem'
+                    ? 'Descreva o problema encontrado nesta etapa...'
+                    : 'Deixe seu feedback sobre esta etapa...'
+                }
+                rows={4}
+              />
+              <div className="flex gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditingFeedbackId(null);
-                    setFeedbackModalInput("");
-                  }}
+                  onClick={handleSubmitFeedback}
+                  disabled={isCreatingFeedback || isUpdatingFeedback || !feedbackModalInput.trim()}
                 >
-                  Cancelar edição
+                  {editingFeedbackId ? "Salvar alterações" : "Enviar"}
                 </Button>
+                {editingFeedbackId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingFeedbackId(null);
+                      setFeedbackModalInput("");
+                    }}
+                  >
+                    Cancelar edição
+                  </Button>
+                )}
+              </div>
+              {pendingRejectStep && feedbackModalType === 'problem' && (
+                <p className="text-xs text-red-600">
+                  Ao enviar o problema a etapa será recusada automaticamente.
+                </p>
               )}
             </div>
-            {pendingRejectStep && feedbackModalType === 'problem' && (
-              <p className="text-xs text-red-600">
-                Ao enviar o problema a etapa será recusada automaticamente.
-              </p>
-            )}
-          </div>
+          ) : (
+            <div className="pt-3 border-t">
+              <p className="text-sm text-gray-500">Somente visualização — você não pode adicionar, editar ou excluir feedbacks.</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

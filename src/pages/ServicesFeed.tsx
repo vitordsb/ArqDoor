@@ -298,7 +298,7 @@ export default function ServicesFeed() {
                               {svc.ServiceProvider.profession || "Não informado"}
                             </Badge>
                             <Badge className="mt-1 bg-blue-100 text-blue-800 text-xs">
-                              {svc.userType}
+                              {svc.userType.charAt(0).toUpperCase() + svc.userType.slice(1)}
                             </Badge>
                           </div>
                           {currentUser && svc.ServiceProvider.user_id === currentUser.id && (

@@ -806,6 +806,7 @@ export default function Messages() {
 
     return () => clearInterval(interval);
   }, [showProposalDetails, selectedTicketSteps, getStepsWithPayment]);
+
   const getProviderPaymentPreference = useCallback(
     async (providerId?: number | null) => {
       if (!providerId) return null;
@@ -1161,7 +1162,7 @@ export default function Messages() {
     }
   };
 
-  // Prestador confirma etapa (usa senha se sua API exigir)
+  // Prestador confirma etapa (usa senha)
   const handleConfirmStepCompletion = async (stepId: number, password: string) => {
     await confirmFreelancerStep(stepId, password);
   };
