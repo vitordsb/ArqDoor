@@ -385,24 +385,6 @@ export function ProposalDetailsDialog({
                             </Button>
                           </>
                          
-                          {/* <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="sm" variant="outline">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => onEditStep(step)}>
-                                <Edit2 className="h-4 w-4 mr-2" /> Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => onDeleteStep(step.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu> */}
                           {userType === "prestador" && !isSignatureStep && !ticketIsActive && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
