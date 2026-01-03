@@ -5,6 +5,12 @@ export interface LoginInterface {
   email: string;
   password: string;
 }
+export interface GoogleLoginPayload {
+  idToken?: string;
+  accessToken?: string;
+  type?: "contratante" | "prestador";
+  mode?: "login" | "register";
+}
 export interface RegisterInterface {
   name: string;
   email: string;
@@ -35,6 +41,7 @@ export interface AuthContextType {
   isLoggedIn: boolean;
   isInitialized: boolean;
   login: (data: LoginInterface) => Promise<void>;
+  loginWithGoogle: (payload: GoogleLoginPayload) => Promise<void>;
   register: (data: RegisterInterface) => Promise<void>;
   logout: () => Promise<void>;
 }

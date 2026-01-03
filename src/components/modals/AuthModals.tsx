@@ -1,6 +1,6 @@
 
 // src/components/AuthModals.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Loader2, Mail, Lock, UserRound, CalendarDays, Eye, EyeOff, BadgeCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { RegisterInterface, LoginInterface } from "@/lib/Interfaces";
+import { useGoogleLogin } from "@react-oauth/google";
 
 // --- Small helpers -----------------------------------------------------------
 function DialogShell({
@@ -117,6 +118,18 @@ function SectionDivider({ label }: { label?: string }) {
   );
 }
 
+function GoogleIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4">
+      <path fill="#EA4335" d="M24 9.5c3.15 0 5.98 1.08 8.21 3.2l6.12-6.12C34.8 3.01 29.76 1 24 1 14.62 1 6.51 6.68 2.88 14.56l7.14 5.54C11.7 14.29 17.27 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.14 24.5c0-1.58-.14-3.09-.4-4.5H24v8.5h12.45c-.54 2.76-2.14 5.1-4.54 6.66l7.01 5.44C43.87 36.64 46.14 30.96 46.14 24.5z" />
+      <path fill="#FBBC05" d="M10.02 28.9c-.45-1.35-.71-2.79-.71-4.4 0-1.62.26-3.05.71-4.4l-7.14-5.54C1.64 17.24 1 20.02 1 23c0 2.98.64 5.76 1.88 8.34l7.14-5.54z" />
+      <path fill="#34A853" d="M24 47c6.48 0 11.9-2.13 15.86-5.82l-7.01-5.44c-1.95 1.31-4.44 2.11-7.4 2.11-6.73 0-12.3-4.79-14.1-11.27l-7.14 5.54C6.51 41.32 14.62 47 24 47z" />
+      <path fill="none" d="M1 1h46v46H1z" />
+    </svg>
+  );
+}
+
 // --- Component ---------------------------------------------------------------
 export const AuthModals: React.FC<{
   isLoginOpen: boolean;
@@ -136,9 +149,13 @@ export const AuthModals: React.FC<{
   onSwitchToLogin,
 }) => {
     const { toast } = useToast();
-    const { login, register } = useAuth();
+    const { login, register, loginWithGoogle } = useAuth();
     const [loginLoading, setLoginLoading] = useState(false);
     const [registerLoading, setRegisterLoading] = useState(false);
+    const [googleLoginLoading, setGoogleLoginLoading] = useState(false);
+    const [googleRegisterLoading, setGoogleRegisterLoading] = useState(false);
+    const googleModeRef = useRef<"login" | "register" | null>(null);
+    const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
     // forms
     const loginForm = useForm<LoginInterface>({
@@ -163,6 +180,103 @@ export const AuthModals: React.FC<{
     const handlePrestadorChange = (checked: boolean) => {
       registerForm.setValue("type", checked ? "prestador" : "contratante");
       setIsPrestador(checked);
+    };
+
+    const googleAuth = useGoogleLogin({
+      flow: "implicit",
+      scope: "openid email profile",
+      onSuccess: async (tokenResponse) => {
+        const mode = googleModeRef.current;
+        const isRegisterMode = mode === "register";
+        const userType = isRegisterMode ? (isPrestador ? "prestador" : "contratante") : undefined;
+
+        if (!tokenResponse?.access_token) {
+          toast({
+            title: "Erro no login com Google",
+            description: "Token não recebido. Tente novamente.",
+            variant: "destructive",
+          });
+          if (isRegisterMode) {
+            setGoogleRegisterLoading(false);
+          } else {
+            setGoogleLoginLoading(false);
+          }
+          googleModeRef.current = null;
+          return;
+        }
+
+        try {
+          const result = await loginWithGoogle({
+            accessToken: tokenResponse?.access_token,
+            type: userType,
+            mode: mode || "login",
+          });
+          if (result?.status === "logged_in") {
+            onSuccess?.();
+          } else if (result?.status === "created_needs_login" || result?.status === "already_connected") {
+            onSwitchToLogin();
+          }
+        } catch (err) {
+          toast({
+            title: "Erro no login com Google",
+            description: (err as Error)?.message || "Não foi possível concluir o login.",
+            variant: "destructive",
+          });
+        } finally {
+          if (isRegisterMode) {
+            setGoogleRegisterLoading(false);
+          } else {
+            setGoogleLoginLoading(false);
+          }
+          googleModeRef.current = null;
+        }
+      },
+      onError: () => {
+        toast({
+          title: "Erro no login com Google",
+          description: "Não foi possível concluir o login, tente novamente.",
+          variant: "destructive",
+        });
+        const mode = googleModeRef.current;
+        if (mode === "register") {
+          setGoogleRegisterLoading(false);
+        } else {
+          setGoogleLoginLoading(false);
+        }
+        googleModeRef.current = null;
+      },
+    });
+
+    const handleGoogleClick = (mode: "login" | "register") => {
+      if (!googleEnabled) {
+        toast({
+          title: "Google login indisponível",
+          description: "Defina VITE_GOOGLE_CLIENT_ID para habilitar o login social.",
+          variant: "destructive",
+        });
+        return;
+      }
+      googleModeRef.current = mode;
+      if (mode === "register") {
+        setGoogleRegisterLoading(true);
+      } else {
+        setGoogleLoginLoading(true);
+      }
+      try {
+        googleAuth();
+      } catch (err) {
+        toast({
+          title: "Erro ao iniciar Google",
+          description: "Não foi possível abrir o login, tente novamente.",
+          variant: "destructive",
+        });
+        if (mode === "register") {
+          setGoogleRegisterLoading(false);
+        } else {
+          setGoogleLoginLoading(false);
+        }
+        googleModeRef.current = null;
+      }
     };
 
     async function handleLogin(data: LoginInterface) {
@@ -278,6 +392,22 @@ export const AuthModals: React.FC<{
                   <Button type="submit" disabled={loginLoading} className="w-full">
                     {loginLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Entrar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={googleLoginLoading || !googleEnabled}
+                    className="w-full"
+                    onClick={() => handleGoogleClick("login")}
+                  >
+                    {googleLoginLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <span className="mr-2 inline-flex">
+                        <GoogleIcon />
+                      </span>
+                    )}
+                    Fazer login com Google
                   </Button>
                   <div className="text-center text-sm text-muted-foreground">
                     <span className="cursor-pointer hover:underline" onClick={onSwitchToRegister}>
@@ -458,6 +588,22 @@ export const AuthModals: React.FC<{
                     {registerLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Cadastrar
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={googleRegisterLoading || !googleEnabled}
+                    className="w-full"
+                    onClick={() => handleGoogleClick("register")}
+                  >
+                    {googleRegisterLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <span className="mr-2 inline-flex">
+                        <GoogleIcon />
+                      </span>
+                    )}
+                    Registrar com o Google
+                  </Button>
                   <div className="text-center">
                     <a
                       onClick={onSwitchToLogin}
@@ -476,4 +622,3 @@ export const AuthModals: React.FC<{
   };
 
 export default AuthModals;
-

@@ -6,10 +6,26 @@ import React, {
   useEffect,
 } from "react";
 import { parseJwt } from "@/lib/utils";
-import { User, AuthContextType, RegisterInterface, LoginInterface } from "@/lib/Interfaces";
+import {
+  User,
+  AuthContextType,
+  RegisterInterface,
+  LoginInterface,
+  GoogleLoginPayload,
+} from "@/lib/Interfaces";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 
+const persistSession = (
+  token: string,
+  setUser: React.Dispatch<React.SetStateAction<User | null>>
+) => {
+  const payload = parseJwt<User>(token);
+  const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
+  sessionStorage.setItem("token", token);
+  sessionStorage.setItem("tokenExpiry", expiresAt.toString());
+  setUser(payload);
+};
 
 export const login = async (
   data: LoginInterface,
@@ -30,15 +46,9 @@ export const login = async (
       return;
     }
     if (!validate.ok) return;
-    console.log(validate);
-    const body = await validate.json() as { data: { token: string } };
-    console.log(body);
+    const body = (await validate.json()) as { data: { token: string } };
     const token = body.data.token;
-    const payload = parseJwt<User>(token);
-    const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
-    sessionStorage.setItem("token", token);
-    sessionStorage.setItem("tokenExpiry", expiresAt.toString());
-    setUser(payload);
+    persistSession(token, setUser);
     toast({
       title: "Login realizado",
       description: "Seja bem vindo!",
@@ -52,6 +62,83 @@ export const login = async (
       variant: "destructive",
     });
     return;
+  }
+};
+
+export const loginWithGoogleRequest = async (
+  payload: GoogleLoginPayload,
+  setUser: React.Dispatch<React.SetStateAction<User | null>>
+) => {
+  try {
+    if (!payload.idToken && !payload.accessToken) {
+      toast({
+        title: "Falha no login com Google",
+        description: "Token não encontrado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const res = await apiRequest("POST", "/auth/google", {
+      idToken: payload.idToken,
+      accessToken: payload.accessToken,
+      type: payload.type,
+      mode: payload.mode || "login",
+    });
+
+    if (res.status === 409) {
+      const errorBody = await res.json().catch(() => null);
+      toast({
+        title: "Conta já conectada",
+        description: errorBody?.message || "Usuário já conectado com Google, por favor faça login.",
+        variant: "destructive",
+      });
+      return { status: "already_connected" as const };
+    }
+
+    if (res.status === 201) {
+      const body = await res.json().catch(() => null);
+      toast({
+        title: "Conta criada",
+        description: body?.message || "Conta criada com Google. Faça login para continuar.",
+      });
+      return { status: "created_needs_login" as const };
+    }
+
+    if (res.status === 401 || res.status === 400) {
+      const errorBody = await res.json().catch(() => null);
+      toast({
+        title: "Erro no login com Google",
+        description: errorBody?.message || "Credenciais inválidas",
+        variant: "destructive",
+      });
+      return { status: "failed" as const };
+    }
+
+    if (!res.ok) {
+      toast({
+        title: "Erro no login com Google",
+        description: "Falha inesperada, tente novamente.",
+        variant: "destructive",
+      });
+      return { status: "failed" as const };
+    }
+
+    const body = (await res.json()) as { data: { token: string } };
+    persistSession(body.data.token, setUser);
+    toast({
+      title: "Login via Google realizado",
+      description: "Seja bem vindo!",
+    });
+    return { status: "logged_in" as const };
+  } catch (error) {
+    console.log(error);
+    toast({
+      title: "Erro no login com Google",
+      description: "Erro interno, por favor tente novamente mais tarde",
+      variant: "destructive",
+    });
+    return { status: "failed" as const };
   }
 };
 
@@ -134,6 +221,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoggedIn: !!user,
         login(data) {
           return login(data, setUser);
+        },
+        loginWithGoogle(payload) {
+          return loginWithGoogleRequest(payload, setUser);
         },
         register,
         logout() {
