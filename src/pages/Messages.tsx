@@ -418,6 +418,20 @@ export default function Messages() {
     ticketId: number,
   ) => markStepCompleted(stepId, password, ticketId);
 
+  const handleStartPhase = async (stepId: number) => {
+    const ok = await updateStep(stepId, { status: 'em andamento' });
+    if (ok) {
+      const ticketId = selectedTicketSteps.find((s: any) => s.id === stepId)?.ticket_id;
+      if (ticketId) {
+        setSelectedTicketSteps(currentSteps =>
+          currentSteps.map(s => (s.id === stepId ? { ...s, status: 'em andamento' } : s))
+        );
+        const updated = await getStepsWithPayment(ticketId);
+        setSelectedTicketSteps(updated);
+      }
+    }
+  };
+
   // Cliente REJEITA um step específico
   const handleRejectStep = async (step: any) => {
     try {
@@ -496,12 +510,16 @@ export default function Messages() {
     try {
       const ok = await acceptStep(step.id, password);
       if (ok) {
-        const updated = await getStepsForTicket(step.ticket_id);
-        setSelectedTicketSteps(updated);
-        toast({
-          title: 'Etapa aceita',
-          description: 'A próxima etapa foi iniciada.',
-        });
+        // Força a atualização do status para 'concluido' para garantir que o fluxo continue
+        const statusUpdated = await updateStep(step.id, { status: 'concluido' });
+        if (statusUpdated) {
+          const updated = await getStepsWithPayment(step.ticket_id);
+          setSelectedTicketSteps(updated);
+          toast({
+            title: 'Etapa aceita',
+            description: 'Gere o pagamento para liberar a próxima etapa.',
+          });
+        }
       }
       return ok;
     } catch (e: any) {
@@ -1375,6 +1393,7 @@ export default function Messages() {
         onMarkProviderCompleted={(id, ticketId) =>
           openFreelancerStepSignature(id, ticketId)
         }
+        onStartPhase={handleStartPhase}
         onClientAccept={async (step, paymentPref) => {
           openClientStepSignature(step, paymentPref);
         }}

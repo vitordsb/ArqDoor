@@ -48,7 +48,8 @@ type ProposalDetailsDialogProps = {
   editStepData: { title: string; price: number }
   onEditStepDataChange: (data: { title: string; price: number }) => void
   onSaveStep: () => void
-  onCancelEdit: () => void
+  onCancelEdit: () => void;
+  onStartPhase: (stepId: number) => Promise<void>;
   onStartSignature: (ticket: any) => void
   onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
@@ -82,6 +83,7 @@ export function ProposalDetailsDialog({
   onEditStepDataChange,
   onSaveStep,
   onCancelEdit,
+  onStartPhase,
   onStartSignature: _onStartSignature,
   onOpenSignature: _onOpenSignature,
   onRejectContract,
@@ -257,7 +259,9 @@ export function ProposalDetailsDialog({
                 // padroniza status
                 const status = (step.status || "").toLowerCase()
                 const statusLabel = isConcluded(step)
-                  ? "Concluido"
+                  ? "Concluído"
+                  : status === 'em andamento'
+                    ? "Em Andamento"
                   : status === "pendente"
                     ? "Pendente"
                     : status === "recusado"
@@ -291,18 +295,16 @@ export function ProposalDetailsDialog({
 
                     <div className="mt-3 flex flex-wrap gap-2">
                       {userType === "prestador" && !isSignatureStep && (() => {
-                        // se a etapa anterior não foi concluída, informa que aguarda a conclusão
                         if (prev && !prevDone) {
                           return (
                             <div className="w-full">
                               <p className="text-sm text-gray-500 mb-2">
-                                Aguardando a conclusão da etapa anterior.
+                                {prevIsSignature ? 'Aguardando assinatura do contrato' : 'Aguardando a conclusão da etapa anterior.'}
                               </p>
                             </div>
                           )
                         }
 
-                        // se pagamento por etapa está ativo e a etapa anterior, mesmo concluída, ainda não foi paga
                         if (isPerStepPayment && prevDone && !prevPaid && !prevIsSignature) {
                           return (
                             <div className="w-full">
@@ -313,44 +315,75 @@ export function ProposalDetailsDialog({
                           )
                         }
 
-                        // se etapa foi marcada como concluída pelo prestador, mostra mensagem de confirmação/pagamento
-                        if (prevDone && providerMarkedDone && !isConcluded(step)) {
+                        if (isPerStepPayment && status === 'em andamento' && !providerMarkedDone) {
+                          const endDate = (step as any).end_date ? new Date((step as any).end_date) : null;
+                          if (endDate) {
+                            const now = new Date();
+                            const diffTime = endDate.getTime() - now.getTime();
+                            let countdownMessage: string;
+                            if (diffTime > 0) {
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                              countdownMessage = `${diffDays} dia${diffDays !== 1 ? 's' : ''} até a data de entrega.`;
+                            } else {
+                              countdownMessage = "Prazo de entrega expirado.";
+                            }
+                            return (
+                              <div className="w-full">
+                                <p className="text-sm text-gray-500 mb-2">{countdownMessage}</p>
+                              </div>
+                            );
+                          }
+                        }
+
+                        if (providerMarkedDone && !isConcluded(step)) {
                           return (
                             <div className="w-full">
                               <p className="text-sm text-gray-500 mb-2">
-                                {isPerStepPayment ? "Aguardando pagamento do cliente." : "Aguardando a confirmação do cliente."}
+                                Aguardando a confirmação do cliente.
                               </p>
                             </div>
                           )
                         }
+
+                        if (isPerStepPayment && (step as any).confirm_contractor && !paid && !isConcluded(step)) {
+                          return (
+                            <div className="w-full">
+                              <p className="text-sm text-gray-500 mb-2">
+                                Aguardando pagamento do cliente.
+                              </p>
+                            </div>
+                          )
+                        }
+
                         return null
                       })()}
 
                       {userType === "prestador" && !isSignatureStep && (
                         <>
-                          {!isConcluded(step) && (!providerMarkedDone || status === "recusado") && (
+                          {!stepConcluded && !providerMarkedDone && (
+                            isPerStepPayment && status === 'pendente' && !isRework ? (
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
+                              onClick={() => onStartPhase(step.id)}
                               disabled={!ticketIsActive || prevBlocking}
                               title={prevBlockReason || undefined}
                             >
-                              {prevBlocking ? (
-                                <Lock className="h-4 w-4 mr-2" />
-                              ) : (
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                              )}
-                              {(() => {
-                                const reworks = Number((step as any).rework_count) || 0;
-                                const attempt = reworks + 1;
-                                return attempt > 1
-                                  ? `Concluir novamente (${attempt}ª vez)`
-                                  : isPerStepPayment
-                                    ? "Iniciar fase"
-                                    : "Marcar como concluído";
-                              })()}
+                              {prevBlocking ? <Lock className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                              Iniciar fase
                             </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
+                                disabled={!ticketIsActive || (status !== 'em andamento' && prevBlocking)}
+                                title={status !== 'em andamento' ? prevBlockReason || undefined : undefined}
+                              >
+                                {status !== 'em andamento' && prevBlocking ? <Lock className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                                {isRework ? `Concluir novamente (${reworks + 1}ª vez)` : 'Marcar como concluído'}
+                              </Button>
+                            )
                           )}
 
                         {/* mostrar os botões de feedback/problema só na etapa ativa ou em etapas já concluídas */}   
@@ -385,7 +418,7 @@ export function ProposalDetailsDialog({
                             </Button>
                           </>
                          
-                          {userType === "prestador" && !isSignatureStep && !ticketIsActive && (
+                          {userType === "prestador" && !isSignatureStep && ["pendente", "cancelada"].includes((ticketStatus || "").toLowerCase()) && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button size="sm" variant="outline">
@@ -412,6 +445,13 @@ export function ProposalDetailsDialog({
                         const prev = steps[index - 1]
                         const prevDone = prev && ((prev.status || '').toLowerCase() === "concluido" || (prev.confirm_freelancer && prev.confirm_contractor))
 
+                        if (isPerStepPayment && status === 'em andamento' && !providerMarkedDone) {
+                          return (
+                            <p className="text-sm text-gray-500">
+                              Aguardando finalização do prestador.
+                            </p>
+                          );
+                        }
                         if (prevDone && providerMarkedDone && !isConcluded(step)) {
                           if (isPerStepPayment && paid) {
                             return (
@@ -467,17 +507,19 @@ export function ProposalDetailsDialog({
                             </div>
                           );
                         }
-                        if (prevDone && providerMarkedDone && isConcluded(step)) {
+                        if (isConcluded(step)) {
+                          const conclusionDate = (step as any).updated_at || (step as any).updatedAt;
                           return (
-                            <p className="text-sm text-gray-500">
-                              Aguardando o prestador concluir a próxima etapa.
+                            <p className="text-sm text-green-700 font-medium">
+                              Fase finalizada em: {conclusionDate ? formatDate(conclusionDate) : 'data indisponível'}.
                             </p>
                           );
                         }
-                        if (prevDone && !providerMarkedDone) {
+
+                        if (prevDone && !providerMarkedDone && status !== 'em andamento') {
                           return (
                             <p className="text-sm text-gray-500">
-                              Aguardando o prestador marcar a etapa como concluída.
+                              Aguardando o prestador iniciar a etapa.
                             </p>
                           );
                         }
