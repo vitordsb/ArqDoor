@@ -1,4 +1,3 @@
-
 // src/lib/utils.ts
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -6,6 +5,7 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
 export const formatDate = (dateString: string) => {
   try {
     const date = new Date(dateString);
@@ -21,15 +21,18 @@ export const formatDate = (dateString: string) => {
     return "Data inválida";
   }
 };
+
+// formatar o preço
 export function formatPrice(price: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
   }).format(price);
 }
+
 export function formatTotalDurationFromDays(totalDays: number | null | undefined): string | null {
   if (totalDays == null || totalDays <= 0 || isNaN(totalDays)) {
-    return null; // Retorna nulo se não houver dias válidos
+    return null; 
   }
 
   // Arredonda para o inteiro mais próximo, caso venha quebrado
@@ -50,10 +53,9 @@ export function formatTotalDurationFromDays(totalDays: number | null | undefined
   }
   // Só mostra dias se for a única unidade ou se houver anos/meses também
   if (days > 0 || (years === 0 && months === 0 && daysInt > 0)) {
-    // Se for exatamente 1 dia e não tiver anos/meses, mostra só "1 dia"
     if (daysInt === 1 && years === 0 && months === 0) {
       parts.push(`1 dia`);
-    } else if (days > 0) { // Senão, mostra os dias restantes normalmente
+    } else if (days > 0) { 
       parts.push(`${days} dia${days > 1 ? 's' : ''}`);
     }
   }
@@ -71,18 +73,14 @@ export function formatTotalDurationFromDays(totalDays: number | null | undefined
     return `${parts[0]}, ${parts[1]} e ${parts[2]}`;
   }
 }
-export function formatCNPJ(cnpj: string): string {
-  return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-}
-export function formatCPF(cpf: string): string {
-  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-}
+
 export function formatCEP(cep: string): string {
   return cep.replace(/(\d{5})(\d{3})/, "$1-$2");
 }
 export function formatEmail(email: string): string {
   return email.replace(/(.*)@(.*)/, "$1***@$2");
 }
+
 export function parseJwt<T = any>(token: string): T | null {
   try {
     const base64Url = token.split('.')[1];
@@ -156,3 +154,96 @@ export function formatRelativeTime(dateString: string): string {
   const diffInYears = Math.floor(diffInMonths / 12);
   return `${diffInYears} year${diffInYears !== 1 ? 's' : ''} ago`;
 }
+
+/* FUNÇÕES PARA FORMATAR CPF E CNPJ */
+export const validateCpf = (cpf: string): boolean => {
+  cpf = (cpf || '').replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) {
+    return false;
+  }
+  let sum = 0;
+  let remainder;
+  for (let i = 1; i <= 9; i++) {
+    sum = sum + parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) {
+    remainder = 0;
+  }
+  if (remainder !== parseInt(cpf.substring(9, 10))) {
+    return false;
+  }
+  sum = 0;
+  for (let i = 1; i <= 10; i++) {
+    sum = sum + parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) {
+    remainder = 0;
+  }
+  if (remainder !== parseInt(cpf.substring(10, 11))) {
+    return false;
+  }
+  return true;
+};
+
+export const formatCpf = (value: string): string => {
+  const digitsOnly = (value || '').replace(/\D/g, '');
+  return digitsOnly
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+};
+
+export const validateCnpj = (cnpj: string): boolean => {
+  cnpj = (cnpj || '').replace(/[^\d]+/g, '');
+
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) {
+    return false;
+  }
+
+  let length = cnpj.length - 2;
+  let numbers = cnpj.substring(0, length);
+  const digits = cnpj.substring(length);
+  let sum = 0;
+  let pos = length - 7;
+
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--;
+    if (pos < 2) {
+      pos = 9;
+    }
+  }
+
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(0))) {
+    return false;
+  }
+
+  length = length + 1;
+  numbers = cnpj.substring(0, length);
+  sum = 0;
+  pos = length - 7;
+
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--;
+    if (pos < 2) {
+      pos = 9;
+    }
+  }
+
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  return result === parseInt(digits.charAt(1));
+};
+
+export const formatCnpj = (value: string): string => {
+  const digitsOnly = (value || '').replace(/\D/g, '');
+  return digitsOnly
+    .slice(0, 14)
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+};
+

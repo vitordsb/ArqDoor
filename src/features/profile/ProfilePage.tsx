@@ -1,4 +1,3 @@
-
 // src/pages/Profile.tsx
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -9,6 +8,7 @@ import AplicationLayout from "@/components/layouts/ApplicationLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { formatCpf, formatCnpj, validateCpf, validateCnpj } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -154,9 +154,6 @@ export default function ProfilePage() {
     }
   };
 
-  const sanitizeCpf = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 11);
-  const sanitizeCnpj = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 14);
-
   const loadProviderInfo = useCallback(async () => {
     if (!user || user.type !== "prestador") {
       setProviderProfile(null);
@@ -229,8 +226,8 @@ export default function ProfilePage() {
       if (!res.ok) return;
       const body = await res.json();
       const next = {
-        cpf: body?.user?.cpf || "",
-        cnpj: body?.user?.cnpj || "",
+        cpf: formatCpf(body?.user?.cpf || ""),
+        cnpj: formatCnpj(body?.user?.cnpj || ""),
       };
       setDocumentsData(next);
       setDocumentsOriginal(next);
@@ -344,11 +341,30 @@ export default function ProfilePage() {
 
   const handleSaveDocuments = async () => {
     if (!user) return;
+
+    if (documentsData.cpf && !validateCpf(documentsData.cpf)) {
+      toast({
+        title: "CPF inválido",
+        description: "O CPF informado não é válido. Verifique os dígitos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (documentsData.cnpj && !validateCnpj(documentsData.cnpj)) {
+      toast({
+        title: "CNPJ inválido",
+        description: "O CNPJ informado não é válido. Verifique os dígitos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSavingDocuments(true);
     try {
       const payload: Record<string, string | null> = {
-        cpf: documentsData.cpf || null,
-        cnpj: documentsData.cnpj || null,
+        cpf: onlyDigits(documentsData.cpf) || null,
+        cnpj: onlyDigits(documentsData.cnpj) || null,
       };
 
       const res = await apiRequest("PUT", `/users/${user.id}`, payload);
@@ -866,13 +882,13 @@ export default function ProfilePage() {
                 onChangeCpf={(value) =>
                   setDocumentsData((prev) => ({
                     ...prev,
-                    cpf: sanitizeCpf(value),
+                    cpf: formatCpf(value),
                   }))
                 }
                 onChangeCnpj={(value) =>
                   setDocumentsData((prev) => ({
                     ...prev,
-                    cnpj: sanitizeCnpj(value),
+                    cnpj: formatCnpj(value),
                   }))
                 }
                 loading={loadingDocuments}

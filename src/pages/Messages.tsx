@@ -26,7 +26,7 @@ import { ChatPanel } from '@/features/messages/components/ChatPanel';
 import { ContractsPanel } from '@/features/messages/components/ContractsPanel';
 import { ProposalCard } from '@/features/messages/components/ProposalCard';
 import { sortTicketsDesc } from '@/features/messages/utils';
-
+import { formatPrice } from '@/lib/utils';
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
 import { SignatureDialog } from '@/components/modals/SignatureDialog';
@@ -365,6 +365,7 @@ export default function Messages() {
       void refetchTickets();
     }
   }, [selectedTicketSteps, showProposalDetails, refetchTickets]);
+
   const handleEditStep = (step: any) => {
     if (!step) return;
     const isSignatureStep =
@@ -412,6 +413,7 @@ export default function Messages() {
       setSelectedTicketSteps(updated);
     }
   };
+  
   const handleMarkStepCompleted = async (
     stepId: number,
     password: string,
@@ -1483,11 +1485,7 @@ export default function Messages() {
                     if (typeof amountToShow !== "number" || amountToShow <= 0) return null;
                     return (
                       <span className="text-gray-600">
-                        Valor:{" "}
-                        {new Intl.NumberFormat("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        }).format(amountToShow || 0)}
+                        Valor: {formatPrice(amountToShow || 0)}
                       </span>
                     );
                   })()}
