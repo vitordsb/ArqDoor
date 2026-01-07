@@ -8,7 +8,7 @@ import AplicationLayout from "@/components/layouts/ApplicationLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCpf, formatCnpj, validateCpf, validateCnpj } from "@/lib/utils";
+import { formatCEP, formatCpf, formatCnpj, validateCpf, validateCnpj } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -111,6 +111,9 @@ export default function ProfilePage() {
   const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | null>(null);
   const [savingPaymentPreference, setSavingPaymentPreference] = useState(false);
 
+  const [locationInfo, setLocationInfo] = useState<any | null>(null);
+  const [loadingLocation, setLoadingLocation] = useState(false);
+
 
   // === função para salvar/editar o "Sobre mim" ===
   const handleSaveAbout = async () => {
@@ -187,6 +190,39 @@ export default function ProfilePage() {
   useEffect(() => {
     loadProviderInfo();
   }, [loadProviderInfo]);
+
+  const loadLocationInfo = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setLoadingLocation(true);
+      const res = await apiRequest("GET", `/locationuser?user_id=${user.id}`);
+      if (!res.ok) {
+        setLocationInfo(null);
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      const list = body?.locations || [];
+      if (!Array.isArray(list) || list.length === 0) {
+        setLocationInfo(null);
+        return;
+      }
+      const sorted = [...list].sort((a, b) => {
+        const aDate = new Date(a?.created_at || a?.createdAt || 0).getTime();
+        const bDate = new Date(b?.created_at || b?.createdAt || 0).getTime();
+        return bDate - aDate;
+      });
+      setLocationInfo(sorted[0]);
+    } catch (error) {
+      console.error(error);
+      setLocationInfo(null);
+    } finally {
+      setLoadingLocation(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadLocationInfo();
+  }, [loadLocationInfo]);
 
   useEffect(() => {
     if (!newPortfolioFile) {
@@ -662,13 +698,21 @@ export default function ProfilePage() {
   };
 
   const hasAbout = !!providerProfile?.about?.trim?.();
-  const hasDocuments = !!(documentsData.cpf?.trim?.() || documentsData.cnpj?.trim?.());
+  const hasCpf = !!documentsData.cpf?.replace(/\D/g, "").trim();
   const hasProfession = !!providerProfile?.profession?.trim?.();
-  const baseTotal = 3;
-  const baseCompleted = Number(hasAbout) + Number(hasDocuments) + Number(hasProfession);
-  const trustPercent = Math.round((baseCompleted / baseTotal) * 100);
   const hasPortfolio = portfolio.length > 0;
   const hasServices = services.length > 0;
+  const hasAddress = !!locationInfo?.cep;
+  const baseTotal = 4;
+  const baseCompleted =
+    Number(hasAbout) +
+    Number(hasCpf) +
+    Number(hasProfession) +
+    Number(hasAddress);
+  const baseScore = (baseCompleted / baseTotal) * 90;
+  const extraScore = (hasPortfolio ? 5 : 0) + (hasServices ? 5 : 0);
+  const trustPercentRaw = Math.round(baseScore + extraScore);
+  const trustPercent = hasCpf ? trustPercentRaw : Math.min(trustPercentRaw, 60);
 
   if (!user) {
     return (
@@ -897,6 +941,27 @@ export default function ProfilePage() {
                 onSave={handleSaveDocuments}
                 onCancel={handleCancelDocuments}
               />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Endereço (privado)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingLocation ? (
+                    <p className="text-sm text-slate-500">Carregando endereço...</p>
+                  ) : locationInfo ? (
+                    <div className="space-y-1 text-sm text-slate-700">
+                      <p><span className="font-medium">CEP:</span> {formatCEP(locationInfo.cep || "")}</p>
+                      <p><span className="font-medium">Rua:</span> {locationInfo.street || "—"}</p>
+                      <p><span className="font-medium">Número:</span> {locationInfo.number || "—"}</p>
+                      <p><span className="font-medium">Bairro:</span> {locationInfo.neighborhood || "—"}</p>
+                      <p><span className="font-medium">Cidade/UF:</span> {locationInfo.city || "—"} / {locationInfo.state || "—"}</p>
+                      <p><span className="font-medium">Tipo:</span> {locationInfo.typeLocation || "—"}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Nenhum endereço cadastrado.</p>
+                  )}
+                </CardContent>
+              </Card>
               {user.type === "prestador" && (
                 <Card>
                   <CardHeader>
@@ -914,8 +979,12 @@ export default function ProfilePage() {
                         <span>{hasAbout ? "Preenchido" : "Pendente"}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={hasDocuments ? "default" : "secondary"}>Documentos</Badge>
-                        <span>{hasDocuments ? "CPF/CNPJ cadastrado" : "Pendente"}</span>
+                        <Badge variant={hasCpf ? "default" : "secondary"}>CPF</Badge>
+                        <span>{hasCpf ? "CPF cadastrado" : "Pendente (até 60% confiança)"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasAddress ? "default" : "secondary"}>Endereço</Badge>
+                        <span>{hasAddress ? "Cadastrado" : "Pendente"}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={hasProfession ? "default" : "secondary"}>Profissão</Badge>
@@ -923,11 +992,11 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={hasPortfolio ? "default" : "outline"}>Portfólio</Badge>
-                        <span>{hasPortfolio ? "Destaques publicados" : "Opcional (impulsiona confiança)"}</span>
+                        <span>{hasPortfolio ? "Destaques publicados" : "Opcional (5% confiança)"}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={hasServices ? "default" : "outline"}>Serviços</Badge>
-                        <span>{hasServices ? "Serviços na plataforma" : "Opcional (impulsiona confiança)"}</span>
+                        <span>{hasServices ? "Serviços na plataforma" : "Opcional (5% confiança)"}</span>
                       </div>
                     </div>
                   </CardContent>

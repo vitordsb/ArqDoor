@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { User, Briefcase, Loader2, MessageCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,6 +24,8 @@ export interface UserApi {
   name: string;
   email: string;
   createdAt: string;
+  perfil_completo?: boolean;
+  cpf?: string;
 }
 
 export interface Demand {
@@ -101,6 +104,12 @@ export default function ClientProfile() {
     currentUser.id === user.id ||
     currentUser.type !== "prestador";
 
+  const hasCpf = !!user.cpf?.replace(/\D/g, "").trim();
+  const trustPercent = hasCpf && user.perfil_completo ? 100 : 60;
+  const trustLabel = hasCpf && user.perfil_completo
+    ? "Informações completas"
+    : "Informações pendentes";
+
   return (
     <ApplicationLayout>
       <div className="max-w-6xl mx-auto p-6 space-y-8">
@@ -126,13 +135,21 @@ export default function ClientProfile() {
               <CardHeader>
                 <CardTitle>Informações</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 {canShowEmail ? (
                   <p><User className="w-4 h-4 inline mr-2" /> {user.email}</p>
                 ) : (
                   <p className="text-sm text-slate-500">Email oculto para prestadores.</p>
                 )}
                 <p><Clock className="w-4 h-4 inline mr-2" /> Desde {new Date(user.createdAt).toLocaleDateString()}</p>
+                <div className="pt-2">
+                  <p className="text-sm font-medium">Nível de confiança</p>
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-900">{trustPercent}%</span>
+                    <span>{trustLabel}</span>
+                  </div>
+                  <Progress value={trustPercent} className="mt-2" />
+                </div>
               </CardContent>
             </Card>
           </div>

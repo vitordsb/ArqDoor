@@ -211,9 +211,9 @@ export const AuthModals: React.FC<{
             type: userType,
             mode: mode || "login",
           });
-          if (result?.status === "logged_in") {
+          if (result?.status === "logged_in" || result?.status === "logged_in_needs_onboarding") {
             onSuccess?.();
-          } else if (result?.status === "created_needs_login" || result?.status === "already_connected") {
+          } else if (result?.status === "already_connected") {
             onSwitchToLogin();
           }
         } catch (err) {

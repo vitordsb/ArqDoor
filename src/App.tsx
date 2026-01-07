@@ -16,6 +16,7 @@ import ApplicationLayout from "@/components/layouts/ApplicationLayout";
 import ServicesFeed from "@/pages/ServicesFeed.tsx";
 import Profile from "@/pages/Profile";
 import Admin from "@/pages/Admin";
+import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
 
 const LANDING_ROUTES = ["/", "/auth", "/admin"];
 
@@ -68,6 +69,7 @@ function App() {
   return (
     <>
       <AppContent />
+      <CompleteProfileModal />
       <Toaster />
     </>
   );
