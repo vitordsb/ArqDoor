@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, Home, Newspaper, Image, ShoppingBag, User, LogOut, MessageCircle } from "lucide-react";
+import { Menu, Home, Newspaper, Image, ShoppingBag, User, LogOut, MessageCircle, Link2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -84,6 +84,13 @@ const Navbar = () => {
                   <Image className="w-4 h-4" /> Demandas
                 </div>
               </Link>
+              {user?.type === "prestador" && (
+                <Link href="/convites">
+                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
+                    <Link2 className="w-4 h-4" /> Convites
+                  </div>
+                </Link>
+              )}
             </>
           )}
           {isLoggedIn && (
@@ -149,6 +156,11 @@ const Navbar = () => {
                 <Link href="/home/demands">
                   <div className="text-gray-700 hover:text-amber-500">Demandas</div>
                 </Link>
+                {isLoggedIn && user?.type === "prestador" && (
+                  <Link href="/convites">
+                    <div className="text-gray-700 hover:text-amber-500">Convites</div>
+                  </Link>
+                )}
                 {isLoggedIn && (
                   <Link href="/messages">
                     <div className="relative flex items-center gap-1 text-gray-700 hover:text-amber-500">

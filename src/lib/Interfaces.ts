@@ -44,9 +44,9 @@ export interface AuthContextType {
   isLoading: boolean;
   isLoggedIn: boolean;
   isInitialized: boolean;
-  login: (data: LoginInterface) => Promise<void>;
+  login: (data: LoginInterface) => Promise<boolean>;
   loginWithGoogle: (payload: GoogleLoginPayload) => Promise<GoogleLoginResult | undefined>;
-  register: (data: RegisterInterface) => Promise<void>;
+  register: (data: RegisterInterface) => Promise<boolean>;
   logout: () => Promise<void>;
   needsOnboarding: boolean;
   setNeedsOnboarding: (value: boolean) => void;

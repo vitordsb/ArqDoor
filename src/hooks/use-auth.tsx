@@ -46,9 +46,9 @@ export const login = async (
         description: "Email ou senha incorretos",
         variant: "destructive",
       });
-      return;
+      return false;
     }
-    if (!validate.ok) return;
+    if (!validate.ok) return false;
     const body = (await validate.json()) as { data: { token: string } };
     const token = body.data.token;
     const payload = persistSession(token, setUser);
@@ -59,7 +59,8 @@ export const login = async (
       title: "Login realizado",
       description: "Seja bem vindo!",
       variant: "default",
-    })
+    });
+    return true;
   } catch (error) {
     console.log(error);
     toast({
@@ -67,7 +68,7 @@ export const login = async (
       description: "Erro interno, por favor tente novamente mais tarde",
       variant: "destructive",
     });
-    return;
+    return false;
   }
 };
 
@@ -160,7 +161,7 @@ export const register = async (data: RegisterInterface) => {
           description: "Email ou CPF ja cadastrado",
           variant: "destructive",
         });
-        return
+        return false;
     }
     const userResponse = await userRes.json();
     console.log(userResponse)
@@ -172,6 +173,7 @@ export const register = async (data: RegisterInterface) => {
       description: successMessage,
       variant: "default",
     });
+    return true;
   } catch (error) {
     console.log(error);
     toast({
@@ -179,6 +181,7 @@ export const register = async (data: RegisterInterface) => {
       description: "Erro interno, por favor tente novamente mais tarde",
       variant: "destructive",
     });
+    return false;
   }
 };
 

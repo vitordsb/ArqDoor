@@ -17,6 +17,8 @@ import ServicesFeed from "@/pages/ServicesFeed.tsx";
 import Profile from "@/pages/Profile";
 import Admin from "@/pages/Admin";
 import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
+import Invites from "@/pages/Invites";
+import InvitePublic from "@/pages/InvitePublic";
 
 const LANDING_ROUTES = ["/", "/auth", "/admin"];
 
@@ -34,6 +36,8 @@ function Router() {
       <Route path="/user/:user_id" component={ClientProfile} />
       <Route path="/messages/:userId?" component={Messages} />
       <Route path="/admin" component={Admin} />
+      <Route path="/convites" component={Invites} />
+      <Route path="/convite/:token" component={InvitePublic} />
       <Route path="/termos-de-uso" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -43,9 +47,13 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const { isLoggedIn, isInitialized } = useAuth();
 
-  const isPublic = LANDING_ROUTES.includes(location);
-  const isLandingPage = isPublic;
-  const Layout = isLandingPage ? LandingLayout : (ApplicationLayout as any);
+  const isInvitePublic = location.startsWith("/convite/");
+  const isPublic = LANDING_ROUTES.includes(location) || isInvitePublic;
+  const Layout = isInvitePublic
+    ? (ApplicationLayout as any)
+    : isPublic
+      ? (LandingLayout as any)
+      : (ApplicationLayout as any);
 
   useEffect(() => {
     if (!isInitialized) return;

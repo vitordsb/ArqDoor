@@ -1214,6 +1214,21 @@ export default function Messages() {
       setLoadingPdf(false);
     }
   };
+
+  const inviteTicketRef = useRef<number | null>(null);
+  useEffect(() => {
+    const [, queryString] = location.split("?");
+    if (!queryString) return;
+    const params = new URLSearchParams(queryString);
+    const view = params.get("view");
+    const ticketParam = params.get("ticket");
+    if (view !== "contract" || !ticketParam) return;
+    const ticketId = Number(ticketParam);
+    if (!Number.isFinite(ticketId) || ticketId <= 0) return;
+    if (inviteTicketRef.current === ticketId) return;
+    inviteTicketRef.current = ticketId;
+    handleViewPdf(ticketId);
+  }, [location, handleViewPdf]);
   const closePdfViewer = () => {
     setShowPdfViewer(false);
     setFullscreenPdf(false);

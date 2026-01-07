@@ -139,6 +139,7 @@ export const AuthModals: React.FC<{
   onSuccess?: () => void;
   onSwitchToRegister: () => void;
   onSwitchToLogin: () => void;
+  autoLoginAfterRegister?: boolean;
 }> = ({
   isLoginOpen,
   isRegisterOpen,
@@ -147,6 +148,7 @@ export const AuthModals: React.FC<{
   onSuccess,
   onSwitchToRegister,
   onSwitchToLogin,
+  autoLoginAfterRegister = false,
 }) => {
     const { toast } = useToast();
     const { login, register, loginWithGoogle } = useAuth();
@@ -282,8 +284,10 @@ export const AuthModals: React.FC<{
     async function handleLogin(data: LoginInterface) {
       setLoginLoading(true);
       try {
-        await login(data);
-        onSuccess?.();
+        const ok = await login(data);
+        if (ok) {
+          onSuccess?.();
+        }
       } catch (err) {
         toast({
           title: "Erro no login",
@@ -312,6 +316,8 @@ export const AuthModals: React.FC<{
       if (!data.termos_aceitos)
         return toast({ title: "Termos não aceitos", description: "Aceite os termos para continuar.", variant: "destructive" });
 
+      let registered = false;
+      let loggedIn = false;
       try {
         setRegisterLoading(true);
         const registerData: RegisterInterface = {
@@ -324,8 +330,19 @@ export const AuthModals: React.FC<{
           type: isPrestador ? "prestador" : "contratante",
           termos_aceitos: data.termos_aceitos,
         };
-        await register(registerData);
-        onSuccess?.();
+        registered = await register(registerData);
+        if (!registered) return;
+        if (autoLoginAfterRegister) {
+          loggedIn = await login({
+            email: registerData.email,
+            password: registerData.password,
+          });
+          if (loggedIn) {
+            onSuccess?.();
+          }
+        } else {
+          onSuccess?.();
+        }
       } catch (err) {
         toast({
           title: "Erro no cadastro",
@@ -334,7 +351,11 @@ export const AuthModals: React.FC<{
         });
       } finally {
         setRegisterLoading(false);
-        onSwitchToLogin();
+        if (autoLoginAfterRegister && registered && loggedIn) {
+          onRegisterClose();
+        } else if (!autoLoginAfterRegister) {
+          onSwitchToLogin();
+        }
       }
     }
 
