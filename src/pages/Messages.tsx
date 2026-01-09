@@ -1,5 +1,4 @@
-﻿
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
 import { useContract } from '@/hooks/use-contract';
@@ -29,6 +28,7 @@ import { sortTicketsDesc } from '@/features/messages/utils';
 import { formatPrice } from '@/lib/utils';
 import { PdfViewerDialog } from '@/components/modals/PdfViewerDialog';
 import { ProposalDetailsDialog } from '@/components/modals/ProposalDetailsDialog';
+import { GroupedPaymentDialog } from '@/components/modals/GroupedPaymentDialog';
 import { SignatureDialog } from '@/components/modals/SignatureDialog';
 import { NewProposalDialog } from '@/components/modals/NewProposalDialog';
 import { OlderContractsDialog } from '@/components/modals/OlderContractsDialog';
@@ -76,6 +76,13 @@ type PaymentMethod = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'DEBIT_CARD';
 type PaymentDialogState = {
   step: Step;
   type: 'step' | 'deposit';
+  data: any | null;
+  method: PaymentMethod;
+  loading: boolean;
+};
+
+type GroupedPaymentDialogState = {
+  steps: Step[];
   data: any | null;
   method: PaymentMethod;
   loading: boolean;
@@ -167,6 +174,8 @@ export default function Messages() {
 
   const [showOlderTickets, setShowOlderTickets] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<PaymentDialogState | null>(null);
+  const [groupedPaymentDialog, setGroupedPaymentDialog] = useState<GroupedPaymentDialogState | null>(null);
+  const [groupedPaymentEnabledByTicket, setGroupedPaymentEnabledByTicket] = useState<Record<number, boolean>>({});
   const [payingStepId, setPayingStepId] = useState<number | null>(null);
   const [lastPaymentMethod, setLastPaymentMethod] = useState<PaymentMethod>("PIX");
   const [providerPaymentPreference, setProviderPaymentPreference] = useState<"per_step" | "at_end">("per_step");
@@ -184,6 +193,17 @@ export default function Messages() {
     }),
     []
   );
+
+  const getGroupedPaymentEnabled = (ticket: any) => {
+    if (!ticket) return undefined;
+    if (typeof ticket.allow_grouped_payment === "boolean") return ticket.allow_grouped_payment;
+    if (typeof ticket.allowGroupedPayment === "boolean") return ticket.allowGroupedPayment;
+    if (typeof ticket.grouped_payment === "boolean") return ticket.grouped_payment;
+    if (typeof ticket.groupedPayment === "boolean") return ticket.groupedPayment;
+    if (typeof ticket.grouped_payment_enabled === "boolean") return ticket.grouped_payment_enabled;
+    if (typeof ticket.groupedPaymentEnabled === "boolean") return ticket.groupedPaymentEnabled;
+    return undefined;
+  };
 
   // ---------- efeitos ----------
   useEffect(() => {
@@ -218,6 +238,19 @@ export default function Messages() {
     };
     loadAllTicketSteps();
   }, [tickets, getStepsForTicket]);
+
+  useEffect(() => {
+    const ticketId = (selectedTicketSteps[0] as any)?.ticket_id;
+    if (!ticketId) return;
+    const ticket = tickets.find((t: any) => t.id === ticketId);
+    if (!ticket) return;
+    const enabled = getGroupedPaymentEnabled(ticket);
+    if (typeof enabled !== "boolean") return;
+    setGroupedPaymentEnabledByTicket((prev) => {
+      if (prev[ticketId] === enabled) return prev;
+      return { ...prev, [ticketId]: enabled };
+    });
+  }, [selectedTicketSteps, tickets]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -272,13 +305,10 @@ export default function Messages() {
       return;
     }
 
-    // Valida├º├úo diferente baseada no tipo de pagamento
     let valid: ProposalStep[] = [];
     if (providerPaymentPreference === "per_step") {
-      // Modo por etapa: cada etapa precisa de t├¡tulo e pre├ºo
       valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
     } else {
-      // Modo conclus├úo: cada etapa precisa s├│ de t├¡tulo, e pelo menos uma etapa precisa ter pre├ºo
       valid = proposalSteps.filter(s => s.title.trim());
       const hasPrice = proposalSteps.some(s => s.price > 0);
       if (!hasPrice) {
@@ -436,7 +466,7 @@ export default function Messages() {
     }
   };
 
-  // Cliente REJEITA um step espec├¡fico
+  // Cliente REJEITA um step especifico
   const handleRejectStep = async (step: any) => {
     try {
       const ok = await rejectStep(step.id, step.ticket_id, step.indexInTicket);
@@ -476,7 +506,7 @@ export default function Messages() {
         (step as any).ticketId ??
         selectedTicket?.id;
 
-      // Atualiza├º├úo otimista local: libera o bot├úo pro prestador refazer
+      // atualização otimista local: libera o botão pro prestador refazer
       setSelectedTicketSteps((prev = []) =>
         prev.map((s: any) =>
           s.id === step.id
@@ -514,14 +544,14 @@ export default function Messages() {
     try {
       const ok = await acceptStep(step.id, password);
       if (ok) {
-        // For├ºa a atualiza├º├úo do status para 'concluido' para garantir que o fluxo continue
         const statusUpdated = await updateStep(step.id, { status: 'concluido' });
         if (statusUpdated) {
           const updated = await getStepsWithPayment(step.ticket_id);
           setSelectedTicketSteps(updated);
+          const isPaid = (step as any).paid || (step as any).is_financially_cleared;
           toast({
             title: 'Etapa aceita',
-            description: 'Gere o pagamento para liberar a próxima etapa.',
+            description: isPaid ? 'Etapa concluída com sucesso.' : 'Gere o pagamento para liberar a próxima etapa.',
           });
         }
       }
@@ -537,15 +567,15 @@ export default function Messages() {
   };
 
   const handleCopyPaymentCode = useCallback(
-    async (code?: string, label: string = 'Código copiado') => {
+    async (code?: string, label: string = 'C¢digo copiado') => {
       if (!code) return;
       try {
         await navigator.clipboard.writeText(code);
-        toast({ title: label, description: 'Copiado para a área de transferência.' });
+        toast({ title: label, description: 'Copiado para a  rea de transferˆncia.' });
       } catch {
         toast({
-          title: 'Não foi possível copiar',
-          description: 'Copie manualmente o código exibido.',
+          title: 'NÆo foi poss¡vel copiar',
+          description: 'Copie manualmente o c¢digo exibido.',
           variant: 'destructive',
         });
       }
@@ -566,6 +596,24 @@ export default function Messages() {
     [lastPaymentMethod]
   );
 
+  const openGroupedPaymentModal = useCallback(
+    (steps: Step[]) => {
+      const uniqueSteps = (steps || []).filter(
+        (step, index, list) =>
+          step?.id &&
+          list.findIndex((item) => item?.id === step.id) === index
+      );
+      if (!uniqueSteps.length) return;
+      setGroupedPaymentDialog({
+        steps: uniqueSteps,
+        data: null,
+        method: lastPaymentMethod,
+        loading: false,
+      });
+    },
+    [lastPaymentMethod]
+  );
+
   const requestPayment = useCallback(
     async (target: PaymentDialogState) => {
       const endpoint =
@@ -576,7 +624,7 @@ export default function Messages() {
       const response = await apiRequest("POST", endpoint, {
         description:
           target.type === "deposit"
-            ? `Depósito em garantia do ticket #${target.step.ticket_id}`
+            ? `Dep¢sito em garantia do ticket #${target.step.ticket_id}`
             : `Pagamento da etapa "${target.step.title}"`,
         method: target.method,
       });
@@ -589,7 +637,39 @@ export default function Messages() {
       }
 
       if (!response.ok || payload?.success === false) {
-        throw new Error(payload?.message || "Não foi possível gerar o pagamento.");
+        throw new Error(payload?.message || "NÆo foi poss¡vel gerar o pagamento.");
+      }
+
+      return payload.data;
+    },
+    []
+  );
+
+  const requestGroupedPayment = useCallback(
+    async (target: GroupedPaymentDialogState) => {
+      const stepIds = (target.steps || []).map((step) => step?.id).filter(Boolean);
+      if (stepIds.length === 0) {
+        throw new Error("Selecione ao menos uma etapa para pagamento.");
+      }
+
+      const ticketId = (target.steps[0] as any)?.ticket_id;
+      const response = await apiRequest("POST", "/payments", {
+        description: ticketId
+          ? `Pagamento agrupado do ticket #${ticketId}`
+          : "Pagamento agrupado de etapas",
+        method: target.method,
+        step_ids: stepIds,
+      });
+
+      let payload: any = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+
+      if (!response.ok || payload?.success === false) {
+        throw new Error(payload?.message || "Nao foi possivel gerar o pagamento.");
       }
 
       return payload.data;
@@ -623,6 +703,32 @@ export default function Messages() {
     setPaymentDialog((prev) => (prev ? { ...prev, method, data: null } : prev));
   }, []);
 
+  const handleGroupedPaymentMethodChange = useCallback((method: PaymentMethod) => {
+    setLastPaymentMethod(method);
+    setGroupedPaymentDialog((prev) => (prev ? { ...prev, method, data: null } : prev));
+  }, []);
+
+  const handleGenerateGroupedPayment = useCallback(async () => {
+    if (!groupedPaymentDialog) return;
+    const current = groupedPaymentDialog;
+    setGroupedPaymentDialog({ ...current, loading: true });
+    try {
+      const data = await requestGroupedPayment(current);
+      setGroupedPaymentDialog((prev) => (prev ? { ...prev, data, loading: false } : prev));
+      toast({
+        title: `${paymentMethodLabels[current.method]} gerado`,
+        description: "Exibindo os dados para pagamento.",
+      });
+    } catch (error: any) {
+      setGroupedPaymentDialog((prev) => (prev ? { ...prev, loading: false } : prev));
+      toast({
+        title: "Erro ao gerar pagamento",
+        description: error?.message || "Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+    }
+  }, [groupedPaymentDialog, requestGroupedPayment, toast, paymentMethodLabels]);
+
   const handleClientPayStep = useCallback(
     async (step: Step) => {
       if (!step?.id) return;
@@ -638,8 +744,8 @@ export default function Messages() {
       const ticket = tickets.find((t: any) => t.id === (step as any)?.ticket_id);
       if ((ticket?.payment_preference || providerPaymentPreference) === "at_end") {
         toast({
-          title: "Pagamento já em garantia",
-          description: "Você já depositou o total na assinatura. Não é necessário pagar por etapa.",
+          title: "Pagamento j  em garantia",
+          description: "Vocˆ j  depositou o total na assinatura. NÆo ‚ necess rio pagar por etapa.",
         });
         return;
       }
@@ -647,13 +753,12 @@ export default function Messages() {
       if (!step.confirm_freelancer) {
         toast({
           title: 'Aguardando prestador',
-          description: 'O prestador precisa marcar a etapa como concluída antes do pagamento.',
+          description: 'O prestador precisa marcar a etapa como conclu¡da antes do pagamento.',
           variant: 'warning',
         });
         return;
       }
 
-      // Busca o usu├írio atualizado para checar CPF/CNPJ antes de gerar pagamento
       let freshUser: any = user;
       try {
         if (user?.id) {
@@ -688,6 +793,81 @@ export default function Messages() {
     [openPaymentModal, toast, user]
   );
 
+  const handlePaySteps = useCallback(
+    async (steps: Step[]) => {
+      const cleaned = Array.isArray(steps) ? steps.filter(Boolean) : [];
+      if (!cleaned.length) return;
+
+      if (cleaned.length === 1) {
+        await handleClientPayStep(cleaned[0]);
+        return;
+      }
+
+      if (user?.type !== "contratante") {
+        toast({
+          title: "Acesso negado",
+          description: "Somente contratantes podem gerar pagamentos.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const ticketId = (cleaned[0] as any)?.ticket_id;
+      const mixedTickets = cleaned.some(
+        (step) => (step as any)?.ticket_id !== ticketId
+      );
+      if (mixedTickets) {
+        toast({
+          title: "Etapas invalidas",
+          description: "Selecione etapas do mesmo ticket.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const ticket = tickets.find((t: any) => t.id === ticketId);
+      if ((ticket?.payment_preference || providerPaymentPreference) === "at_end") {
+        toast({
+          title: "Pagamento ja em garantia",
+          description: "Este projeto usa deposito em garantia.",
+        });
+        return;
+      }
+
+      let freshUser: any = user;
+      try {
+        if (user?.id) {
+          const userRes = await apiRequest("GET", `/users/${user.id}`);
+          if (userRes.ok) {
+            const body = await userRes.json();
+            freshUser = body?.user || freshUser;
+          }
+        }
+      } catch {
+        /* se falhar, usa os dados atuais */
+      }
+
+      const hasDocs =
+        !!(freshUser as any)?.cpf?.trim?.() ||
+        !!(freshUser as any)?.cnpj?.trim?.();
+      if (!hasDocs) {
+        toast({
+          title: "CPF/CNPJ obrigatorio",
+          description: "Cadastre CPF ou CNPJ no seu perfil antes de gerar pagamento.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      openGroupedPaymentModal(cleaned);
+      toast({
+        title: "Gerar pagamento",
+        description: "Escolha PIX, boleto ou cartao para finalizar o pagamento.",
+      });
+    },
+    [handleClientPayStep, openGroupedPaymentModal, providerPaymentPreference, tickets, toast, user]
+  );
+
   const handleRefreshStepPayment = useCallback(
     async (step: Step) => {
       if (!step?.id) return;
@@ -704,7 +884,7 @@ export default function Messages() {
         const response = await apiRequest('GET', `/payments/steps/${step.id}/refresh`);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.success === false) {
-          throw new Error(payload?.message || 'Não foi possível atualizar o pagamento.');
+          throw new Error(payload?.message || 'NÆo foi poss¡vel atualizar o pagamento.');
         }
         const ticketId = (step as any)?.ticket_id || (step as any)?.ticketId;
         if (ticketId) {
@@ -730,6 +910,32 @@ export default function Messages() {
       }
     },
     [getStepsWithPayment, refetchTickets, toast, user]
+  );
+
+  const handleConfirmStepPayment = useCallback(
+    async (stepId: number) => {
+      if (!stepId) return;
+      if (confirmingStepPaymentRef.current[stepId]) return;
+      const step = selectedTicketSteps.find((s: any) => s.id === stepId);
+      if (!step) return;
+
+      confirmingStepPaymentRef.current = {
+        ...confirmingStepPaymentRef.current,
+        [stepId]: true,
+      };
+      setConfirmingStepPaymentIds((prev) => ({ ...prev, [stepId]: true }));
+
+      try {
+        await handleRefreshStepPayment(step);
+      } finally {
+        confirmingStepPaymentRef.current = {
+          ...confirmingStepPaymentRef.current,
+          [stepId]: false,
+        };
+        setConfirmingStepPaymentIds((prev) => ({ ...prev, [stepId]: false }));
+      }
+    },
+    [handleRefreshStepPayment, selectedTicketSteps]
   );
 
   const handleDeleteTicket = useCallback(
@@ -783,7 +989,7 @@ export default function Messages() {
         const res = await apiRequest("GET", `/payments/tickets/${ticketId}/refresh`);
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body?.success === false) {
-          throw new Error(body?.message || "Não foi possível verificar o pagamento.");
+          throw new Error(body?.message || "NÆo foi poss¡vel verificar o pagamento.");
         }
         await refetchTickets();
         const steps = await getStepsWithPayment(ticketId);
@@ -794,7 +1000,7 @@ export default function Messages() {
         });
       } catch (error: any) {
         toast({
-          title: "Pagamento não encontrado",
+          title: "Pagamento nÆo encontrado",
           description: error?.message || "Nenhum pagamento registrado ainda. Tente novamente mais tarde.",
           variant: "warning",
         });
@@ -803,7 +1009,34 @@ export default function Messages() {
     [getStepsForTicket, refetchTickets, toast]
   );
 
-  // Polling r├ípido para atualizar pagamento enquanto o modal de detalhes estiver aberto
+  const handleToggleGroupedPayment = useCallback(
+    async (ticketId: number, enabled: boolean) => {
+      const previousValue = groupedPaymentEnabledByTicket[ticketId] ?? false;
+      setGroupedPaymentEnabledByTicket((prev) => ({ ...prev, [ticketId]: enabled }));
+      try {
+        const res = await apiRequest("PATCH", `/ticket/${ticketId}`, {
+          allow_grouped_payment: enabled,
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || body?.success === false) {
+          throw new Error(body?.message || "Nao foi possivel atualizar.");
+        }
+        await refetchTickets();
+      } catch (error: any) {
+        setGroupedPaymentEnabledByTicket((prev) => ({
+          ...prev,
+          [ticketId]: previousValue,
+        }));
+        toast({
+          title: "Erro ao atualizar permissao",
+          description: error?.message || "Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+      }
+    },
+    [groupedPaymentEnabledByTicket, refetchTickets, toast]
+  );
+
   useEffect(() => {
     if (!showProposalDetails || !selectedTicketSteps.length) return;
     const ticketId = (selectedTicketSteps[0] as any)?.ticket_id;
@@ -813,7 +1046,7 @@ export default function Messages() {
 
     const interval = setInterval(async () => {
       try {
-        // for├ºa sincronizar pagamentos no backend antes de ler
+        // força sincronizar pagamentos no backend antes de ler
         await apiRequest("GET", `/payments/tickets/${ticketId}/refresh`);
         const steps = await getStepsWithPayment(ticketId);
         setSelectedTicketSteps(steps);
@@ -926,10 +1159,9 @@ export default function Messages() {
         return;
       }
 
-      // Apenas cancela o ticket, n├úo deleta - permite que seja refeito
+      // Apenas cancela o ticket, não deleta - permite que seja refeito
       await updateTicketStatus(ticketId, 'cancelada');
       
-      // Envia mensagem de sistema
       await sendSystemMessage(
         'Proposta recusada. O prestador pode enviar uma nova proposta.',
         'text',
@@ -1172,8 +1404,8 @@ export default function Messages() {
       if (signatureFlow.type === 'step-accept') {
         const ok = await handleAcceptStep(signatureFlow.step, password);
         if (ok === false) return;
-        // Gera pagamento apenas para modelo por fase; em garantia n├úo cobra por etapa
-        if (signatureFlow.paymentPreference !== 'at_end') {
+        const isPaid = (signatureFlow.step as any).paid || (signatureFlow.step as any).is_financially_cleared;
+        if (signatureFlow.paymentPreference !== 'at_end' && !isPaid) {
           await handleClientPayStep(signatureFlow.step as any);
         }
         setShowSignatureModal(false);
@@ -1184,7 +1416,6 @@ export default function Messages() {
     }
   };
 
-  // Prestador confirma etapa (usa senha)
   const handleConfirmStepCompletion = async (stepId: number, password: string) => {
     await confirmFreelancerStep(stepId, password);
   };
@@ -1404,8 +1635,13 @@ export default function Messages() {
 
         onClientRejectStep={(step) => handleRejectStep(step)}
         onFeedbackCreated={handleFeedbackCreated}
-        onClientPayStep={handleClientPayStep}
-        onRefreshStepPayment={handleRefreshStepPayment}
+        onPaySteps={handlePaySteps}
+        onConfirmStepPayment={handleConfirmStepPayment}
+        confirmingStepPaymentIds={confirmingStepPaymentIds}
+        allowGroupedPayment={
+          !!groupedPaymentEnabledByTicket[selectedTicketSteps[0]?.ticket_id ?? 0]
+        }
+        onToggleGroupedPayment={handleToggleGroupedPayment}
         payingStepId={payingStepId}
         currentIndex={(() => {
           const firstNotDone = selectedTicketSteps.findIndex(
@@ -1459,6 +1695,20 @@ export default function Messages() {
         agreeLabel={signatureFlow?.agreeLabel}
         passwordPlaceholder={signatureFlow?.passwordPlaceholder}
         requireAck={signatureRequiresAck}
+      />
+
+      <GroupedPaymentDialog
+        open={!!groupedPaymentDialog}
+        onOpenChange={(open) => {
+          if (!open) setGroupedPaymentDialog(null);
+        }}
+        steps={groupedPaymentDialog?.steps || []}
+        data={groupedPaymentDialog?.data || null}
+        method={groupedPaymentDialog?.method || lastPaymentMethod}
+        loading={groupedPaymentDialog?.loading || false}
+        onMethodChange={handleGroupedPaymentMethodChange}
+        onGeneratePayment={handleGenerateGroupedPayment}
+        onCopyCode={handleCopyPaymentCode}
       />
 
       <Dialog

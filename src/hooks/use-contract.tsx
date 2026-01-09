@@ -120,10 +120,8 @@ export function useContract(conversationId?: number) {
       if (!res.ok) throw new Error(`Erro ao buscar steps: ${res.status}`);
       const json = await res.json();
       
-      // Tenta encontrar o array de steps em várias estruturas possíveis
       let rawSteps = json.steps || json.data || (Array.isArray(json) ? json : []);
       
-      // Se rawSteps for um objeto (e não array), tenta buscar dentro dele (ex: { data: { steps: [...] } })
       if (!Array.isArray(rawSteps) && rawSteps && typeof rawSteps === 'object') {
          if (Array.isArray(rawSteps.steps)) rawSteps = rawSteps.steps;
          else if (Array.isArray(rawSteps.data)) rawSteps = rawSteps.data;
@@ -144,7 +142,6 @@ export function useContract(conversationId?: number) {
 
   const getStepMeta = useCallback(
     async (stepId: number, hintedTicketId?: number) => {
-      // tenta pelo ticket informado (mais barato)
       if (hintedTicketId) {
         const steps = await getStepsForTicket(hintedTicketId);
         const idx = steps.findIndex(s => s.id === stepId);
@@ -152,13 +149,12 @@ export function useContract(conversationId?: number) {
           const s = steps[idx];
           return {
             ticketId: hintedTicketId,
-            index: idx + 1, // 1-based
+            index: idx + 1, 
             title: s.title,
             price: s.price,
           };
         }
       }
-      // fallback: varre tickets carregados
       for (const tk of tickets || []) {
         const steps = await getStepsForTicket(tk.id);
         const idx = steps.findIndex(s => s.id === stepId);
@@ -272,7 +268,7 @@ export function useContract(conversationId?: number) {
           { ticket_id: ticketId, action: "ticket_concluded" }
         );
         queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
-        return bothConfirmed && !isConcluded; // true se acabamos de concluir a etapa
+        return bothConfirmed && !isConcluded; 
       } catch (e) {
         console.warn("Falha ao avaliar conclusão de ticket:", e);
         return false;
@@ -364,7 +360,6 @@ export function useContract(conversationId?: number) {
     [conversationId, queryClient, toast, maybeFinishStep, getStepMeta, sendSystemMessage, checkAndConcludeTicket]
   );
 
-  // cliente aceita etapa (rota que confirma o lado do cliente)
   const confirmFreelancerStep = useCallback(
     async (stepId: number, password: string) => {
       try {
@@ -375,7 +370,6 @@ export function useContract(conversationId?: number) {
         });
         if (!res.ok) throw new Error(await res.text());
 
-        // tenta encerrar automaticamente se o prestador já confirmou
         try { await maybeFinishStep(stepId); } catch { }
 
         try {
@@ -405,7 +399,7 @@ export function useContract(conversationId?: number) {
     [conversationId, queryClient, toast, maybeFinishStep, getStepMeta, sendSystemMessage]
   );
 
-  const confirmStepCompletion = confirmFreelancerStep; // alias compat
+  const confirmStepCompletion = confirmFreelancerStep; 
 
   // cliente assina/aceita etapa formalmente (usa /step/signature/{id})
   const preConfirmFirstStepFreelancer = useCallback(
@@ -509,7 +503,6 @@ export function useContract(conversationId?: number) {
       };
       const extractIsoDate = (value: string) => value.split("T")[0] || value;
 
-      // usa meio-dia para evitar os saltos de data causados por fusos ao usar toISOString()
       const getFutureDateIso = (daysToAdd: number): string => {
         const date = new Date();
         date.setHours(12, 0, 0, 0);
@@ -657,7 +650,6 @@ export function useContract(conversationId?: number) {
             await cleanupAndThrow(`Data final anterior à inicial na etapa "${s.title}".`);
           }
 
-          // Cria o payload - agora com start_date e end_date sempre presentes
           const stepPayload: any = {
             ticket_id: ticketId,
             title: s.title,
@@ -717,7 +709,6 @@ export function useContract(conversationId?: number) {
           variant: "destructive",
         });
         if (createdTicketId) {
-          // Tenta limpar ticket gerado se falhar após criação (ex.: upload não enviado)
           try { await deleteTicket(createdTicketId); } catch (cleanupErr) {
             console.warn("Falha ao remover ticket após erro:", cleanupErr);
           }
