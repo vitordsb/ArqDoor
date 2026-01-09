@@ -1,4 +1,4 @@
-
+﻿
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
@@ -171,6 +171,8 @@ export default function Messages() {
   const [lastPaymentMethod, setLastPaymentMethod] = useState<PaymentMethod>("PIX");
   const [providerPaymentPreference, setProviderPaymentPreference] = useState<"per_step" | "at_end">("per_step");
   const [providerPreferenceCache, setProviderPreferenceCache] = useState<Record<number, "per_step" | "at_end">>({});
+  const [confirmingStepPaymentIds, setConfirmingStepPaymentIds] = useState<Record<number, boolean>>({});
+  const confirmingStepPaymentRef = useRef<Record<number, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const paymentMethodLabels = useMemo<Record<PaymentMethod, string>>(
@@ -270,13 +272,13 @@ export default function Messages() {
       return;
     }
 
-    // Validação diferente baseada no tipo de pagamento
+    // Valida├º├úo diferente baseada no tipo de pagamento
     let valid: ProposalStep[] = [];
     if (providerPaymentPreference === "per_step") {
-      // Modo por etapa: cada etapa precisa de título e preço
+      // Modo por etapa: cada etapa precisa de t├¡tulo e pre├ºo
       valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
     } else {
-      // Modo conclusão: cada etapa precisa só de título, e pelo menos uma etapa precisa ter preço
+      // Modo conclus├úo: cada etapa precisa s├│ de t├¡tulo, e pelo menos uma etapa precisa ter pre├ºo
       valid = proposalSteps.filter(s => s.title.trim());
       const hasPrice = proposalSteps.some(s => s.price > 0);
       if (!hasPrice) {
@@ -434,7 +436,7 @@ export default function Messages() {
     }
   };
 
-  // Cliente REJEITA um step específico
+  // Cliente REJEITA um step espec├¡fico
   const handleRejectStep = async (step: any) => {
     try {
       const ok = await rejectStep(step.id, step.ticket_id, step.indexInTicket);
@@ -462,7 +464,7 @@ export default function Messages() {
     const snippet = comment.length > 160 ? `${comment.slice(0, 157)}...` : comment;
     const stepLabel = stepNumber ? `na etapa ${stepNumber}` : 'em uma etapa';
     const titleLabel = title ? ` (${title})` : '';
-    const icon = isProblem ? '🚨' : '📝';
+    const icon = isProblem ? '­ƒÜ¿' : '­ƒôØ';
     const contextLabel = isProblem ? 'problema relatado' : 'feedback adicionado';
     const messageContent = `${icon} Novo ${contextLabel} ${stepLabel}${titleLabel}: "${snippet}"`;
     void sendSystemMessage(messageContent);
@@ -474,7 +476,7 @@ export default function Messages() {
         (step as any).ticketId ??
         selectedTicket?.id;
 
-      // Atualização otimista local: libera o botão pro prestador refazer
+      // Atualiza├º├úo otimista local: libera o bot├úo pro prestador refazer
       setSelectedTicketSteps((prev = []) =>
         prev.map((s: any) =>
           s.id === step.id
@@ -512,7 +514,7 @@ export default function Messages() {
     try {
       const ok = await acceptStep(step.id, password);
       if (ok) {
-        // Força a atualização do status para 'concluido' para garantir que o fluxo continue
+        // For├ºa a atualiza├º├úo do status para 'concluido' para garantir que o fluxo continue
         const statusUpdated = await updateStep(step.id, { status: 'concluido' });
         if (statusUpdated) {
           const updated = await getStepsWithPayment(step.ticket_id);
@@ -651,7 +653,7 @@ export default function Messages() {
         return;
       }
 
-      // Busca o usuário atualizado para checar CPF/CNPJ antes de gerar pagamento
+      // Busca o usu├írio atualizado para checar CPF/CNPJ antes de gerar pagamento
       let freshUser: any = user;
       try {
         if (user?.id) {
@@ -742,7 +744,7 @@ export default function Messages() {
         return;
       }
       const status = (ticket.status || '').toLowerCase();
-      if (status === 'em andamento' || status === 'concluída') {
+      if (status === 'em andamento' || status === 'conclu├¡da') {
         toast({
           title: 'Ação não permitida',
           description: 'Não é possível excluir propostas já aceitas ou em andamento.',
@@ -801,7 +803,7 @@ export default function Messages() {
     [getStepsForTicket, refetchTickets, toast]
   );
 
-  // Polling rápido para atualizar pagamento enquanto o modal de detalhes estiver aberto
+  // Polling r├ípido para atualizar pagamento enquanto o modal de detalhes estiver aberto
   useEffect(() => {
     if (!showProposalDetails || !selectedTicketSteps.length) return;
     const ticketId = (selectedTicketSteps[0] as any)?.ticket_id;
@@ -811,7 +813,7 @@ export default function Messages() {
 
     const interval = setInterval(async () => {
       try {
-        // força sincronizar pagamentos no backend antes de ler
+        // for├ºa sincronizar pagamentos no backend antes de ler
         await apiRequest("GET", `/payments/tickets/${ticketId}/refresh`);
         const steps = await getStepsWithPayment(ticketId);
         setSelectedTicketSteps(steps);
@@ -924,12 +926,12 @@ export default function Messages() {
         return;
       }
 
-      // Apenas cancela o ticket, não deleta - permite que seja refeito
+      // Apenas cancela o ticket, n├úo deleta - permite que seja refeito
       await updateTicketStatus(ticketId, 'cancelada');
       
       // Envia mensagem de sistema
       await sendSystemMessage(
-        '❌ Proposta recusada. O prestador pode enviar uma nova proposta.',
+        'Proposta recusada. O prestador pode enviar uma nova proposta.',
         'text',
         { ticket_id: ticketId, action: 'proposal_rejected' }
       );
@@ -1170,7 +1172,7 @@ export default function Messages() {
       if (signatureFlow.type === 'step-accept') {
         const ok = await handleAcceptStep(signatureFlow.step, password);
         if (ok === false) return;
-        // Gera pagamento apenas para modelo por fase; em garantia não cobra por etapa
+        // Gera pagamento apenas para modelo por fase; em garantia n├úo cobra por etapa
         if (signatureFlow.paymentPreference !== 'at_end') {
           await handleClientPayStep(signatureFlow.step as any);
         }
@@ -1197,7 +1199,7 @@ export default function Messages() {
         setPdfUrl('');
       }
       const ticketId = typeof ticketOrId === 'number' ? ticketOrId : ticketOrId?.id;
-      if (!ticketId) throw new Error('Ticket inválido.');
+      if (!ticketId) throw new Error('Ticket inv├ílido.');
       setSelectedTicketForPdf(ticketId);
       const res = await buscarPDF(ticketId);
       if (!res) throw new Error('PDF não encontrado para este ticket.');
@@ -1662,7 +1664,7 @@ export default function Messages() {
                       <Button asChild className="bg-orange-600 hover:bg-orange-700">
                         <a href={checkoutUrl} target="_blank" rel="noreferrer">
                           <CreditCard className="h-4 w-4 mr-2" />
-                          Abrir checkout do cartão
+                          Abrir checkout do cart├úo
                         </a>
                       </Button>
                     )}

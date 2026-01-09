@@ -12,6 +12,37 @@ import {
   Message,
 } from "@/lib/Interfaces";
 
+const norm = (v?: string) => (v || "").toLowerCase();
+const truthy = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+
+const normalizeStep = (s: any): Step & {
+  confirm_freelancer?: boolean;
+  confirmFreelancer?: boolean;
+  confirm_contractor?: boolean;
+  confirmContractor?: boolean;
+  indexInTicket?: number;
+} => {
+  const cf = truthy(
+    s?.confirm_freelancer ??
+      s?.confirmFreelancer ??
+      s?.freelancer_confirm ??
+      s?.confirmed_by_freelancer
+  );
+  const cc = truthy(
+    s?.confirm_contractor ??
+      s?.confirmContractor ??
+      s?.contractor_confirm ??
+      s?.confirmed_by_contractor
+  );
+  return {
+    ...s,
+    confirm_freelancer: cf,
+    confirmFreelancer: cf,
+    confirm_contractor: cc,
+    confirmContractor: cc,
+  };
+};
+
 export function useContract(conversationId?: number) {
   const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
@@ -23,38 +54,6 @@ export function useContract(conversationId?: number) {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
-
-  const norm = (v?: string) => (v || "").toLowerCase();
-  const truthy = (v: any) => v === true || v === 1 || v === "1" || v === "true";
-
-  const normalizeStep = (s: any): Step & {
-    confirm_freelancer?: boolean;
-    confirmFreelancer?: boolean;
-    confirm_contractor?: boolean;
-    confirmContractor?: boolean;
-    indexInTicket?: number;
-  } => {
-    const cf = truthy(
-      s?.confirm_freelancer ??
-      s?.confirmFreelancer ??
-      s?.freelancer_confirm ??
-      s?.confirmed_by_freelancer
-    );
-    const cc = truthy(
-      s?.confirm_contractor ??
-      s?.confirmContractor ??
-      s?.contractor_confirm ??
-      s?.confirmed_by_contractor
-    );
-    return {
-      ...s,
-      confirm_freelancer: cf,
-      confirmFreelancer: cf,
-      confirm_contractor: cc,
-      confirmContractor: cc,
-    };
-  };
-
 
   /** =================== TICKETS =================== */
   const {
@@ -78,7 +77,6 @@ export function useContract(conversationId?: number) {
       const res = await apiRequest("GET", `/ticket/conversation/${conversationId}`);
       if (!res.ok) throw new Error(`Erro ao buscar tickets: ${res.status}`);
       const json = await res.json();
-      console.log(json)
       return json.tickets || [];
     },
   });
@@ -112,18 +110,72 @@ export function useContract(conversationId?: number) {
 
   /** =================== STEPS =================== */
   const getStepsForTicket = useCallback(async (ticketId: number): Promise<Step[]> => {
+
+    if (!ticketId) {
+      return [];
+    }
     try {
-      const res = await apiRequest("GET", `/step/${ticketId}`);
+      const res = await apiRequest("GET", `/tickets/${ticketId}/steps`);
+      if (res.status === 404) return []; 
       if (!res.ok) throw new Error(`Erro ao buscar steps: ${res.status}`);
       const json = await res.json();
-      const steps: Step[] = (json.steps || []).map(normalizeStep);
-      console.log(steps.map((s: any) => ({ ...s, indexInTicket: steps.length - 1 })))
-      return steps.map((s: any, idx: number) => ({ ...s, indexInTicket: idx }));
+      
+      // Tenta encontrar o array de steps em várias estruturas possíveis
+      let rawSteps = json.steps || json.data || (Array.isArray(json) ? json : []);
+      
+      // Se rawSteps for um objeto (e não array), tenta buscar dentro dele (ex: { data: { steps: [...] } })
+      if (!Array.isArray(rawSteps) && rawSteps && typeof rawSteps === 'object') {
+         if (Array.isArray(rawSteps.steps)) rawSteps = rawSteps.steps;
+         else if (Array.isArray(rawSteps.data)) rawSteps = rawSteps.data;
+      }
+
+      if (!Array.isArray(rawSteps)) {
+         console.warn(`[getStepsForTicket] Formato inesperado para ticket ${ticketId}:`, json);
+         return [];
+      }
+
+      const normalized: Step[] = rawSteps.map(normalizeStep);
+      return normalized.map((s: any, idx: number) => ({ ...s, indexInTicket: idx }));
     } catch (e) {
       console.error("❌ Erro ao buscar steps:", e);
       return [];
     }
   }, []);
+
+  const getStepMeta = useCallback(
+    async (stepId: number, hintedTicketId?: number) => {
+      // tenta pelo ticket informado (mais barato)
+      if (hintedTicketId) {
+        const steps = await getStepsForTicket(hintedTicketId);
+        const idx = steps.findIndex(s => s.id === stepId);
+        if (idx >= 0) {
+          const s = steps[idx];
+          return {
+            ticketId: hintedTicketId,
+            index: idx + 1, // 1-based
+            title: s.title,
+            price: s.price,
+          };
+        }
+      }
+      // fallback: varre tickets carregados
+      for (const tk of tickets || []) {
+        const steps = await getStepsForTicket(tk.id);
+        const idx = steps.findIndex(s => s.id === stepId);
+        if (idx >= 0) {
+          const s = steps[idx];
+          return {
+            ticketId: tk.id,
+            index: idx + 1,
+            title: s.title,
+            price: s.price,
+          };
+        }
+      }
+      return null;
+    },
+    [tickets, getStepsForTicket]
+  );
 
   const updateStep = useCallback(
     async (stepId: number, updateData: UpdateStepRequest) => {
@@ -226,7 +278,7 @@ export function useContract(conversationId?: number) {
         return false;
       }
     },
-    [tickets, getStepsForTicket, updateStep, updateTicketStatus, queryClient, conversationId]
+    [tickets, getStepsForTicket, updateStep, updateTicketStatus, queryClient, conversationId, sendSystemMessage]
   );
 
   const deleteTicket = useCallback(
@@ -246,6 +298,22 @@ export function useContract(conversationId?: number) {
   );
 
   /** =================== FLUXOS DE ETAPAS =================== */
+  const checkAndConcludeTicket = useCallback(
+    async (ticketId: number) => {
+      try {
+        const steps = await getStepsForTicket(ticketId);
+        const allDone = steps.every(s => s.status === 'Concluido');
+        if (allDone) {
+          await updateTicketStatus(ticketId, 'concluída');
+        }
+        queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
+      } catch (e) {
+        console.warn('checkAndConcludeTicket falhou:', e);
+      }
+    },
+    [getStepsForTicket, updateTicketStatus, queryClient, conversationId]
+  );
+
   // prestador marca etapa como concluída (libera aceite do cliente)
   const markStepCompleted = useCallback(
     async (stepId: number, password: string, ticketId?: number) => {
@@ -293,88 +361,82 @@ export function useContract(conversationId?: number) {
         return false;
       }
     },
-    [conversationId, queryClient, toast, maybeFinishStep]
+    [conversationId, queryClient, toast, maybeFinishStep, getStepMeta, sendSystemMessage, checkAndConcludeTicket]
   );
 
   // cliente aceita etapa (rota que confirma o lado do cliente)
-  async function confirmFreelancerStep(stepId: number, password: string) {
-    try {
-      const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
-        confirmFreelancer: true,
-        confirm_freelancer: true,
-        password,
-      });
-      if (!res.ok) throw new Error(await res.text());
-
-      // tenta encerrar automaticamente se o prestador já confirmou
-      try { await maybeFinishStep(stepId); } catch { }
-
-      try { await maybeFinishStep(stepId); } catch { }
+  const confirmFreelancerStep = useCallback(
+    async (stepId: number, password: string) => {
       try {
-        const meta = await getStepMeta(stepId);
-        if (meta) {
-          await sendSystemMessage(
-            `✅ Cliente aceitou a etapa ${meta.index}: _${meta.title}_ (Ticket #${meta.ticketId}).`,
-            "text",
-            { ticket_id: meta.ticketId, step_id: stepId, action: "client_accepted" }
-          );
-        }
-      } catch { }
+        const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
+          confirmFreelancer: true,
+          confirm_freelancer: true,
+          password,
+        });
+        if (!res.ok) throw new Error(await res.text());
 
-      toast({ title: "Etapa aceita", description: "A próxima etapa foi liberada." });
-      queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
-      return true;
-    } catch (err: any) {
-      console.error("❌ Erro ao aceitar etapa:", err);
-      toast({
-        title: "Erro",
-        description: err?.message || "Erro ao aceitar a etapa",
-        variant: "destructive",
-      });
-      return false;
-    }
-  }
+        // tenta encerrar automaticamente se o prestador já confirmou
+        try { await maybeFinishStep(stepId); } catch { }
+
+        try {
+          const meta = await getStepMeta(stepId);
+          if (meta) {
+            await sendSystemMessage(
+              `✅ Cliente aceitou a etapa ${meta.index}: _${meta.title}_ (Ticket #${meta.ticketId}).`,
+              "text",
+              { ticket_id: meta.ticketId, step_id: stepId, action: "client_accepted" }
+            );
+          }
+        } catch { }
+
+        toast({ title: "Etapa aceita", description: "A próxima etapa foi liberada." });
+        queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
+        return true;
+      } catch (err: any) {
+        console.error("❌ Erro ao aceitar etapa:", err);
+        toast({
+          title: "Erro",
+          description: err?.message || "Erro ao aceitar a etapa",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [conversationId, queryClient, toast, maybeFinishStep, getStepMeta, sendSystemMessage]
+  );
 
   const confirmStepCompletion = confirmFreelancerStep; // alias compat
 
   // cliente assina/aceita etapa formalmente (usa /step/signature/{id})
-  const preConfirmFirstStepFreelancer = async (stepId: number, password: string) => {
-    const sanitizedPassword = (password || "").trim();
-    if (!sanitizedPassword) {
-      console.warn("Senha não fornecida para pré-confirmar a primeira etapa.");
-      return { ok: false, message: "Senha não informada." };
-    }
-    try {
-      const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
-        confirm_freelancer: true,
-        confirmFreelancer: true,
-        password: sanitizedPassword,
-      });
-      if (!res.ok) {
-        const msg = await res.text();
-        console.warn("Falha ao pré-confirmar etapa de assinatura:", msg);
-        return { ok: false, message: msg || "Falha ao confirmar etapa" };
+  const preConfirmFirstStepFreelancer = useCallback(
+    async (stepId: number, password: string) => {
+      const sanitizedPassword = (password || "").trim();
+      if (!sanitizedPassword) {
+        console.warn("Senha não fornecida para pré-confirmar a primeira etapa.");
+        return { ok: false, message: "Senha não informada." };
       }
-      return { ok: true };
-    } catch (e) {
-      console.warn("Não consegui pré-confirmar o contrato pelo freelancer:", e);
-      return { ok: false, message: (e as any)?.message || "Erro inesperado ao confirmar etapa" };
-    }
-  };
-  const checkAndConcludeTicket = useCallback(
-    async (ticketId: number) => {
       try {
-        const steps = await getStepsForTicket(ticketId);
-        const allDone = steps.every(s => s.status === 'Concluido');
-        if (allDone) {
-          await updateTicketStatus(ticketId, 'concluída');
+        const res = await apiRequest(
+          "PATCH",
+          `/step/confirmfreelancer/${stepId}`,
+          {
+            confirm_freelancer: true,
+            confirmFreelancer: true,
+            password: sanitizedPassword,
+          }
+        );
+        if (!res.ok) {
+          const msg = await res.text();
+          console.warn("Falha ao pré-confirmar etapa de assinatura:", msg);
+          return { ok: false, message: msg || "Falha ao confirmar etapa" };
         }
-        queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
+        return { ok: true };
       } catch (e) {
-        console.warn('checkAndConcludeTicket falhou:', e);
+        console.warn("Não consegui pré-confirmar o contrato pelo freelancer:", e);
+        return { ok: false, message: (e as any)?.message || "Erro inesperado ao confirmar etapa" };
       }
     },
-    [getStepsForTicket, updateTicketStatus, queryClient, conversationId]
+    []
   );
 
   /** =================== PROPOSTA (createProposal) =================== */
@@ -702,41 +764,6 @@ export function useContract(conversationId?: number) {
       }
     },
     [conversationId, getStepsForTicket, updateStep, queryClient, toast]
-  );
-
-  const getStepMeta = useCallback(
-    async (stepId: number, hintedTicketId?: number) => {
-      // tenta pelo ticket informado (mais barato)
-      if (hintedTicketId) {
-        const steps = await getStepsForTicket(hintedTicketId);
-        const idx = steps.findIndex(s => s.id === stepId);
-        if (idx >= 0) {
-          const s = steps[idx];
-          return {
-            ticketId: hintedTicketId,
-            index: idx + 1, // 1-based
-            title: s.title,
-            price: s.price,
-          };
-        }
-      }
-      // fallback: varre tickets carregados
-      for (const tk of tickets || []) {
-        const steps = await getStepsForTicket(tk.id);
-        const idx = steps.findIndex(s => s.id === stepId);
-        if (idx >= 0) {
-          const s = steps[idx];
-          return {
-            ticketId: tk.id,
-            index: idx + 1,
-            title: s.title,
-            price: s.price,
-          };
-        }
-      }
-      return null;
-    },
-    [tickets, getStepsForTicket]
   );
 
   const computeCurrentIndex = useCallback((steps: Step[]) => {

@@ -118,9 +118,18 @@ export function useSignature(conversationId?: number) {
       if (!res.ok) throw new Error(await res.text());
 
       try {
-        const stepsRes = await apiRequest('GET', `/step/${ticketId}`);
+        const stepsRes = await apiRequest('GET', `/tickets/${ticketId}/steps`);
+        if (!stepsRes.ok) throw new Error("Falha ao buscar etapas para sincronizar assinatura.");
         const stepsJson = await stepsRes.json();
-        const steps = stepsJson.steps || [];
+
+        // Lógica robusta para extrair as etapas, similar ao useContract
+        let steps = stepsJson.steps || stepsJson.data || (Array.isArray(stepsJson) ? stepsJson : []);
+        if (!Array.isArray(steps) && steps && typeof steps === 'object') {
+          if (Array.isArray(steps.steps)) steps = steps.steps;
+          else if (Array.isArray(steps.data)) steps = steps.data;
+        }
+        if (!Array.isArray(steps)) steps = [];
+
         if (steps.length > 0) {
           const step0 = steps[0];
           const status = (step0.status || '').toLowerCase();

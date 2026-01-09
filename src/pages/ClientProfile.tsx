@@ -58,7 +58,7 @@ export default function ClientProfile() {
         const res = await apiRequest("GET", "/demands/getall");
         const body = await res.json();
         setDemands(
-          (Array.isArray(body.demand) ? body.demand : []).filter(
+          (Array.isArray(body.demands) ? body.demands : []).filter(
             (d: Demand) => String(d.id_user) === user_id
           )
         );

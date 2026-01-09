@@ -498,8 +498,8 @@ export default function SocialFeed() {
   }, [servicesRes]);
 
   const recentDemands = useMemo(() => {
-    if (!demandsRes?.demand) return [];
-    return demandsRes.demand
+    if (!demandsRes?.demands) return [];
+    return demandsRes.demands
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 3);
   }, [demandsRes]);
@@ -769,7 +769,7 @@ export default function SocialFeed() {
                           </p>
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-bold text-green-600">
-                              {formatPrice(demand.price)}
+                              {formatPrice(demand.budget)}
                             </span>
                             <Link>
                               Ver Perfil

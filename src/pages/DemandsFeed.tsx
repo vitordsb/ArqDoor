@@ -45,14 +45,16 @@ export default function DemandsPage() {
         if (!demandRes.ok) throw new Error("Erro ao buscar demandas");
         const body = await demandRes.json();
         console.log(body)
-        const fetchedDemands: Demand[] = Array.isArray(body.demand) ? body.demand : [];
+        const fetchedDemands: Demand[] = Array.isArray(body.demands) ? body.demands : [];
+
+        
 
         const enriched: EnrichedDemand[] = fetchedDemands.map(d => {
           return {
             ...d,
             userName: d.User?.name || "Usuário Desconhecido",
             userEmail: d.User?.email || "N/A",
-            price: parseFloat(d.price as any) // Garante que o preço é um número
+            price: parseFloat((d as any).budget || '0') // Garante que o preço é um número
           };
         });
 
@@ -348,4 +350,3 @@ export default function DemandsPage() {
     </ApplicationLayout>
   );
 }
-

@@ -1,0 +1,251 @@
+
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+  } from '@/components/ui/dialog';
+  import { Button } from '@/components/ui/button';
+  import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+  import {
+    QrCode,
+    Copy,
+    CreditCard,
+    Banknote,
+    Barcode,
+    Loader2,
+  } from 'lucide-react';
+  import { Step } from '@/lib/Interfaces';
+  import { formatPrice } from '@/lib/utils';
+  
+  type PaymentMethod = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'DEBIT_CARD';
+  
+  type GroupedPaymentDialogProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    steps: Step[];
+    data: any | null;
+    method: PaymentMethod;
+    loading: boolean;
+    onMethodChange: (method: PaymentMethod) => void;
+    onGeneratePayment: () => void;
+    onCopyCode: (code?: string, label?: string) => void;
+  };
+  
+  const paymentMethodOptions = [
+    { value: "PIX", title: "PIX", description: "QR Code e copia e cola", icon: QrCode },
+    { value: "BOLETO", title: "Boleto", description: "Linha digitável e PDF", icon: Barcode },
+    { value: "CREDIT_CARD", title: "Crédito", description: "Checkout seguro Asaas", icon: CreditCard },
+    { value: "DEBIT_CARD", title: "Débito", description: "Checkout seguro Asaas", icon: Banknote },
+  ];
+  
+  export function GroupedPaymentDialog({
+    open,
+    onOpenChange,
+    steps,
+    data,
+    method,
+    loading,
+    onMethodChange,
+    onGeneratePayment,
+    onCopyCode,
+  }: GroupedPaymentDialogProps) {
+    const totalAmount = steps.reduce((acc, step) => acc + (step.price || 0), 0);
+  
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pagamento Agrupado</DialogTitle>
+            <DialogDescription>
+              {steps.length} etapa(s) selecionada(s) para pagamento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">Forma de pagamento</span>
+                {totalAmount > 0 && (
+                  <span className="text-gray-600">
+                    Valor: {formatPrice(totalAmount)}
+                  </span>
+                )}
+              </div>
+              <RadioGroup
+                value={method}
+                onValueChange={(v) => onMethodChange(v as PaymentMethod)}
+                className="grid gap-2 sm:grid-cols-2"
+              >
+                {paymentMethodOptions.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <label
+                      key={option.value}
+                      htmlFor={`grouped-payment-${option.value}`}
+                      className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:border-orange-500"
+                    >
+                      <RadioGroupItem value={option.value} id={`grouped-payment-${option.value}`} />
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 font-medium">
+                          <Icon className="h-4 w-4 text-orange-600" />
+                          {option.title}
+                        </div>
+                        <p className="text-xs text-gray-600">{option.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={onGeneratePayment}
+                  disabled={loading}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  {loading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <QrCode className="mr-2 h-4 w-4" />
+                  )}
+                  {data ? "Atualizar cobrança" : "Gerar cobrança"}
+                </Button>
+                {data?.invoice_url && (
+                  <Button asChild variant="outline">
+                    <a
+                      href={data.invoice_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Abrir no Asaas
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+  
+            {(() => {
+              if (!data) {
+                return (
+                  <p className="text-sm text-gray-600">
+                    Clique em &quot;Gerar cobrança&quot; para ver os dados de pagamento.
+                  </p>
+                );
+              }
+  
+              const pixData = data?.pix;
+              const boletoData = data?.boleto;
+              const checkoutUrl = data?.checkout_url || data?.invoice_url;
+  
+              if (method === "PIX") {
+                const enc = pixData?.qr_code_image;
+                const src = enc
+                  ? enc.startsWith("data:image")
+                    ? enc
+                    : `data:image/png;base64,${enc}`
+                  : null;
+                return (
+                  <div className="space-y-3">
+                    {src && (
+                      <div className="flex flex-col items-center gap-2">
+                        <img src={src} alt="QR Code PIX" className="w-44 h-44 object-contain" />
+                        <span className="text-xs text-gray-500">Escaneie para pagar</span>
+                      </div>
+                    )}
+  
+                    <div>
+                      <p className="text-sm font-medium mb-1">Código copia e cola</p>
+                      <div className="bg-gray-100 rounded-md p-2 text-xs break-all">
+                        {pixData?.copy_and_paste || "Não disponível"}
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onCopyCode(pixData?.copy_and_paste, "Código PIX copiado")}
+                          disabled={!pixData?.copy_and_paste}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-1" /> Copiar código
+                        </Button>
+                        {data?.invoice_url && (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={data.invoice_url} target="_blank" rel="noreferrer">
+                              <QrCode className="h-3.5 w-3.5 mr-1" /> Abrir no Asaas
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+  
+                    {pixData?.expires_at && (
+                      <p className="text-xs text-gray-500">
+                        Expira em {new Date(pixData.expires_at).toLocaleString("pt-BR")}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+  
+              if (method === "BOLETO") {
+                return (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">
+                      Use a linha digitável ou abra o boleto para finalizar o pagamento.
+                    </p>
+                    <div className="bg-gray-100 rounded-md p-2 text-xs break-all">
+                      {boletoData?.digitable_line || "Não disponível"}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onCopyCode(boletoData?.digitable_line, "Linha digitável copiada")}
+                        disabled={!boletoData?.digitable_line}
+                      >
+                        <Copy className="h-3.5 w-3.5 mr-1" /> Copiar código
+                      </Button>
+                      {(boletoData?.pdf_url || data?.invoice_url) && (
+                        <Button asChild size="sm" className="bg-orange-600 hover:bg-orange-700">
+                          <a
+                            href={boletoData?.pdf_url || data?.invoice_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <Barcode className="h-3.5 w-3.5 mr-1" /> Abrir boleto
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                    {boletoData?.due_date && (
+                      <p className="text-xs text-gray-500">
+                        Vencimento em {new Date(boletoData.due_date).toLocaleDateString("pt-BR")}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+  
+              return (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    Você será direcionado ao checkout seguro do Asaas para inserir os dados do cartão.
+                  </p>
+                  {checkoutUrl && (
+                    <Button asChild className="bg-orange-600 hover:bg-orange-700">
+                      <a href={checkoutUrl} target="_blank" rel="noreferrer">
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Abrir checkout do cartão
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  
