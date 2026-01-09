@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Info, CalendarDays, PlusCircle, FileText } from "lucide-react";
 
 type ProposalStep = {
@@ -33,6 +34,9 @@ export const parseBrToIso = (brDate: string) => {
 interface NewProposalDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  dialogTitle?: string;
+  dialogDescription?: string;
+  submitLabel?: string;
   proposalSteps: ProposalStep[];
   onAddStep: () => void;
   onRemoveStep: (id: string) => void;
@@ -46,11 +50,15 @@ interface NewProposalDialogProps {
   sendingProposal: boolean;
   showToast?: (message: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
   paymentPreference?: "per_step" | "at_end";
+  onPaymentPreferenceChange?: (value: "per_step" | "at_end") => void;
 }
 
 export function NewProposalDialog({
   open,
   onOpenChange,
+  dialogTitle = "Nova Proposta",
+  dialogDescription = "Organize cada etapa do serviço com valores e prazos claros antes de enviar para o cliente.",
+  submitLabel = "Enviar proposta para o cliente",
   proposalSteps,
   onAddStep,
   onRemoveStep,
@@ -60,6 +68,7 @@ export function NewProposalDialog({
   sendingProposal,
   showToast,
   paymentPreference = "per_step",
+  onPaymentPreferenceChange,
 }: NewProposalDialogProps) {
   const [priceDigits, setPriceDigits] = React.useState<Record<string, string>>({});
 
@@ -124,10 +133,8 @@ export function NewProposalDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Nova Proposta</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Organize cada etapa do serviço com valores e prazos claros antes de enviar para o cliente.
-          </p>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <p className="text-sm text-muted-foreground">{dialogDescription}</p>
         </DialogHeader>
 
         <div className="grid gap-6 lg:grid-cols-[260px,1fr] overflow-hidden flex-1">
@@ -172,6 +179,35 @@ export function NewProposalDialog({
               </p>
               <Input type="file" accept="application/pdf" onChange={onContractFileChange} />
             </div>
+            {onPaymentPreferenceChange && (
+              <div className="rounded-2xl border border-dashed p-3 bg-white space-y-3">
+                <Label className="text-sm font-semibold">Forma de pagamento</Label>
+                <RadioGroup
+                  value={paymentPreference}
+                  onValueChange={(value) => onPaymentPreferenceChange(value as "per_step" | "at_end")}
+                  className="space-y-2"
+                >
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem value="per_step" id="payment-per-step" />
+                    <Label htmlFor="payment-per-step" className="text-sm font-normal">
+                      Pagamento por etapa
+                      <span className="block text-xs text-muted-foreground">
+                        O cliente paga conforme as entregas forem concluídas.
+                      </span>
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem value="at_end" id="payment-at-end" />
+                    <Label htmlFor="payment-at-end" className="text-sm font-normal">
+                      Depósito em garantia
+                      <span className="block text-xs text-muted-foreground">
+                        O cliente paga o valor total ao assinar o contrato.
+                      </span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
           </aside>
 
           <section className="space-y-5 overflow-hidden">
@@ -324,7 +360,7 @@ export function NewProposalDialog({
             disabled={sendingProposal}
             className="bg-orange-600 hover:bg-orange-700 text-white"
           >
-            {sendingProposal ? "Enviando..." : "Enviar proposta para o cliente"}
+            {sendingProposal ? "Enviando..." : submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

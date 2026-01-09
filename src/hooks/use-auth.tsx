@@ -25,11 +25,14 @@ const persistSession = (
   sessionStorage.setItem("token", token);
   sessionStorage.setItem("tokenExpiry", expiresAt.toString());
   setUser(payload);
+  return payload;
 };
 
 export const login = async (
   data: LoginInterface,
-  setUser: React.Dispatch<React.SetStateAction<User | null>>
+  setUser: React.Dispatch<React.SetStateAction<User | null>>,
+  setNeedsOnboarding: (value: boolean) => void,
+  setOnboardingOptional: (value: boolean) => void
 ) => {
   try {
     const sanitized = {
@@ -43,17 +46,21 @@ export const login = async (
         description: "Email ou senha incorretos",
         variant: "destructive",
       });
-      return;
+      return false;
     }
-    if (!validate.ok) return;
+    if (!validate.ok) return false;
     const body = (await validate.json()) as { data: { token: string } };
     const token = body.data.token;
-    persistSession(token, setUser);
+    const payload = persistSession(token, setUser);
+    const needsOnboarding = !payload?.perfil_completo;
+    setNeedsOnboarding(needsOnboarding);
+    setOnboardingOptional(needsOnboarding);
     toast({
       title: "Login realizado",
       description: "Seja bem vindo!",
       variant: "default",
-    })
+    });
+    return true;
   } catch (error) {
     console.log(error);
     toast({
@@ -61,13 +68,15 @@ export const login = async (
       description: "Erro interno, por favor tente novamente mais tarde",
       variant: "destructive",
     });
-    return;
+    return false;
   }
 };
 
 export const loginWithGoogleRequest = async (
   payload: GoogleLoginPayload,
-  setUser: React.Dispatch<React.SetStateAction<User | null>>
+  setUser: React.Dispatch<React.SetStateAction<User | null>>,
+  setNeedsOnboarding: (value: boolean) => void,
+  setOnboardingOptional: (value: boolean) => void
 ) => {
   try {
     if (!payload.idToken && !payload.accessToken) {
@@ -96,15 +105,6 @@ export const loginWithGoogleRequest = async (
       return { status: "already_connected" as const };
     }
 
-    if (res.status === 201) {
-      const body = await res.json().catch(() => null);
-      toast({
-        title: "Conta criada",
-        description: body?.message || "Conta criada com Google. Faça login para continuar.",
-      });
-      return { status: "created_needs_login" as const };
-    }
-
     if (res.status === 401 || res.status === 400) {
       const errorBody = await res.json().catch(() => null);
       toast({
@@ -124,13 +124,21 @@ export const loginWithGoogleRequest = async (
       return { status: "failed" as const };
     }
 
-    const body = (await res.json()) as { data: { token: string } };
+    const body = (await res.json()) as {
+      data: { token: string; needs_onboarding?: boolean };
+      message?: string;
+    };
     persistSession(body.data.token, setUser);
+    const needsOnboarding = !!body?.data?.needs_onboarding;
+    setNeedsOnboarding(needsOnboarding);
+    setOnboardingOptional(false);
     toast({
       title: "Login via Google realizado",
-      description: "Seja bem vindo!",
+      description: body?.message || "Seja bem vindo!",
     });
-    return { status: "logged_in" as const };
+    return {
+      status: needsOnboarding ? "logged_in_needs_onboarding" as const : "logged_in" as const,
+    };
   } catch (error) {
     console.log(error);
     toast({
@@ -153,7 +161,7 @@ export const register = async (data: RegisterInterface) => {
           description: "Email ou CPF ja cadastrado",
           variant: "destructive",
         });
-        return
+        return false;
     }
     const userResponse = await userRes.json();
     console.log(userResponse)
@@ -165,6 +173,7 @@ export const register = async (data: RegisterInterface) => {
       description: successMessage,
       variant: "default",
     });
+    return true;
   } catch (error) {
     console.log(error);
     toast({
@@ -172,10 +181,15 @@ export const register = async (data: RegisterInterface) => {
       description: "Erro interno, por favor tente novamente mais tarde",
       variant: "destructive",
     });
+    return false;
   }
 };
 
-export const logout = async (setUser: React.Dispatch<React.SetStateAction<User | null>>) => {
+export const logout = async (
+  setUser: React.Dispatch<React.SetStateAction<User | null>>,
+  setNeedsOnboarding?: (value: boolean) => void,
+  setOnboardingOptional?: (value: boolean) => void
+) => {
   // Muitos backends com JWT não precisam de rota de logout;
   // limpar o token local já é suficiente.
   try {
@@ -187,6 +201,8 @@ export const logout = async (setUser: React.Dispatch<React.SetStateAction<User |
   }
   sessionStorage.clear();
   setUser(null);
+  setNeedsOnboarding?.(false);
+  setOnboardingOptional?.(false);
   toast({ title: "Até mais!", description: "Você saiu da sua conta." });
 };
 
@@ -196,14 +212,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [needsOnboarding, setNeedsOnboardingState] = useState(false);
+  const [onboardingOptional, setOnboardingOptionalState] = useState(false);
+
+  const setNeedsOnboarding = (value: boolean) => {
+    setNeedsOnboardingState(value);
+    sessionStorage.setItem("needs_onboarding", value ? "true" : "false");
+  };
+
+  const setOnboardingOptional = (value: boolean) => {
+    setOnboardingOptionalState(value);
+    sessionStorage.setItem("onboarding_optional", value ? "true" : "false");
+  };
+
+  const updateUserLocal = (data: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...data } : prev));
+  };
   useEffect(() => {
     setIsLoading(true);
     const token = sessionStorage.getItem("token");
     const expiry = sessionStorage.getItem("tokenExpiry");
+    const storedOnboarding = sessionStorage.getItem("needs_onboarding") === "true";
+    const storedOptional = sessionStorage.getItem("onboarding_optional") === "true";
     if (token && expiry && Number(expiry) > Date.now()) {
       try {
         const payload = parseJwt<User>(token);
         setUser(payload?.id ? payload : null);
+        setNeedsOnboardingState(storedOnboarding);
+        setOnboardingOptionalState(storedOptional);
       } catch {
         sessionStorage.clear();
         setUser(null);
@@ -220,16 +256,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isLoggedIn: !!user,
         login(data) {
-          return login(data, setUser);
+          return login(data, setUser, setNeedsOnboarding, setOnboardingOptional);
         },
         loginWithGoogle(payload) {
-          return loginWithGoogleRequest(payload, setUser);
+          return loginWithGoogleRequest(
+            payload,
+            setUser,
+            setNeedsOnboarding,
+            setOnboardingOptional
+          );
         },
         register,
         logout() {
-          return logout(setUser);
+          return logout(setUser, setNeedsOnboarding, setOnboardingOptional);
         },
         isInitialized,
+        needsOnboarding,
+        setNeedsOnboarding,
+        onboardingOptional,
+        setOnboardingOptional,
+        updateUserLocal,
       }}
     >
       {children}

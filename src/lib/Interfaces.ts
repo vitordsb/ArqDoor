@@ -11,6 +11,9 @@ export interface GoogleLoginPayload {
   type?: "contratante" | "prestador";
   mode?: "login" | "register";
 }
+export interface GoogleLoginResult {
+  status: "logged_in" | "logged_in_needs_onboarding" | "already_connected" | "failed";
+}
 export interface RegisterInterface {
   name: string;
   email: string;
@@ -34,16 +37,22 @@ export interface User {
   payload: string;
   type: "contratante" | "prestador";
   termos_aceitos: boolean;
+  perfil_completo?: boolean;
 }
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isLoggedIn: boolean;
   isInitialized: boolean;
-  login: (data: LoginInterface) => Promise<void>;
-  loginWithGoogle: (payload: GoogleLoginPayload) => Promise<void>;
-  register: (data: RegisterInterface) => Promise<void>;
+  login: (data: LoginInterface) => Promise<boolean>;
+  loginWithGoogle: (payload: GoogleLoginPayload) => Promise<GoogleLoginResult | undefined>;
+  register: (data: RegisterInterface) => Promise<boolean>;
   logout: () => Promise<void>;
+  needsOnboarding: boolean;
+  setNeedsOnboarding: (value: boolean) => void;
+  onboardingOptional: boolean;
+  setOnboardingOptional: (value: boolean) => void;
+  updateUserLocal: (data: Partial<User>) => void;
 }
 export interface Conversation {
   id: number;
