@@ -1,6 +1,7 @@
 
 // src/pages/SocialFeed.tsx - Versão com Links de Perfil Corrigidos
 import { useState, useMemo, useEffect } from "react";
+import type { CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -304,18 +305,18 @@ const servicesList = [
 const carouselImages = [
   {
     src: "/bannerImages/01.jpg",
-    title: "Transforme seus projetos em realidade",
-    subtitle: "Conecte-se com os melhores arquitetos freelancers"
+    title: "Painel operacional de projetos",
+    subtitle: "Acompanhe contatos, perfis e fases em um só lugar"
   },
   {
     src: "/bannerImages/02.webp",
-    title: "Qualidade profissional garantida",
-    subtitle: "Todos os nossos profissionais são verificados"
+    title: "Fluxo técnico de seleção",
+    subtitle: "Validação de dados e histórico em tempo real"
   },
   {
     src: "/bannerImages/03.webp",
-    title: "Projetos únicos e personalizados",
-    subtitle: "Encontre o especialista perfeito para seu projeto"
+    title: "Organização de demandas",
+    subtitle: "Filtros por serviço, cidade e perfil"
   }
 ];
 
@@ -324,9 +325,111 @@ export default function SocialFeed() {
   const [locationFilter, setLocationFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [activeTipIndex, setActiveTipIndex] = useState(0);
+  const [page, setPage] = useState(1);
   const { user, isLoggedIn, user: currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const itemsPerPage = 6;
+
+  const quickGuideSteps = useMemo(() => {
+    if (currentUser?.type === "prestador") {
+      return [
+        {
+          title: "Veja demandas alinhadas",
+          description: "Filtre por cidade, orçamento e escopo.",
+          href: "/demands",
+          icon: Briefcase,
+        },
+        {
+          title: "Negocie pelo chat",
+          description: "Envie propostas e alinhe etapas.",
+          href: "/messages",
+          icon: MessageCircle,
+        },
+        {
+          title: "Destaque seu portfólio",
+          description: "Mostre seus projetos mais fortes.",
+          href: "/profile",
+          icon: Award,
+        },
+      ];
+    }
+
+    return [
+      {
+        title: "Explore profissionais",
+        description: "Compare avaliações e portfólios.",
+        href: "/services",
+        icon: Search,
+      },
+      {
+        title: "Converse e alinhe",
+        description: "Defina prazos e escopo pelo chat.",
+        href: "/messages",
+        icon: MessageCircle,
+      },
+      {
+        title: "Feche com segurança",
+        description: "Contratos digitais com garantia.",
+        icon: Shield,
+      },
+    ];
+  }, [currentUser?.type]);
+
+  const quickTips = useMemo(() => {
+    if (currentUser?.type === "prestador") {
+      return [
+        {
+          id: "portfolio",
+          title: "Portfólio em evidência",
+          description: "Destaques visuais aumentam a confiança do cliente.",
+        },
+        {
+          id: "resposta",
+          title: "Responda rápido",
+          description: "Perfis que respondem cedo recebem mais contatos.",
+        },
+        {
+          id: "proposta",
+          title: "Proposta clara",
+          description: "Detalhe etapas para facilitar a aprovação.",
+        },
+      ];
+    }
+
+    return [
+      {
+        id: "briefing",
+        title: "Briefing bem definido",
+        description: "Quanto mais detalhes, melhor o orçamento.",
+      },
+      {
+        id: "chat",
+        title: "Converse antes de fechar",
+        description: "Alinhe expectativas e prazos no chat.",
+      },
+      {
+        id: "garantia",
+        title: "Pagamento seguro",
+        description: "O depósito em garantia libera por etapas.",
+      },
+    ];
+  }, [currentUser?.type]);
+
+  const quickActions = useMemo(() => {
+    if (currentUser?.type === "prestador") {
+      return {
+        primary: { label: "Ver demandas", href: "/demands" },
+        secondary: { label: "Abrir mensagens", href: "/messages" },
+      };
+    }
+
+    return {
+      primary: { label: "Ver serviços", href: "/services" },
+      secondary: { label: "Abrir mensagens", href: "/messages" },
+    };
+  }, [currentUser?.type]);
 
   const { startConversationAndNavigate } = useMessaging();
 
@@ -336,6 +439,18 @@ export default function SocialFeed() {
     }, 4000); // Aumentado para 4 segundos
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (quickTips.length <= 1) return;
+    const tipTimer = setInterval(() => {
+      setActiveTipIndex((prev) => (prev + 1) % quickTips.length);
+    }, 6500);
+    return () => clearInterval(tipTimer);
+  }, [quickTips.length]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, serviceFilter, locationFilter, currentUser?.type]);
 
   const handleStartConversation = async (targetUserId: number) => {
     if (!currentUser) {
@@ -395,6 +510,77 @@ export default function SocialFeed() {
 
   const providers = provRes?.providers ?? [];
 
+  const currentProvider = useMemo(() => {
+    if (!currentUser || currentUser.type !== "prestador") return null;
+    return providers.find((provider) => provider.user_id === currentUser.id) ?? null;
+  }, [providers, currentUser]);
+
+  const profileChecklist = useMemo(() => {
+    if (!currentUser) return [];
+    const about = (currentProvider?.about ?? currentUser.about)?.trim();
+    const steps = [
+      {
+        id: "documentos",
+        label: "Documento verificado",
+        done: Boolean(currentUser.cpf || currentUser.cnpj),
+      },
+      {
+        id: "sobre",
+        label: currentUser.type === "prestador" ? "Sobre o profissional" : "Sobre você",
+        done: Boolean(about),
+      },
+      {
+        id: "dados",
+        label: "Dados pessoais",
+        done: Boolean(currentUser.birth && currentUser.gender),
+      },
+    ];
+
+    if (currentUser.type === "prestador") {
+      steps.push({
+        id: "profissao",
+        label: "Profissão definida",
+        done: Boolean(currentProvider?.profession?.trim()),
+      });
+    }
+
+    return steps;
+  }, [currentProvider, currentUser]);
+
+  const completedProfileSteps = profileChecklist.filter((step) => step.done).length;
+  const totalProfileSteps = Math.max(profileChecklist.length, 1);
+  const profileProgress = Math.min(
+    100,
+    Math.round((completedProfileSteps / totalProfileSteps) * 100)
+  );
+  const remainingProfileSteps = Math.max(profileChecklist.length - completedProfileSteps, 0);
+  const profileStatusLabel =
+    profileChecklist.length === 0
+      ? "Configure seu perfil"
+      : profileProgress >= 100
+        ? "Perfil completo"
+        : `${profileProgress}% concluído`;
+  const profileStatusTone =
+    profileProgress >= 100
+      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+      : "bg-amber-100 text-amber-700 border-amber-200";
+  const profileTitle =
+    profileProgress >= 100 ? "Perfil pronto para destaque" : "Complete seu perfil";
+  const profileDescription =
+    profileProgress >= 100
+      ? "Ajustes finos mantêm sua vitrine sempre atual."
+      : "Perfis completos geram mais confiança e cliques.";
+
+  const quickStartStyle = {
+    "--paper": "#fff7ed",
+    "--glow": "#fed7aa",
+    "--honey": "#fde68a",
+    backgroundImage:
+      "radial-gradient(1200px 500px at -10% -40%, var(--paper) 0%, transparent 70%), radial-gradient(900px 400px at 110% -20%, var(--glow) 0%, transparent 60%), radial-gradient(700px 280px at 50% 120%, var(--honey) 0%, transparent 70%)",
+  } as CSSProperties;
+
+  const activeTip = quickTips[activeTipIndex] ?? quickTips[0];
+
   const combinedUsersAndProviders = useMemo(() => {
     if (loadingAllUsers || loadingProv) return [];
 
@@ -422,13 +608,17 @@ export default function SocialFeed() {
     [combinedUsersAndProviders]
   );
 
+  const normalizedSearch = search.trim().toLowerCase();
+
   const { displayList, showOnlyCurrentUser } = useMemo(() => {
     if (!currentUser) {
       return {
         displayList: allProvidersData.filter(item => {
           const matchSearch =
-            item.user.name.toLowerCase().includes(search.toLowerCase()) ||
-            item.provider.profession.toLowerCase().includes(search.toLowerCase());
+            normalizedSearch.length === 0 ||
+            item.user.name.toLowerCase().includes(normalizedSearch) ||
+            item.provider.profession.toLowerCase().includes(normalizedSearch) ||
+            String(item.provider.views_profile ?? "").includes(normalizedSearch);
           const matchService = !serviceFilter || item.provider.profession === serviceFilter;
           const matchLocation = !locationFilter || (item.user.cidade_id && locations.find(loc => loc.value === locationFilter && item.user.cidade_id.toString() === loc.value));
           return matchSearch && matchService && matchLocation;
@@ -440,7 +630,9 @@ export default function SocialFeed() {
     if (currentUser.type === "prestador") {
       return {
         displayList: allClientsData.filter(item => {
-          const matchSearch = item.user.name.toLowerCase().includes(search.toLowerCase());
+          const matchSearch =
+            normalizedSearch.length === 0 ||
+            item.user.name.toLowerCase().includes(normalizedSearch);
           const matchLocation = !locationFilter || (item.user.cidade_id && locations.find(loc => loc.value === locationFilter && item.user.cidade_id.toString() === loc.value));
           return matchSearch && matchLocation;
         }),
@@ -452,8 +644,10 @@ export default function SocialFeed() {
       return {
         displayList: allProvidersData.filter(item => {
           const matchSearch =
-            item.user.name.toLowerCase().includes(search.toLowerCase()) ||
-            item.provider.profession.toLowerCase().includes(search.toLowerCase());
+            normalizedSearch.length === 0 ||
+            item.user.name.toLowerCase().includes(normalizedSearch) ||
+            item.provider.profession.toLowerCase().includes(normalizedSearch) ||
+            String(item.provider.views_profile ?? "").includes(normalizedSearch);
           const matchService = !serviceFilter || item.provider.profession === serviceFilter;
           const matchLocation = !locationFilter || (item.user.cidade_id && locations.find(loc => loc.value === locationFilter && item.user.cidade_id.toString() === loc.value));
           return matchSearch && matchService && matchLocation;
@@ -466,7 +660,19 @@ export default function SocialFeed() {
       displayList: [],
       showOnlyCurrentUser: true
     };
-  }, [allProvidersData, allClientsData, currentUser, search, serviceFilter, locationFilter]);
+  }, [allProvidersData, allClientsData, currentUser, normalizedSearch, serviceFilter, locationFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(displayList.length / itemsPerPage));
+  const pagedList = useMemo(() => {
+    const startIndex = (page - 1) * itemsPerPage;
+    return displayList.slice(startIndex, startIndex + itemsPerPage);
+  }, [displayList, page, itemsPerPage]);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
 
   const { data: servicesRes, isLoading: loadingServices, isError: errServices } =
     useQuery<FreelancerServicesResponse>({
@@ -529,6 +735,15 @@ export default function SocialFeed() {
     }).format(price);
   };
 
+  const searchLabel =
+    currentUser?.type === "prestador"
+      ? "Buscar por cliente"
+      : "Buscar por nome, profissão ou visualizações";
+  const searchPlaceholder =
+    currentUser?.type === "prestador"
+      ? "Digite o nome do cliente..."
+      : "Digite nome, profissão ou visualizações...";
+
   if (loadingAllUsers || loadingProv) {
     return (
       <ApplicationLayout>
@@ -574,7 +789,7 @@ export default function SocialFeed() {
   return (
     <ApplicationLayout>
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
-        <div className="relative h-64 sm:h-80 lg:h-96 overflow-hidden">
+        <div className="relative h-48 sm:h-64 lg:h-72 overflow-hidden">
           {carouselImages.map((image, index) => (
             <div
               key={index}
@@ -642,6 +857,163 @@ export default function SocialFeed() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
             <div className="lg:w-80 space-y-6">
+              <section className="space-y-4 font-[var(--font-body)]">
+                <Card
+                  className="border-0 bg-white/90 shadow-lg backdrop-blur-sm"
+                  style={quickStartStyle}
+                >
+                  <CardHeader className="px-4 pt-4 pb-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-orange-600">
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Perfil
+                      </div>
+                      <Badge className={`border ${profileStatusTone}`}>
+                        {profileStatusLabel}
+                      </Badge>
+                    </div>
+                    <CardTitle className="text-base font-[var(--font-display)] text-slate-900">
+                      {profileTitle}
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-600">
+                      {profileDescription}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                    <div className="h-2 w-full rounded-full bg-orange-100">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${profileProgress}%` }}
+                        transition={{ duration: 0.7, ease: "easeOut" }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>
+                        {remainingProfileSteps === 0
+                          ? "Tudo em dia"
+                          : `${remainingProfileSteps} etapa${remainingProfileSteps === 1 ? "" : "s"} pendente${remainingProfileSteps === 1 ? "" : "s"}`}
+                      </span>
+                      <span>{profileProgress}%</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-sm"
+                        asChild
+                      >
+                        <Link href="/profile">
+                          {profileProgress >= 100 ? "Atualizar perfil" : "Completar agora"}
+                        </Link>
+                      </Button>
+                      {profileProgress < 100 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-orange-200 text-orange-700 hover:bg-orange-50"
+                          asChild
+                        >
+                          <Link href="/profile">Ver detalhes</Link>
+                        </Button>
+                      )}
+                    </div>
+                    {profileChecklist.length === 0 && (
+                      <div className="rounded-lg border border-orange-100/70 bg-orange-50/60 px-3 py-2 text-[11px] text-slate-600">
+                        Faça login para ver o progresso.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 bg-white/90 shadow-lg backdrop-blur-sm">
+                  <CardHeader className="px-4 pt-4 pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base font-[var(--font-display)] text-slate-900">
+                      <FileText className="h-4 w-4 text-amber-600" />
+                      Próximos passos
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-600">
+                      Guia rápido para avançar na plataforma.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                    <div className="space-y-2">
+                      {quickGuideSteps.map((step) => {
+                        const StepIcon = step.icon;
+                        const content = (
+                          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100/70 bg-amber-50/60 px-3 py-2 transition duration-200 hover:-translate-y-0.5 hover:bg-amber-50">
+                            <div className="flex items-center gap-2 text-slate-700">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                                <StepIcon className="h-3.5 w-3.5" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {step.title}
+                                </p>
+                                <p className="text-[11px] text-slate-600 line-clamp-1">
+                                  {step.description}
+                                </p>
+                              </div>
+                            </div>
+                            {step.href && (
+                              <span className="text-[11px] font-semibold text-orange-700">
+                                Abrir
+                              </span>
+                            )}
+                          </div>
+                        );
+
+                        return step.href ? (
+                          <Link key={step.title} href={step.href} className="block">
+                            {content}
+                          </Link>
+                        ) : (
+                          <div key={step.title}>{content}</div>
+                        );
+                      })}
+                    </div>
+
+                    {activeTip && (
+                      <div className="rounded-lg border border-orange-100/70 bg-gradient-to-r from-orange-50 to-amber-50 px-3 py-2">
+                        <motion.div
+                          key={activeTip.id}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.4 }}
+                        >
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-orange-700">
+                            Dica do momento
+                          </p>
+                          <p className="text-xs font-semibold text-slate-900">
+                            {activeTip.title}
+                          </p>
+                          <p className="text-[11px] text-slate-600 line-clamp-2">
+                            {activeTip.description}
+                          </p>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-sm"
+                        asChild
+                      >
+                        <Link href={quickActions.primary.href}>{quickActions.primary.label}</Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-orange-200 text-orange-700 hover:bg-orange-50"
+                        asChild
+                      >
+                        <Link href={quickActions.secondary.href}>{quickActions.secondary.label}</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
               <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -652,10 +1024,10 @@ export default function SocialFeed() {
                 <CardContent className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">
-                      Buscar por nome ou profissão
+                      {searchLabel}
                     </label>
                     <Input
-                      placeholder="Digite aqui..."
+                      placeholder={searchPlaceholder}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       className="border-gray-200 focus:border-amber-500 focus:ring-amber-500"
@@ -814,7 +1186,7 @@ export default function SocialFeed() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-2 sm:gap-2">
-                  {displayList.map((item) => (
+                  {pagedList.map((item) => (
                     <motion.div
                       key={item.user.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -898,6 +1270,43 @@ export default function SocialFeed() {
                       </Card>
                     </motion.div>
                   ))}
+                </div>
+              )}
+
+              {displayList.length > 0 && pageCount > 1 && (
+                <div className="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    disabled={page === 1}
+                    className="w-full sm:w-auto"
+                  >
+                    Anterior
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    {Array.from({ length: pageCount }).map((_, index) => {
+                      const pageNumber = index + 1;
+                      const isActive = pageNumber === page;
+                      return (
+                        <button
+                          key={pageNumber}
+                          type="button"
+                          onClick={() => setPage(pageNumber)}
+                          aria-label={`Página ${pageNumber}`}
+                          className={`h-2.5 w-2.5 rounded-full transition-all ${isActive ? "bg-orange-600 scale-110" : "bg-orange-200 hover:bg-orange-300"
+                            }`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPage((prev) => Math.min(pageCount, prev + 1))}
+                    disabled={page === pageCount}
+                    className="w-full sm:w-auto"
+                  >
+                    Próximo
+                  </Button>
                 </div>
               )}
             </div>
