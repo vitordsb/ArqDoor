@@ -140,7 +140,11 @@ export default function InvitePublic() {
         description: "Você já pode conversar com o prestador.",
       });
       if (body?.data?.provider_user_id) {
-        navigate(`/messages/${body.data.provider_user_id}?ticket=${body.data.ticket_id}&view=contract`);
+        const depositParam =
+          invite?.payment_preference === "at_end" ? "&deposit=1" : "";
+        navigate(
+          `/messages/${body.data.provider_user_id}?ticket=${body.data.ticket_id}&view=contract${depositParam}`
+        );
       }
     } catch (error: any) {
       toast({

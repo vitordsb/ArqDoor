@@ -159,9 +159,9 @@ export function useSignature(conversationId?: number) {
             user?.name || 'Cliente',
             {
               role,
-              when: now,      // garante que a data/hora atual seja exibida
-              page: 'all',    // garante assinatura em todas as páginas do documento
-              watermarkText: `Assinado eletronicamente por ${user?.name || 'Cliente'} (${role})`,
+              when: now, // garante que a data/hora atual seja exibida
+              page: 'all', // garante assinatura em todas as páginas do documento
+              ticketId,
             }
           );
 

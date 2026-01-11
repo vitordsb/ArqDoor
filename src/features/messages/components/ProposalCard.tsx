@@ -56,9 +56,72 @@ const STATUS_CONFIG = {
   },
 } as const;
 
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  per_step: "Pagamento por etapa",
+  at_end: "Depósito em garantia",
+  custom: "Personalizado",
+};
+
+const PAYMENT_STATUS_CONFIG: Record<
+  string,
+  { label: string; badgeClass: string }
+> = {
+  awaiting_deposit: {
+    label: "Aguardando depósito",
+    badgeClass: "bg-amber-100 text-amber-800 border-amber-200",
+  },
+  deposit_pending: {
+    label: "Depósito pendente",
+    badgeClass: "bg-amber-100 text-amber-800 border-amber-200",
+  },
+  deposit_paid: {
+    label: "Depósito confirmado",
+    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  },
+  awaiting_steps: {
+    label: "Aguardando pagamento",
+    badgeClass: "bg-sky-100 text-sky-800 border-sky-200",
+  },
+  partial_steps: {
+    label: "Pagamento parcial",
+    badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  },
+  steps_paid: {
+    label: "Pagamentos em dia",
+    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  },
+};
+
 const getStatusConfig = (status?: string) => {
   const normalized = (status || '').toLowerCase() as keyof typeof STATUS_CONFIG;
   return STATUS_CONFIG[normalized] ?? STATUS_CONFIG.pendente;
+};
+
+const getPaymentStatus = (ticket: any, steps: any[]) => {
+  const raw =
+    (ticket.payment_status || ticket.paymentStatus || "").toString().toLowerCase();
+  if (raw && PAYMENT_STATUS_CONFIG[raw]) return raw;
+
+  const preference =
+    (ticket.payment_preference || ticket.paymentPreference || "at_end")
+      .toString()
+      .toLowerCase();
+  if (preference === "at_end") {
+    return ticket.payment ? "deposit_paid" : "awaiting_deposit";
+  }
+
+  const payableSteps = (steps || []).filter((step, index) => {
+    const price = Number(step?.price || 0);
+    return index !== 0 && price > 0;
+  });
+  if (payableSteps.length === 0) return "steps_paid";
+
+  const paidCount = payableSteps.filter(
+    (step) => step?.is_financially_cleared || step?.paid
+  ).length;
+  if (paidCount === 0) return "awaiting_steps";
+  if (paidCount < payableSteps.length) return "partial_steps";
+  return "steps_paid";
 };
 
 export function ProposalCard({
@@ -73,6 +136,13 @@ export function ProposalCard({
 }: ProposalCardProps) {
   const total = useMemo(() => calculateProposalTotal(steps), [steps]);
   const cfg = getStatusConfig(ticket.status);
+  const paymentStatusKey = getPaymentStatus(ticket, steps);
+  const paymentCfg = PAYMENT_STATUS_CONFIG[paymentStatusKey];
+  const paymentModeKey = (ticket.payment_preference || ticket.paymentPreference || "at_end")
+    .toString()
+    .toLowerCase();
+  const paymentModeLabel =
+    PAYMENT_MODE_LABELS[paymentModeKey] || "Pagamento por etapa";
   const isSigned = ['concluída', 'concluida', 'cancelado'].includes(
     (ticket.status || '').toLowerCase(),
   );
@@ -94,7 +164,12 @@ export function ProposalCard({
           </div>
           <h3 className="font-semibold text-gray-900">Proposta #{ticket.id}</h3>
         </div>
-        <Badge className={cfg.badgeClass}>{cfg.label}</Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge className={cfg.badgeClass}>{cfg.label}</Badge>
+          {paymentCfg && (
+            <Badge className={paymentCfg.badgeClass}>{paymentCfg.label}</Badge>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -111,6 +186,9 @@ export function ProposalCard({
             Duração total: {formattedDuration}
           </div>
         )}
+        <div className="text-xs text-gray-600">
+          Pagamento: <span className="font-medium">{paymentModeLabel}</span>
+        </div>
 
         <div className="flex flex-wrap gap-2 pt-2">
           <Button

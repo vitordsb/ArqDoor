@@ -38,6 +38,7 @@ export interface User {
   type: "contratante" | "prestador";
   termos_aceitos: boolean;
   perfil_completo?: boolean;
+  signature_password_set?: boolean | null;
 }
 export interface AuthContextType {
   user: User | null;
@@ -113,6 +114,7 @@ export interface CreateMessageRequest {
 
 export interface CreateTicketRequest {
   conversation_id: number;
+  payment_preference?: "per_step" | "at_end" | "custom";
 }
 
 export interface CreateStepRequest {
@@ -207,4 +209,6 @@ export interface Ticket {
   created_at: string
   updated_at?: string
   status: 'pendente' | 'cancelada' | 'em_andamento' | 'concluída'
+  payment_preference?: "per_step" | "at_end" | "custom"
+  payment_status?: string
 }

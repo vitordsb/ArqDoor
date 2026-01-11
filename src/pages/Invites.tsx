@@ -64,7 +64,7 @@ export default function Invites() {
   const [editingInvite, setEditingInvite] = useState<Invite | null>(null);
   const [steps, setSteps] = useState<ProposalStep[]>([createEmptyStep()]);
   const [contractFile, setContractFile] = useState<File | null>(null);
-  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end">("per_step");
+  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end">("at_end");
   const [saving, setSaving] = useState(false);
 
   const isProvider = user?.type === "prestador";
@@ -105,7 +105,7 @@ export default function Invites() {
   const resetForm = () => {
     setSteps([createEmptyStep()]);
     setContractFile(null);
-    setPaymentPreference("per_step");
+    setPaymentPreference("at_end");
     setEditingInvite(null);
   };
 
@@ -125,7 +125,7 @@ export default function Invites() {
     setEditingInvite(invite);
     setSteps(mappedSteps.length ? mappedSteps : [createEmptyStep()]);
     setContractFile(null);
-    setPaymentPreference(invite.payment_preference || "per_step");
+    setPaymentPreference(invite.payment_preference || "at_end");
     setDialogOpen(true);
   };
 

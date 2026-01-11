@@ -43,7 +43,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUserLocal } = useAuth();
   const { toast } = useToast();
   const buildImageUrl = (path?: string) => {
     if (!path) return "";
@@ -102,13 +102,16 @@ export default function ProfilePage() {
   const [documentsOriginal, setDocumentsOriginal] = useState({ cpf: "", cnpj: "" });
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [savingDocuments, setSavingDocuments] = useState(false);
+  const [signaturePassword, setSignaturePassword] = useState("");
+  const [signaturePasswordConfirm, setSignaturePasswordConfirm] = useState("");
+  const [savingSignaturePassword, setSavingSignaturePassword] = useState(false);
 
   const [ratingsModalOpen, setRatingsModalOpen] = useState(false);
   const [ratingsModalLoading, setRatingsModalLoading] = useState(false);
   const [ratingsModalData, setRatingsModalData] = useState<{ average: number; count: number; list: any[] } | null>(null);
 
   // payment preference
-  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | null>(null);
+  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | "custom" | null>(null);
   const [savingPaymentPreference, setSavingPaymentPreference] = useState(false);
 
   const [locationInfo, setLocationInfo] = useState<any | null>(null);
@@ -175,7 +178,7 @@ export default function ProfilePage() {
       setProviderProfile(body.provider);
       setAbout(body.provider?.about || "");
       setProfession(body.provider?.profession || "");
-      setPaymentPreference(body.provider?.payment_preference || "per_step");
+      setPaymentPreference(body.provider?.payment_preference || "at_end");
     } catch (error: any) {
       setProviderError(error?.message || "Falha ao carregar dados do prestador");
       setProviderProfile(null);
@@ -340,7 +343,7 @@ export default function ProfilePage() {
         (Array.isArray(activeBody?.activeTickets) && activeBody.activeTickets.length > 0);
 
       if (hasActiveContract) {
-        setPaymentPreference(providerProfile.payment_preference || "per_step");
+        setPaymentPreference(providerProfile.payment_preference || "at_end");
         toast({
           title: "Ação bloqueada",
           description:
@@ -360,9 +363,15 @@ export default function ProfilePage() {
       setProviderProfile((prev: any) =>
         prev ? { ...prev, payment_preference: paymentPreference } : prev
       );
+      const paymentLabel =
+        paymentPreference === "per_step"
+          ? "Pagamento por fase"
+          : paymentPreference === "custom"
+            ? "Pagamento personalizado"
+            : "Depósito em garantia";
       toast({ 
         title: "Sucesso",
-        description: `Preferência de pagamento alterada para: ${paymentPreference === "per_step" ? "Pagamento por fase" : "Depósito em garantia"}`
+        description: `Preferência de pagamento alterada para: ${paymentLabel}`
       });
     } catch (error: any) {
       toast({
@@ -427,6 +436,63 @@ export default function ProfilePage() {
 
   const handleCancelDocuments = () => {
     setDocumentsData(documentsOriginal);
+  };
+
+  const handleSaveSignaturePassword = async () => {
+    if (!user) return;
+    const trimmedPassword = signaturePassword.trim();
+    const trimmedConfirm = signaturePasswordConfirm.trim();
+    if (!trimmedPassword) {
+      toast({
+        title: "Senha obrigatória",
+        description: "Informe a senha de assinatura.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (trimmedPassword.length < 6) {
+      toast({
+        title: "Senha inválida",
+        description: "A senha deve ter ao menos 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (trimmedPassword !== trimmedConfirm) {
+      toast({
+        title: "Senhas não conferem",
+        description: "As senhas digitadas são diferentes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingSignaturePassword(true);
+    try {
+      const res = await apiRequest("PUT", `/users/${user.id}`, {
+        password: trimmedPassword,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Não foi possível atualizar a senha.");
+      }
+
+      setSignaturePassword("");
+      setSignaturePasswordConfirm("");
+      updateUserLocal({ signature_password_set: true });
+      toast({
+        title: "Senha atualizada",
+        description: "Sua senha de assinatura foi definida com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error?.message || "Não foi possível salvar a senha.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSignaturePassword(false);
+    }
   };
 
   const providerProfileId = providerProfile?.provider_id ?? providerProfile?.id_provider ?? null;
@@ -941,6 +1007,41 @@ export default function ProfilePage() {
                 onSave={handleSaveDocuments}
                 onCancel={handleCancelDocuments}
               />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Senha de assinatura</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-slate-600">
+                    Use esta senha para assinar contratos e confirmar etapas. Para
+                    contas com e-mail/senha, ela é a mesma do login. Se entrou
+                    com Google, defina aqui.
+                  </p>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Nova senha</label>
+                    <Input
+                      type="password"
+                      value={signaturePassword}
+                      onChange={(e) => setSignaturePassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Confirmar senha</label>
+                    <Input
+                      type="password"
+                      value={signaturePasswordConfirm}
+                      onChange={(e) => setSignaturePasswordConfirm(e.target.value)}
+                      placeholder="Repita a senha"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={handleSaveSignaturePassword} disabled={savingSignaturePassword}>
+                      {savingSignaturePassword ? "Salvando..." : "Salvar senha"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader>
                   <CardTitle>Endereço (privado)</CardTitle>

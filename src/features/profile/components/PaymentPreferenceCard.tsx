@@ -5,8 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2, CreditCard } from "lucide-react";
 
 interface PaymentPreferenceCardProps {
-  paymentPreference: "per_step" | "at_end" | null;
-  onChange: (value: "per_step" | "at_end") => void;
+  paymentPreference: "per_step" | "at_end" | "custom" | null;
+  onChange: (value: "per_step" | "at_end" | "custom") => void;
   loading?: boolean;
   saving?: boolean;
   onSave?: () => void;
@@ -19,7 +19,7 @@ export function PaymentPreferenceCard({
   saving = false,
   onSave,
 }: PaymentPreferenceCardProps) {
-  const displayValue = paymentPreference || "per_step";
+  const displayValue = paymentPreference || "at_end";
 
   return (
     <Card>
@@ -78,6 +78,27 @@ export function PaymentPreferenceCard({
                   </div>
                 </RadioGroup>
               </div>
+
+              <div className="flex items-start space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-orange-50"
+                onClick={() => onChange("custom")}
+              >
+                <RadioGroup value={displayValue} onValueChange={onChange}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="custom" id="custom" />
+                    <div className="flex-1">
+                      <Label htmlFor="custom" className="cursor-pointer font-medium">
+                        Pagamento personalizado
+                      </Label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        O cliente escolhe quais fases deseja pagar e pode agrupar pagamentos.
+                      </p>
+                      <p className="text-xs text-emerald-700 mt-2 font-medium">
+                        ✓ Liberação de datas por pagamento confirmado
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
@@ -87,6 +108,12 @@ export function PaymentPreferenceCard({
                   <li>O cliente paga por cada fase logo após a finalização e aprovação.</li>
                   <li>Cada aprovação gera a rota/cobrança específica daquela fase.</li>
                   <li>A próxima fase só inicia depois da confirmação do pagamento.</li>
+                </ul>
+              ) : displayValue === "custom" ? (
+                <ul className="list-disc list-inside space-y-1">
+                  <li>O cliente pode escolher quais fases deseja pagar em cada momento.</li>
+                  <li>É possível pagar mais de uma etapa ao mesmo tempo (pagamento agrupado).</li>
+                  <li>As datas das fases começam a contar após a confirmação do pagamento.</li>
                 </ul>
               ) : (
                 <ul className="list-disc list-inside space-y-1">

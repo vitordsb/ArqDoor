@@ -420,7 +420,13 @@ export function useContract(conversationId?: number) {
           }
         );
         if (!res.ok) {
-          const msg = await res.text();
+          let msg = "";
+          try {
+            const parsed = await res.json();
+            msg = parsed?.message || parsed?.error_message || "";
+          } catch {
+            msg = await res.text();
+          }
           console.warn("Falha ao pré-confirmar etapa de assinatura:", msg);
           return { ok: false, message: msg || "Falha ao confirmar etapa" };
         }
@@ -463,7 +469,8 @@ export function useContract(conversationId?: number) {
     async (
       steps: Omit<CreateStepRequest, "ticket_id">[],
       contractFile?: File | Blob,
-      signaturePassword?: string
+      signaturePassword?: string,
+      paymentPreference?: "per_step" | "at_end" | "custom"
     ) => {
       if (!conversationId) return false;
       if (!user || user.type !== "prestador") return false;
@@ -566,7 +573,13 @@ export function useContract(conversationId?: number) {
         throw new Error(message);
       };
       try {
-        const tRes = await apiRequest("POST", "/ticket", { conversation_id: conversationId });
+        const ticketPayload: Record<string, any> = {
+          conversation_id: conversationId,
+        };
+        if (paymentPreference) {
+          ticketPayload.payment_preference = paymentPreference;
+        }
+        const tRes = await apiRequest("POST", "/ticket", ticketPayload);
         if (!tRes.ok) throw new Error(await tRes.text());
         const tJson = await tRes.json();
         const ticketId: number = tJson.ticketService?.id || tJson.ticket?.id;
@@ -679,8 +692,11 @@ export function useContract(conversationId?: number) {
             createdSteps[0].id,
             sanitizedPassword
           );
-          if (!confirmed) {
-            console.warn("Não foi possível confirmar a etapa de assinatura automaticamente, seguindo fluxo mesmo assim.");
+          if (!confirmed?.ok) {
+            await cleanupAndThrow(
+              confirmed?.message ||
+                "Não foi possível confirmar a etapa de assinatura. Verifique sua senha."
+            );
           }
         }
         const uploaded = await uploadPDF(ticketId, contractFile);

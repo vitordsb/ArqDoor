@@ -42,6 +42,8 @@ export default function CompleteProfileModal() {
   const [number, setNumber] = useState("");
   const [typeLocation, setTypeLocation] = useState("Residencial");
   const [cepLoading, setCepLoading] = useState(false);
+  const [signaturePassword, setSignaturePassword] = useState("");
+  const [signaturePasswordConfirm, setSignaturePasswordConfirm] = useState("");
 
   const shouldOpen = isLoggedIn && needsOnboarding && !!user?.id;
   const canSkip = onboardingOptional;
@@ -60,6 +62,9 @@ export default function CompleteProfileModal() {
 
   const needsDocuments = isPrestador && !(user?.cpf || user?.cnpj);
   const shouldAskIdentity = !onboardingOptional;
+  const shouldDefineSignaturePassword = !onboardingOptional;
+  const signaturePasswordValue = signaturePassword.trim();
+  const signaturePasswordConfirmValue = signaturePasswordConfirm.trim();
 
   const validate = () => {
     if (shouldAskIdentity) {
@@ -77,6 +82,14 @@ export default function CompleteProfileModal() {
       }
       if (!hasCnpj && cleanedCpf && cleanedCpf.length !== 11) {
         return showError("Informe um CPF válido (11 dígitos) ou marque CNPJ.");
+      }
+    }
+
+    if (shouldDefineSignaturePassword || signaturePasswordValue || signaturePasswordConfirmValue) {
+      if (!signaturePasswordValue) return showError("Defina uma senha de assinatura.");
+      if (signaturePasswordValue.length < 6) return showError("A senha deve ter ao menos 6 caracteres.");
+      if (signaturePasswordValue !== signaturePasswordConfirmValue) {
+        return showError("As senhas de assinatura não conferem.");
       }
     }
     return true;
@@ -136,6 +149,7 @@ export default function CompleteProfileModal() {
       if (shouldAskIdentity || birth) userPayload.birth = birth;
       if (cleanedCpf) userPayload.cpf = cleanedCpf;
       if (cleanedCnpj) userPayload.cnpj = cleanedCnpj;
+      if (signaturePasswordValue) userPayload.password = signaturePasswordValue;
 
       const updateUserRes = await apiRequest("PUT", `/users/${user.id}`, userPayload);
       if (!updateUserRes.ok) {
@@ -173,6 +187,7 @@ export default function CompleteProfileModal() {
         cpf: cleanedCpf || undefined,
         cnpj: cleanedCnpj || undefined,
         perfil_completo: true,
+        signature_password_set: signaturePasswordValue ? true : user?.signature_password_set,
       });
 
       setNeedsOnboarding(false);
@@ -291,6 +306,39 @@ export default function CompleteProfileModal() {
                 />
               </div>
             )}
+          </div>
+        ) : null}
+
+        {shouldDefineSignaturePassword ? (
+          <div className="mt-6">
+            <h3 className="text-sm font-medium">Definir senha de assinatura</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Use esta senha para assinar contratos e confirmar etapas. Para contas
+              criadas com e-mail/senha, ela é a mesma do login. Se entrou com
+              Google, defina aqui.
+            </p>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-sm">Senha de assinatura</label>
+                <Input
+                  type="password"
+                  value={signaturePassword}
+                  onChange={(e) => setSignaturePassword(e.target.value)}
+                  className="mt-1"
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+              <div>
+                <label className="text-sm">Confirmar senha</label>
+                <Input
+                  type="password"
+                  value={signaturePasswordConfirm}
+                  onChange={(e) => setSignaturePasswordConfirm(e.target.value)}
+                  className="mt-1"
+                  placeholder="Repita a senha"
+                />
+              </div>
+            </div>
           </div>
         ) : null}
 

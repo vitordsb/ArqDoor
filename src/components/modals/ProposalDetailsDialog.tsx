@@ -55,7 +55,10 @@ type ProposalDetailsDialogProps = {
   onStartSignature: (ticket: any) => void
   onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
-  onClientAccept: (step: Step, paymentPreference?: "per_step" | "at_end" | null) => Promise<void>
+  onClientAccept: (
+    step: Step,
+    paymentPreference?: "per_step" | "at_end" | "custom" | null
+  ) => Promise<void>
   onClientRejectStep: (step: Step) => Promise<boolean>
   onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void
   onPaySteps?: (steps: Step[]) => void
@@ -66,7 +69,8 @@ type ProposalDetailsDialogProps = {
   onDeleteTicket?: (ticketId: number) => void
   deletingTicket?: boolean
   onRefreshPayment?: (ticketId: number) => void
-  paymentPreference?: "per_step" | "at_end" | null
+  onPayDeposit?: (ticketId: number) => void
+  paymentPreference?: "per_step" | "at_end" | "custom" | null
   allowGroupedPayment?: boolean
   onToggleGroupedPayment?: (ticketId: number, enabled: boolean) => void
   canPayStep?: (step: Step, allSteps: Step[]) => boolean
@@ -75,6 +79,21 @@ type ProposalDetailsDialogProps = {
 const normalizeStatus = (status?: string) => {
   if (!status) return '';
   return status.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  awaiting_deposit: "Aguardando depósito",
+  deposit_pending: "Depósito pendente",
+  deposit_paid: "Depósito confirmado",
+  awaiting_steps: "Aguardando pagamento",
+  partial_steps: "Pagamento parcial",
+  steps_paid: "Pagamentos em dia",
+};
+
+const PAYMENT_MODE_LABELS: Record<string, string> = {
+  per_step: "Pagamento por etapa",
+  at_end: "Depósito em garantia",
+  custom: "Personalizado",
 };
 
 export function ProposalDetailsDialog({
@@ -106,6 +125,7 @@ export function ProposalDetailsDialog({
   onDeleteTicket,
   deletingTicket,
   onRefreshPayment,
+  onPayDeposit,
   currentIndex: _currentIndex,
   paymentPreference = null,
   allowGroupedPayment = false,
@@ -133,8 +153,26 @@ export function ProposalDetailsDialog({
 
   const activeTicket = tickets.find(t => t.id === ticketId);
   const currentTicketStatus = activeTicket?.status || ticketStatus;
+  const displayPaymentPreference =
+    paymentPreference ||
+    (activeTicket as any)?.payment_preference ||
+    (activeTicket as any)?.paymentPreference ||
+    null;
+  const paymentStatusKey = ((activeTicket as any)?.payment_status ||
+    (activeTicket as any)?.paymentStatus ||
+    "")
+    .toString()
+    .toLowerCase();
+  const paymentStatusLabel = PAYMENT_STATUS_LABELS[paymentStatusKey];
+  const paymentModeLabel = displayPaymentPreference
+    ? PAYMENT_MODE_LABELS[displayPaymentPreference]
+    : null;
 
-  const isPerStepPayment = paymentPreference === "per_step";
+  const isCustomPayment = displayPaymentPreference === "custom";
+  const isStepPayment =
+    displayPaymentPreference === "per_step" || displayPaymentPreference === "custom";
+  const requiresSequentialPayment = displayPaymentPreference === "per_step";
+  const groupedPaymentEnabled = isCustomPayment ? true : allowGroupedPayment;
   const isProvider = userType === "prestador";
 
   const toggleStepSelection = (stepId: number) => {
@@ -145,17 +183,28 @@ export function ProposalDetailsDialog({
     );
   };
 
-  const stepsToPay = React.useMemo(
-    () => steps.filter((s) => selectedStepIds.includes(s.id)),
-    [selectedStepIds, steps]
-  );
+  const stepsToPay = React.useMemo(() => {
+    return steps.filter((s) => {
+      if (!selectedStepIds.includes(s.id)) return false;
+      const isSignature = s.title === SIGNATURE_STEP_TITLE;
+      const paid =
+        Boolean((s as any).is_financially_cleared) || Boolean((s as any).paid);
+      const concluded =
+        normalizeStatus(s.status) === "concluido" ||
+        ((s as any).confirm_freelancer && (s as any).confirm_contractor);
+      const price = Number(s.price || 0);
+      const isRejected = normalizeStatus(s.status) === "recusado";
+
+      if (!isStepPayment) return false;
+      if (isSignature || paid || price <= 0 || isRejected) return false;
+      if (isCustomPayment) return true;
+      return concluded;
+    });
+  }, [isCustomPayment, isStepPayment, selectedStepIds, steps]);
 
   const totalSelected = React.useMemo(() => {
-    return selectedStepIds.reduce((acc, stepId) => {
-      const step = steps.find((s) => s.id === stepId);
-      return acc + (step?.price || 0);
-    }, 0);
-  }, [selectedStepIds, steps]);
+    return stepsToPay.reduce((acc, step) => acc + (step?.price || 0), 0);
+  }, [stepsToPay]);
 
   const resetFeedbackModal = () => {
     setFeedbackModalStep(null);
@@ -237,8 +286,18 @@ export function ProposalDetailsDialog({
                   </Button>
                 )}
             </div>
+            {(paymentModeLabel || paymentStatusLabel) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {paymentModeLabel && (
+                  <Badge variant="outline">{paymentModeLabel}</Badge>
+                )}
+                {paymentStatusLabel && (
+                  <Badge variant="outline">{paymentStatusLabel}</Badge>
+                )}
+              </div>
+            )}
           </DialogHeader>
-          {userType === 'prestador' && ticketId && (currentTicketStatus || "").toLowerCase() === 'em andamento' && isPerStepPayment && (
+          {userType === 'prestador' && ticketId && (currentTicketStatus || "").toLowerCase() === 'em andamento' && isStepPayment && !isCustomPayment && (
             <div className="flex items-center space-x-2 border-b pb-4 pt-2">
               <Switch
                 id="allow-grouped-payment"
@@ -251,7 +310,7 @@ export function ProposalDetailsDialog({
             </div>
           )}
 
-          {userType === "contratante" && allowGroupedPayment && isPerStepPayment && (
+          {userType === "contratante" && groupedPaymentEnabled && isStepPayment && (
             <div className="mb-2 space-y-2">
               <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
                 Esta proposta permite o pagamento de várias etapas em uma única cobrança.
@@ -266,19 +325,30 @@ export function ProposalDetailsDialog({
 
           <div className="flex-1 overflow-y-auto pr-2">
 
-          {paymentPreference === "at_end" && currentTicketStatus && (currentTicketStatus as string).toLowerCase() !== "em andamento" && (
+          {displayPaymentPreference === "at_end" && currentTicketStatus && (currentTicketStatus as string).toLowerCase() !== "em andamento" && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <div className="flex items-center justify-between gap-3">
                 <span>Aguardando pagamento do depósito em garantia para liberar as ações do projeto.</span>
-                {onRefreshPayment && ticketId && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onRefreshPayment(ticketId)}
-                  >
-                    Verificar pagamento
-                  </Button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {userType === "contratante" && onPayDeposit && ticketId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onPayDeposit(ticketId)}
+                    >
+                      Gerar pagamento
+                    </Button>
+                  )}
+                  {onRefreshPayment && ticketId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRefreshPayment(ticketId)}
+                    >
+                      Verificar pagamento
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -300,7 +370,9 @@ export function ProposalDetailsDialog({
                     ((step.status || "") as string).toLowerCase() === "concluido")
                 const ticketIsActive = (currentTicketStatus || "").toLowerCase() === "em andamento"
 
-                const paid = Boolean((step as any).is_financially_cleared) || Boolean((step as any).paid);
+                const paid =
+                  Boolean((step as any).is_financially_cleared) ||
+                  Boolean((step as any).paid);
                
               const prev = steps[index - 1];
                 const prevIsSignature = !!(prev && (prev.title === SIGNATURE_STEP_TITLE || (index - 1) === 0));
@@ -308,11 +380,13 @@ export function ProposalDetailsDialog({
                 const prevPaid = prevIsSignature
                   ? true
                   : Boolean((prev as any)?.is_financially_cleared || (prev as any)?.paid);                // bloqueia se a anterior não foi concluída ou (pagamento por etapa e anterior não foi paga) 
-                const prevBlocking = !!(prev && (!prevDone || (isPerStepPayment && !prevPaid)));
+                const prevBlocking = !!(
+                  prev && (!prevDone || (requiresSequentialPayment && !prevPaid))
+                );
                 let prevBlockReason: string | null = null;
                 if (prev && !prevDone) {
                   prevBlockReason = prevIsSignature ? 'Aguardando assinatura do contrato' : 'Aguardando a conclusão da etapa anterior';
-                } else if (isPerStepPayment && prevDone && !prevPaid && !prevIsSignature) {
+                } else if (requiresSequentialPayment && prevDone && !prevPaid && !prevIsSignature) {
                   prevBlockReason = 'Aguardando pagamento do cliente.';
                 }
 
@@ -322,10 +396,20 @@ export function ProposalDetailsDialog({
                   (s?.confirm_freelancer && s?.confirm_contractor);
                 const providerMarkedDone = !!step.confirm_freelancer;
 
-                const stepConcluded = isConcluded(step);
-
                 // padroniza status
                 const status = normalizeStatus(step.status);
+
+                const stepConcluded = isConcluded(step);
+                const stepPrice = Number(step.price || 0);
+                const isRejected = status === "recusado";
+                const canSelectForPayment =
+                  isStepPayment &&
+                  !isSignatureStep &&
+                  !paid &&
+                  stepPrice > 0 &&
+                  !isRejected &&
+                  (isCustomPayment || stepConcluded);
+
                 const statusLabel = isConcluded(step)
                   ? "Concluído"
                   : status === 'em andamento'
@@ -339,23 +423,32 @@ export function ProposalDetailsDialog({
                 // variáveis pra controle de bloqueio de botões de feedback/problema
                 const reworks = Number((step as any).rework_count) || 0;
                 const isRework = reworks > 0;
-                const waitingStart = isPerStepPayment && !providerMarkedDone && status !== "recusado" && !isRework;
+                const needsPaymentToStart =
+                  isCustomPayment &&
+                  !paid &&
+                  !isSignatureStep &&
+                  stepPrice > 0;
+                const waitingStart =
+                  isStepPayment &&
+                  !providerMarkedDone &&
+                  status !== "recusado" &&
+                  !isRework;
                 const isBlocked = prevBlocking || waitingStart;
 
                 const showCheckbox = isMultiSelectMode && userType === "contratante" && !isSignatureStep;
 
-                const isCurrentStepForPayment = !allowGroupedPayment && index === _currentIndex;
+                const isCurrentStepForPayment = !groupedPaymentEnabled && index === _currentIndex;
 
                 return (
                   <div key={step.id} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      {showCheckbox && (
+                        {showCheckbox && (
                           <Checkbox
                             id={`step-${step.id}`}
                             checked={selectedStepIds.includes(step.id)}
                             onCheckedChange={() => toggleStepSelection(step.id)}
-                            disabled={paid || stepConcluded}
+                            disabled={!canSelectForPayment}
                           />
                         )}
                       <h4 className="font-medium">Etapa {index + 1}</h4>
@@ -383,7 +476,7 @@ export function ProposalDetailsDialog({
                       
                     <div className="mt-3 flex flex-wrap gap-2">
                       {userType === "prestador" && !isSignatureStep && (() => {
-                        if (prev && !prevDone) {
+                        if (requiresSequentialPayment && prev && !prevDone) {
                           return (
                             <div className="w-full">
                               <p className="text-sm text-gray-500 mb-2">
@@ -393,7 +486,7 @@ export function ProposalDetailsDialog({
                           )
                         }
 
-                        if (isPerStepPayment && prevDone && !prevPaid && !prevIsSignature) {
+                        if (requiresSequentialPayment && prevDone && !prevPaid && !prevIsSignature) {
                           return (
                             <div className="w-full">
                               <p className="text-sm text-gray-500 mb-2">
@@ -403,7 +496,17 @@ export function ProposalDetailsDialog({
                           )
                         }
 
-                        if (isPerStepPayment && status === 'em andamento' && !providerMarkedDone) {
+                        if (isCustomPayment && needsPaymentToStart && !providerMarkedDone) {
+                          return (
+                            <div className="w-full">
+                              <p className="text-sm text-gray-500 mb-2">
+                                Aguardando pagamento do cliente para iniciar a etapa.
+                              </p>
+                            </div>
+                          )
+                        }
+
+                        if (isStepPayment && status === 'em andamento' && !providerMarkedDone) {
                           const endDate = (step as any).end_date ? new Date((step as any).end_date) : null;
                           if (endDate) {
                             const now = new Date();
@@ -433,7 +536,7 @@ export function ProposalDetailsDialog({
                           )
                         }
 
-                        if (isPerStepPayment && (step as any).confirm_contractor && !paid) {
+                        if (requiresSequentialPayment && (step as any).confirm_contractor && !paid) {
                           return (
                             <div className="w-full">
                               <p className="text-sm text-gray-500 mb-2">
@@ -449,13 +552,17 @@ export function ProposalDetailsDialog({
                       {userType === "prestador" && !isSignatureStep && (
                         <>
                           {!stepConcluded && !providerMarkedDone && (
-                            isPerStepPayment && status === 'pendente' && !isRework ? (
+                            isStepPayment && status === 'pendente' && !isRework ? (
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => onStartPhase(step.id)}
-                              disabled={!ticketIsActive || prevBlocking}
-                              title={prevBlockReason || undefined}
+                              disabled={!ticketIsActive || prevBlocking || needsPaymentToStart}
+                              title={
+                                needsPaymentToStart
+                                  ? "Pagamento necessário para iniciar a etapa."
+                                  : prevBlockReason || undefined
+                              }
                             >
                               {prevBlocking ? <Lock className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
                               Iniciar fase
@@ -465,8 +572,18 @@ export function ProposalDetailsDialog({
                                 size="sm"
                                 className="bg-green-600 hover:bg-green-700 text-white"
                                 onClick={() => onMarkProviderCompleted(step.id, (step as any).ticket_id)}
-                                disabled={!ticketIsActive || (status !== 'em andamento' && prevBlocking)}
-                                title={status !== 'em andamento' ? prevBlockReason || undefined : undefined}
+                                disabled={
+                                  !ticketIsActive ||
+                                  needsPaymentToStart ||
+                                  (status !== 'em andamento' && prevBlocking)
+                                }
+                                title={
+                                  needsPaymentToStart
+                                    ? "Pagamento necessário para iniciar a etapa."
+                                    : status !== 'em andamento'
+                                      ? prevBlockReason || undefined
+                                      : undefined
+                                }
                               >
                                 {status !== 'em andamento' && prevBlocking ? <Lock className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
                                 {isRework ? `Concluir novamente (${reworks + 1}ª vez)` : 'Marcar como concluído'}
@@ -531,11 +648,17 @@ export function ProposalDetailsDialog({
                       )}
 
                       {userType === "contratante" &&
-                        isPerStepPayment &&
+                        isStepPayment &&
                         !isMultiSelectMode &&
                         !isSignatureStep &&
                         !paid &&
-                        (canPayStep ? canPayStep(step, steps) : stepConcluded) && (
+                        stepPrice > 0 &&
+                        !isRejected &&
+                        (isCustomPayment
+                          ? true
+                          : canPayStep
+                            ? canPayStep(step, steps)
+                            : stepConcluded) && (
                           <>
                           <Button
                             size="sm"
@@ -567,7 +690,7 @@ export function ProposalDetailsDialog({
                           );
                         }
 
-                        if (isPerStepPayment && status === 'em andamento' && !providerMarkedDone) {
+                        if (isStepPayment && status === 'em andamento' && !providerMarkedDone) {
                           return (
                             <p className="text-sm text-gray-500">
                               Aguardando finalização do prestador.
@@ -581,7 +704,7 @@ export function ProposalDetailsDialog({
                                 <Button
                                   size="sm"
                                   className="bg-green-600 hover:bg-green-700 text-white"
-                                  onClick={() => onClientAccept(step, paymentPreference)}
+                                  onClick={() => onClientAccept(step, displayPaymentPreference)}
                                   disabled={!ticketIsActive}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
@@ -622,7 +745,7 @@ export function ProposalDetailsDialog({
                           );
                         }
 
-                        if (isConcluded(step) && (!isPerStepPayment || paid)) {
+                        if (isConcluded(step) && (!isStepPayment || paid)) {
                           const conclusionDate = (step as any).updated_at || (step as any).updatedAt;
                           return (
                             <p className="text-sm text-green-700 font-medium">
@@ -732,13 +855,13 @@ export function ProposalDetailsDialog({
             </div>
           )}
           </div>
-           {userType === "contratante" && isPerStepPayment && isMultiSelectMode ? (
+           {userType === "contratante" && isStepPayment && isMultiSelectMode ? (
           <DialogFooter className="pt-4 border-t">
             <div className="w-full space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">
-                    {selectedStepIds.length} etapa(s) selecionada(s)
+                    {stepsToPay.length} etapa(s) selecionada(s)
                   </p>
                   <p className="text-sm text-gray-600">
                     Total:{" "}
@@ -762,15 +885,14 @@ export function ProposalDetailsDialog({
                 </Button>
                 <Button
                   onClick={() => onPaySteps?.(stepsToPay)}
-                  disabled={selectedStepIds.length === 0}
+                  disabled={stepsToPay.length === 0}
                 >
                   Pagar etapas selecionadas
                 </Button>
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                Atenção: O pagamento antecipado não altera a ordem nem os prazos
-                de entrega das etapas. O projeto seguirá seu fluxo sequencial.
+                As etapas selecionadas ficam liberadas após a confirmação do pagamento.
               </p>
             </div>
           </DialogFooter>

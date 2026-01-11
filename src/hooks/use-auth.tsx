@@ -24,6 +24,12 @@ const persistSession = (
   const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
   sessionStorage.setItem("token", token);
   sessionStorage.setItem("tokenExpiry", expiresAt.toString());
+  if (payload?.signature_password_set !== undefined && payload?.signature_password_set !== null) {
+    sessionStorage.setItem(
+      "signature_password_set",
+      payload.signature_password_set ? "true" : "false"
+    );
+  }
   setUser(payload);
   return payload;
 };
@@ -226,6 +232,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateUserLocal = (data: Partial<User>) => {
+    if (typeof data.signature_password_set === "boolean") {
+      sessionStorage.setItem(
+        "signature_password_set",
+        data.signature_password_set ? "true" : "false"
+      );
+    }
     setUser((prev) => (prev ? { ...prev, ...data } : prev));
   };
   useEffect(() => {
@@ -234,9 +246,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const expiry = sessionStorage.getItem("tokenExpiry");
     const storedOnboarding = sessionStorage.getItem("needs_onboarding") === "true";
     const storedOptional = sessionStorage.getItem("onboarding_optional") === "true";
+    const storedSignature = sessionStorage.getItem("signature_password_set");
     if (token && expiry && Number(expiry) > Date.now()) {
       try {
         const payload = parseJwt<User>(token);
+        if (payload?.id) {
+          if (storedSignature === "true") {
+            payload.signature_password_set = true;
+          } else if (storedSignature === "false") {
+            payload.signature_password_set = false;
+          }
+        }
         setUser(payload?.id ? payload : null);
         setNeedsOnboardingState(storedOnboarding);
         setOnboardingOptionalState(storedOptional);

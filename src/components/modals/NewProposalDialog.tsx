@@ -49,8 +49,8 @@ interface NewProposalDialogProps {
   onSendProposal: () => void;
   sendingProposal: boolean;
   showToast?: (message: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
-  paymentPreference?: "per_step" | "at_end";
-  onPaymentPreferenceChange?: (value: "per_step" | "at_end") => void;
+  paymentPreference?: "per_step" | "at_end" | "custom";
+  onPaymentPreferenceChange?: (value: "per_step" | "at_end" | "custom") => void;
 }
 
 export function NewProposalDialog({
@@ -67,7 +67,7 @@ export function NewProposalDialog({
   onSendProposal,
   sendingProposal,
   showToast,
-  paymentPreference = "per_step",
+  paymentPreference = "at_end",
   onPaymentPreferenceChange,
 }: NewProposalDialogProps) {
   const [priceDigits, setPriceDigits] = React.useState<Record<string, string>>({});
@@ -184,7 +184,11 @@ export function NewProposalDialog({
                 <Label className="text-sm font-semibold">Forma de pagamento</Label>
                 <RadioGroup
                   value={paymentPreference}
-                  onValueChange={(value) => onPaymentPreferenceChange(value as "per_step" | "at_end")}
+                  onValueChange={(value) =>
+                    onPaymentPreferenceChange(
+                      value as "per_step" | "at_end" | "custom"
+                    )
+                  }
                   className="space-y-2"
                 >
                   <div className="flex items-start gap-2">
@@ -193,6 +197,18 @@ export function NewProposalDialog({
                       Pagamento por etapa
                       <span className="block text-xs text-muted-foreground">
                         O cliente paga conforme as entregas forem concluídas.
+                      </span>
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem value="custom" id="payment-custom" />
+                    <Label htmlFor="payment-custom" className="text-sm font-normal">
+                      Personalizado
+                      <span className="block text-xs text-muted-foreground">
+                        O cliente escolhe quais etapas pagar e pode agrupar pagamentos.
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Os prazos passam a contar após a confirmação do pagamento.
                       </span>
                     </Label>
                   </div>
