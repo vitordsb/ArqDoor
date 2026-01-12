@@ -377,7 +377,7 @@ export default function ProviderProfilePage() {
             ratingComment={ratingComment}
             hoveredStar={hoveredStar}
             showRatingsList={showRatingsList}
-            canRate={canRate}
+            canRate={!!canRate}
             isOwner={!!currentUser && currentUser.id === provider.user_id}
             savingRating={savingRating}
             onSave={handleSaveRating}

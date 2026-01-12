@@ -115,6 +115,12 @@ export interface CreateMessageRequest {
 export interface CreateTicketRequest {
   conversation_id: number;
   payment_preference?: "per_step" | "at_end" | "custom";
+  allow_grouped_payment?: boolean;
+  allowGroupedPayment?: boolean;
+  grouped_payment?: boolean;
+  grouped_payment_enabled?: boolean;
+  payment?: boolean;
+  provider_id?: number;
 }
 
 export interface CreateStepRequest {
@@ -189,6 +195,8 @@ export interface ServicesResponse {
 }
 
 
+export type StepStatus = 'Recusado' | 'Concluido' | 'Pendente';
+
 export interface Step {
   id: number
   ticket_id: number
@@ -200,7 +208,8 @@ export interface Step {
   end_date?: Date
   createdAt?: string
   updatedAt?: string
-  status: 'Recusado' | 'Concluido' | 'Pendente'
+  status: StepStatus
+  rejection_reason?: string
 }
 
 export interface Ticket {
@@ -210,5 +219,13 @@ export interface Ticket {
   updated_at?: string
   status: 'pendente' | 'cancelada' | 'em_andamento' | 'concluída'
   payment_preference?: "per_step" | "at_end" | "custom"
+  paymentPreference?: "per_step" | "at_end" | "custom"
   payment_status?: string
+  paymentStatus?: string
+  provider_id?: number
+  payment?: boolean
+  allow_grouped_payment?: boolean
+  allowGroupedPayment?: boolean
+  grouped_payment?: boolean
+  grouped_payment_enabled?: boolean
 }

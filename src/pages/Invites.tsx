@@ -64,7 +64,7 @@ export default function Invites() {
   const [editingInvite, setEditingInvite] = useState<Invite | null>(null);
   const [steps, setSteps] = useState<ProposalStep[]>([createEmptyStep()]);
   const [contractFile, setContractFile] = useState<File | null>(null);
-  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end">("at_end");
+  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | "custom">("at_end");
   const [saving, setSaving] = useState(false);
 
   const isProvider = user?.type === "prestador";

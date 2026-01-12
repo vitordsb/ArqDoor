@@ -64,7 +64,8 @@ export function useContract(conversationId?: number) {
     queryKey: ["tickets", conversationId],
     enabled: !!conversationId && !!isLoggedIn,
     staleTime: 5_000,
-    refetchInterval: (data?: Ticket[]) => {
+    refetchInterval: (query) => {
+      const data = query.state.data as Ticket[] | undefined;
       const list = Array.isArray(data) ? data : [];
       const critical = list.some((t) =>
         ["pendente", "em andamento"].includes((t.status || "").toLowerCase())
@@ -636,11 +637,12 @@ export function useContract(conversationId?: number) {
               variant: "warning",
             });
             await cleanupAndThrow(`Data de início inválida na etapa "${s.title}".`);
+            return false;
           }
 
           const todayAtStart = new Date();
           todayAtStart.setHours(0, 0, 0, 0);
-          if (startDateAtNoon < todayAtStart) {
+          if (startDateAtNoon && startDateAtNoon < todayAtStart) {
             toast({
               title: "Data de Início Inválida",
               description: `A data de início da etapa "${s.title}" (${formatIsoToBr(startIso)}) não pode ser anterior a hoje.`,
@@ -653,8 +655,11 @@ export function useContract(conversationId?: number) {
             endIso = addDaysToIsoDate(startIso, 1);
             endDateAtNoon = toDateAtNoon(endIso);
           }
+          if (!endDateAtNoon) {
+            endDateAtNoon = startDateAtNoon;
+          }
 
-          if (endDateAtNoon && endDateAtNoon < startDateAtNoon) {
+          if (endDateAtNoon < startDateAtNoon) {
             toast({
               title: "Datas inválidas",
               description: `A data final da etapa "${s.title}" não pode ser anterior à data inicial.`,
@@ -663,12 +668,15 @@ export function useContract(conversationId?: number) {
             await cleanupAndThrow(`Data final anterior à inicial na etapa "${s.title}".`);
           }
 
+          const safeStartDate = startDateAtNoon;
+          const safeEndDate = endDateAtNoon;
+
           const stepPayload: any = {
             ticket_id: ticketId,
             title: s.title,
             price: s.price || 0,
-            start_date: startDateAtNoon.toISOString(),
-            end_date: (endDateAtNoon ?? startDateAtNoon).toISOString(),
+            start_date: safeStartDate.toISOString(),
+            end_date: safeEndDate.toISOString(),
           };
 
           const sRes = await apiRequest("POST", "/step", stepPayload);
@@ -682,8 +690,8 @@ export function useContract(conversationId?: number) {
             id: sJson.step?.id || sJson.id,
             title: s.title,
             price: s.price || 0,
-            start_date: startDateAtNoon.toISOString(),
-            end_date: (endDateAtNoon ?? startDateAtNoon).toISOString(),
+            start_date: safeStartDate.toISOString(),
+            end_date: safeEndDate.toISOString(),
           });
           previousEndIso = endIso;
         }

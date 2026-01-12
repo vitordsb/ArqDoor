@@ -15,6 +15,8 @@ export interface UserApi {
   name: string;
   email: string;
   createdAt: string;
+  cpf?: string;
+  cnpj?: string;
 }
 
 export interface Service {

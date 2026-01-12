@@ -1,0 +1,17 @@
+import { MessageCircle } from "lucide-react";
+
+export function EmptyConversationState() {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-center">
+        <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">
+          Selecione uma conversa
+        </h3>
+        <p className="text-gray-600">
+          Escolha uma conversa da lista para começar a trocar mensagens
+        </p>
+      </div>
+    </div>
+  );
+}

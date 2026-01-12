@@ -1143,7 +1143,7 @@ export default function SocialFeed() {
                             <span className="text-sm font-bold text-green-600">
                               {formatPrice(demand.budget)}
                             </span>
-                            <Link>
+                            <Link href={`/providers/${demand.id_demand}`}>
                               Ver Perfil
                             </Link>
                           </div>

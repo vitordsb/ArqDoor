@@ -63,6 +63,8 @@ type ProposalDetailsDialogProps = {
   onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void
   onPaySteps?: (steps: Step[]) => void
   payingStepId?: number | null
+  onConfirmStepPayment?: (stepId: number) => void
+  confirmingStepPaymentIds?: Record<number, boolean>
   currentIndex: number
   ticketStatus?: string
   ticketId?: number | null
@@ -120,6 +122,8 @@ export function ProposalDetailsDialog({
   onFeedbackCreated,
   onPaySteps,
   payingStepId,
+  onConfirmStepPayment,
+  confirmingStepPaymentIds,
   ticketStatus,
   ticketId,
   onDeleteTicket,
@@ -671,9 +675,15 @@ export function ProposalDetailsDialog({
                           <Button
                           className="bg-green-600 hover:bg-green-700 text-white"
                             variant="outline"
-                            onClick={() => ticketId && onRefreshPayment?.(ticketId)}
+                            onClick={() => onConfirmStepPayment?.(step.id)}
+                            disabled={!!confirmingStepPaymentIds?.[step.id]}
                           >
-                            <CheckCircle className="h-4 w-4 mr-2" />Confirmar pagamento
+                            {confirmingStepPaymentIds?.[step.id] ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                            )}
+                            Confirmar pagamento
                           </Button>
                           </>
                         )}

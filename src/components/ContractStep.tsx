@@ -25,10 +25,10 @@ export function ContractStep({
   onComplete,
 }: ContractStepProps) {
   const isActive = step.id === currentStep;
-  const isCompleted = step.status === 'completed';
-  const isRejected = step.status === 'rejected';
-  const isPending = step.status === 'pending';
-  const isAwaitingConfirmation = step.status === 'awaiting_confirmation';
+  const isCompleted = step.status === 'Concluido';
+  const isRejected = step.status === 'Recusado';
+  const isPending = step.status === 'Pendente';
+  const isAwaitingConfirmation = step.status === 'Pendente';
 
   const canInteract = isActive && !isCompleted && !isRejected;
   const showProviderActions = isProvider && (isPending || isAwaitingConfirmation);
@@ -46,14 +46,14 @@ export function ContractStep({
             </p>
             {step.status && (
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${
-                step.status === 'completed' ? 'bg-green-100 text-green-800' :
-                step.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                step.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                step.status === 'Concluido' ? 'bg-green-100 text-green-800' :
+                step.status === 'Recusado' ? 'bg-red-100 text-red-800' :
+                step.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
                 'bg-blue-100 text-blue-800'
               }`}>
-                {step.status === 'completed' ? 'Completed' :
-                 step.status === 'rejected' ? 'Rejected' :
-                 step.status === 'pending' ? 'Pending' : 'Awaiting Confirmation'}
+                {step.status === 'Concluido' ? 'Concluído' :
+                 step.status === 'Recusado' ? 'Recusado' :
+                 step.status === 'Pendente' ? 'Pendente' : 'Aguardando Confirmação'}
               </span>
             )}
           </div>
