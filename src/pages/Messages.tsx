@@ -1638,6 +1638,7 @@ export default function Messages() {
                   onViewPdf={handleViewPdf}
                   onStartSignature={handleStartSignature}
                   onRejectProposal={handleRejectContract}
+                  onResumePayment={generateTicketDepositPayment}
                   currentUserType={user?.type}
                 />
               </div>
@@ -1692,7 +1693,7 @@ export default function Messages() {
               : null;
             const pref =
               (currentTicket?.payment_preference as any) ||
-              (currentTicket?.payment_status ? 'at_end' : null) ||
+              (currentTicket as any)?.paymentPreference ||
               providerPaymentPreference ||
               null;
             return pref;
@@ -1759,6 +1760,7 @@ export default function Messages() {
               onViewDetails={handleViewProposalDetails}
               onViewPdf={handleViewPdf}
               onStartSignature={handleStartSignature}
+              onResumePayment={generateTicketDepositPayment}
             />
           ))}
       />
