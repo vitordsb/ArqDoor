@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Eye, FileText, Shield, CheckCircle, XCircle } from 'lucide-react';
 import { formatTotalDurationFromDays } from '@/lib/utils';
+import { SIGNATURE_STEP_TITLE } from '@/constants/contracts';
 import { useMemo } from 'react';
 
 interface ProposalCardProps {
@@ -13,6 +14,7 @@ interface ProposalCardProps {
   onViewPdf: (ticket: any) => void;
   onStartSignature: (ticket: any) => void;
   onRejectProposal?: (ticketId: number) => void;
+  onResumePayment?: (ticketId: number) => void;
 }
 
 const formatCurrency = (value: number) =>
@@ -97,6 +99,13 @@ const getStatusConfig = (status?: string) => {
   return STATUS_CONFIG[normalized] ?? STATUS_CONFIG.pendente;
 };
 
+const normalizeStatus = (value?: string) =>
+  (value || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
 const getPaymentStatus = (ticket: any, steps: any[]) => {
   const raw =
     (ticket.payment_status || ticket.paymentStatus || "").toString().toLowerCase();
@@ -133,6 +142,7 @@ export function ProposalCard({
   onViewPdf,
   onStartSignature,
   onRejectProposal,
+  onResumePayment,
 }: ProposalCardProps) {
   const total = useMemo(() => calculateProposalTotal(steps), [steps]);
   const cfg = getStatusConfig(ticket.status);
@@ -143,13 +153,32 @@ export function ProposalCard({
     .toLowerCase();
   const paymentModeLabel =
     PAYMENT_MODE_LABELS[paymentModeKey] || "Pagamento por etapa";
-  const isSigned = ['concluída', 'concluida', 'cancelado'].includes(
-    (ticket.status || '').toLowerCase(),
+  const normalizedTicketStatus = normalizeStatus(ticket.status);
+  const signatureStep = useMemo(() => {
+    if (!steps?.length) return null;
+    return steps.find((step) => step?.title === SIGNATURE_STEP_TITLE) || steps[0];
+  }, [steps]);
+  const signatureStepSigned = Boolean(
+    signatureStep?.confirm_contractor ||
+      signatureStep?.confirmContractor ||
+      signatureStep?.signature ||
+      normalizeStatus(signatureStep?.status) === 'concluido'
+  );
+  const isTicketClosed = ['concluida', 'concluido', 'cancelado', 'cancelada'].includes(
+    normalizedTicketStatus
   );
   const canSign =
     currentUserType === 'contratante' &&
-    (ticket.status || '').toLowerCase() === 'pendente' &&
-    !isSigned;
+    normalizedTicketStatus === 'pendente' &&
+    !signatureStepSigned &&
+    !isTicketClosed;
+  const canResumePayment =
+    currentUserType === 'contratante' &&
+    paymentModeKey === 'at_end' &&
+    signatureStepSigned &&
+    paymentStatusKey !== 'deposit_paid' &&
+    !isTicketClosed &&
+    typeof onResumePayment === 'function';
 
   const formattedDuration = formatTotalDurationFromDays(ticket.total_date);
 
@@ -225,6 +254,15 @@ export function ProposalCard({
                 <XCircle className="h-4 w-4 mr-2" /> Recusar proposta
               </Button>
             </>
+          )}
+          {!canSign && canResumePayment && (
+            <Button
+              size="sm"
+              onClick={() => onResumePayment?.(ticket.id)}
+              className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]"
+            >
+              <Shield className="h-4 w-4 mr-2" /> Voltar para pagamento
+            </Button>
           )}
         </div>
       </div>

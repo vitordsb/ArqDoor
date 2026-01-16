@@ -27,6 +27,24 @@ type InviteData = {
   created_at?: string;
 };
 
+const normalizeInviteSteps = (raw: unknown): InviteStep[] => {
+  if (Array.isArray(raw)) return raw as InviteStep[];
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try {
+      return normalizeInviteSteps(JSON.parse(raw));
+    } catch {
+      return [];
+    }
+  }
+  if (typeof raw === "object") {
+    const maybe = raw as any;
+    if (Array.isArray(maybe.steps)) return maybe.steps as InviteStep[];
+    if (Array.isArray(maybe.data)) return maybe.data as InviteStep[];
+  }
+  return [];
+};
+
 export default function InvitePublic() {
   const { token } = useParams<{ token: string }>();
   const [, navigate] = useLocation();
@@ -51,7 +69,14 @@ export default function InvitePublic() {
         if (!res.ok || body?.success === false) {
           throw new Error(body?.message || "Convite não encontrado.");
         }
-        setInvite(body.invite);
+        if (body?.invite) {
+          setInvite({
+            ...body.invite,
+            steps: normalizeInviteSteps(body.invite.steps),
+          });
+        } else {
+          setInvite(null);
+        }
         setProvider(body.provider || null);
       } catch (error: any) {
         toast({
@@ -75,9 +100,10 @@ export default function InvitePublic() {
     return `${API_BASE_URL}/${invite.contract_pdf_path.replace(/^\/+/, "")}`;
   }, [invite]);
 
+  const safeSteps = useMemo(() => normalizeInviteSteps(invite?.steps), [invite]);
   const total = useMemo(() => {
-    return (invite?.steps || []).reduce((acc, step) => acc + (Number(step.price) || 0), 0);
-  }, [invite]);
+    return safeSteps.reduce((acc, step) => acc + (Number(step.price) || 0), 0);
+  }, [safeSteps]);
 
   const cpfDigits = (user?.cpf || "").toString().replace(/\D/g, "");
   const needsCpf = isLoggedIn && cpfDigits.length !== 11;
@@ -212,7 +238,7 @@ export default function InvitePublic() {
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-gray-700">
             <span>Total: <strong>{formatPrice(total)}</strong></span>
-            <span>Etapas: <strong>{invite.steps?.length || 0}</strong></span>
+            <span>Etapas: <strong>{safeSteps.length}</strong></span>
           </div>
 
           {invite.contract_pdf_path ? (
@@ -229,7 +255,7 @@ export default function InvitePublic() {
         <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Etapas do contrato</h2>
           <div className="space-y-3">
-            {(invite.steps || []).map((step, idx) => (
+            {safeSteps.map((step, idx) => (
               <div key={`${step.title}-${idx}`} className="rounded-2xl border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>

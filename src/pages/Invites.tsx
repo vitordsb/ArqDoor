@@ -33,6 +33,24 @@ type ProposalStep = {
   endDate?: string;
 };
 
+const normalizeInviteSteps = (raw: unknown): InviteStep[] => {
+  if (Array.isArray(raw)) return raw as InviteStep[];
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try {
+      return normalizeInviteSteps(JSON.parse(raw));
+    } catch {
+      return [];
+    }
+  }
+  if (typeof raw === "object") {
+    const maybe = raw as any;
+    if (Array.isArray(maybe.steps)) return maybe.steps as InviteStep[];
+    if (Array.isArray(maybe.data)) return maybe.data as InviteStep[];
+  }
+  return [];
+};
+
 const createEmptyStep = (): ProposalStep => ({
   id: Math.random().toString(36).slice(2),
   title: "",
@@ -82,7 +100,13 @@ export default function Invites() {
       if (!res.ok || body?.success === false) {
         throw new Error(body?.message || "Erro ao carregar convites.");
       }
-      setInvites(Array.isArray(body.invites) ? body.invites : []);
+      const normalizedInvites = Array.isArray(body.invites)
+        ? body.invites.map((invite: any) => ({
+            ...invite,
+            steps: normalizeInviteSteps(invite?.steps),
+          }))
+        : [];
+      setInvites(normalizedInvites);
     } catch (error: any) {
       toast({
         title: "Erro ao carregar convites",
@@ -115,7 +139,8 @@ export default function Invites() {
   };
 
   const openEditDialog = (invite: Invite) => {
-    const mappedSteps = (invite.steps || []).map((step, idx) => ({
+    const safeSteps = normalizeInviteSteps(invite.steps);
+    const mappedSteps = safeSteps.map((step, idx) => ({
       id: `${invite.id}-${idx}`,
       title: step.title || "",
       price: Number(step.price) || 0,
@@ -296,7 +321,8 @@ export default function Invites() {
         <div className="grid gap-4">
           {invites.map((invite) => {
             const statusInfo = statusLabelMap[invite.status];
-            const total = (invite.steps || []).reduce(
+            const safeSteps = normalizeInviteSteps(invite.steps);
+            const total = safeSteps.reduce(
               (acc, step) => acc + (Number(step.price) || 0),
               0
             );
@@ -319,7 +345,7 @@ export default function Invites() {
                     </p>
                     <div className="text-sm text-gray-700">
                       Total: <span className="font-medium">{formatPrice(total)}</span> ·{" "}
-                      {invite.steps?.length || 0} etapa(s)
+                      {safeSteps.length} etapa(s)
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
