@@ -441,14 +441,25 @@ export function useContract(conversationId?: number) {
   );
 
   /** =================== PROPOSTA (createProposal) =================== */
-
   const uploadPDF = useCallback(
     async (ticketId: number, file: File | Blob) => {
       try {
         const fd = new FormData();
         fd.append("file", file, (file as File).name || `ticket-${ticketId}.pdf`);
         const res = await apiRequest("POST", `/upload/pdf/${ticketId}`, fd);
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const body = await res.json();
+            throw new Error(body.message || "Erro ao enviar contrato PDF");
+          } else {
+            const text = await res.text();
+            if (text.includes("ENOENT")) {
+              throw new Error("Erro interno: Diretório de uploads não encontrado no servidor.");
+            }
+            throw new Error(`Erro no upload: ${res.status} ${res.statusText}`);
+          }
+        }
         const json = await res.json();
         queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
         toast({ title: "Contrato enviado", description: "Contrato PDF enviado com sucesso!" });
@@ -471,8 +482,10 @@ export function useContract(conversationId?: number) {
       steps: Omit<CreateStepRequest, "ticket_id">[],
       contractFile?: File | Blob,
       signaturePassword?: string,
-      paymentPreference?: "per_step" | "at_end" | "custom"
+      paymentPreference?: "per_step" | "at_end" | "custom",
+      paymentGroups?: { id: number; name: string }[]
     ) => {
+      console.log("createProposal chamado. Pref:", paymentPreference, "Grupos:", paymentGroups); //debug
       if (!conversationId) return false;
       if (!user || user.type !== "prestador") return false;
       if (!contractFile) {
@@ -587,6 +600,33 @@ export function useContract(conversationId?: number) {
         createdTicketId = ticketId;
         if (!ticketId) throw new Error("ID do ticket não retornado pela API");
 
+        // criar grupos de pagamento para o pagamento personalizado
+        const groupIdMap = new Map<number, number>();
+        if (paymentPreference === 'custom' && paymentGroups && paymentGroups.length > 0) {
+          console.log("Processando grupos de pagamento:", paymentGroups);
+          for (const group of paymentGroups) {
+            try {
+              console.log("Criando grupo:", group);
+              const gRes = await apiRequest("POST", "/payment-groups", {
+                ticket_id: ticketId,
+                name: group.name,
+                sequence: group.id
+              });
+              if (gRes.ok) {
+                const gJson = await gRes.json();
+                console.log("Grupo criado com sucesso:", gJson);
+                const realId = gJson.id || gJson.data?.id || gJson.paymentGroup?.id;
+                if (realId) groupIdMap.set(group.id, realId);
+              } else {
+                console.error("Falha ao criar grupo:", await gRes.text());
+              }
+            } catch (e) {
+              console.error("Erro ao criar grupo de pagamento", e);
+            }
+          }
+        }
+
+        // criar as etapas
         const createdSteps: any[] = [];
         let previousEndIso: string | null = null;
         for (let index = 0; index < stepsToCreate.length; index++) {
@@ -671,12 +711,16 @@ export function useContract(conversationId?: number) {
           const safeStartDate = startDateAtNoon;
           const safeEndDate = endDateAtNoon;
 
+          const localGroupId = (s as any).payment_group_id;
+          const realGroupId = (paymentPreference === 'custom' && localGroupId) ? groupIdMap.get(localGroupId) : null;
+
           const stepPayload: any = {
             ticket_id: ticketId,
             title: s.title,
             price: s.price || 0,
             start_date: safeStartDate.toISOString(),
             end_date: safeEndDate.toISOString(),
+            group_id: realGroupId,
           };
 
           const sRes = await apiRequest("POST", "/step", stepPayload);

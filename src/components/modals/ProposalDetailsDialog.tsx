@@ -89,7 +89,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   deposit_paid: "Depósito confirmado",
   awaiting_steps: "Aguardando pagamento",
   partial_steps: "Pagamento parcial",
-  steps_paid: "Pagamentos em dia",
+  steps_paid: "Pagamento finalizado",
 };
 
 const PAYMENT_MODE_LABELS: Record<string, string> = {
@@ -141,8 +141,6 @@ export function ProposalDetailsDialog({
   const [feedbackModalInput, setFeedbackModalInput] = React.useState("");
   const [editingFeedbackId, setEditingFeedbackId] = React.useState<number | null>(null);
   const [pendingRejectStep, setPendingRejectStep] = React.useState<Step | null>(null);
-  const [selectedStepIds, setSelectedStepIds] = React.useState<number[]>([]);
-  const [isMultiSelectMode, setIsMultiSelectMode] = React.useState(false);
 
   const {
     feedbackData,
@@ -176,39 +174,45 @@ export function ProposalDetailsDialog({
   const isStepPayment =
     displayPaymentPreference === "per_step" || displayPaymentPreference === "custom";
   const requiresSequentialPayment = displayPaymentPreference === "per_step";
-  const groupedPaymentEnabled = isCustomPayment ? true : allowGroupedPayment;
   const isProvider = userType === "prestador";
 
-  const toggleStepSelection = (stepId: number) => {
-    setSelectedStepIds((prev) =>
-      prev.includes(stepId)
-        ? prev.filter((id) => id !== stepId)
-        : [...prev, stepId]
-    );
-  };
+  const groupedSteps = React.useMemo(() => {
+    if (steps.length === 0) return [];
 
-  const stepsToPay = React.useMemo(() => {
-    return steps.filter((s) => {
-      if (!selectedStepIds.includes(s.id)) return false;
-      const isSignature = s.title === SIGNATURE_STEP_TITLE;
-      const paid =
-        Boolean((s as any).is_financially_cleared) || Boolean((s as any).paid);
-      const concluded =
-        normalizeStatus(s.status) === "concluido" ||
-        ((s as any).confirm_freelancer && (s as any).confirm_contractor);
-      const price = Number(s.price || 0);
-      const isRejected = normalizeStatus(s.status) === "recusado";
+    const groups: { id: string; name?: string; steps: Step[]; total: number; paid: boolean }[] = [];
+    
+    steps.forEach((step) => {
+      let groupId = `step-${step.id}`;
+      let groupName: string | undefined;
 
-      if (!isStepPayment) return false;
-      if (isSignature || paid || price <= 0 || isRejected) return false;
-      if (isCustomPayment) return true;
-      return concluded;
+      if (isCustomPayment) {
+        const pgId = (step as any).group_id || (step as any).payment_group_id;
+        if (pgId) {
+          groupId = `group-${pgId}`;
+          const rawName = (step as any).payment_group?.name || (step as any).paymentGroup?.name;
+          groupName = rawName || `Grupo ${pgId}`;
+        } else {
+          groupId = `step-${step.id}`;
+        }
+      }
+
+      let group = groups.find(g => g.id === groupId);
+      if (!group) {
+        group = { id: groupId, name: groupName, steps: [], total: 0, paid: true };
+        groups.push(group);
+      }
+      group.steps.push(step);
+      group.total += Number(step.price || 0);
+      
+      const stepPaid = Boolean((step as any).is_financially_cleared) || Boolean((step as any).paid);
+      if (!stepPaid && Number(step.price || 0) > 0 && step.title !== SIGNATURE_STEP_TITLE) {
+        group.paid = false;
+      }
     });
-  }, [isCustomPayment, isStepPayment, selectedStepIds, steps]);
 
-  const totalSelected = React.useMemo(() => {
-    return stepsToPay.reduce((acc, step) => acc + (step?.price || 0), 0);
-  }, [stepsToPay]);
+    return groups;
+  }, [steps, isCustomPayment]);
+
 
   const resetFeedbackModal = () => {
     setFeedbackModalStep(null);
@@ -263,10 +267,6 @@ export function ProposalDetailsDialog({
     <>
       <Dialog open={open} onOpenChange={(v) => {
         onOpenChange(v);
-        if (!v) {
-          setIsMultiSelectMode(false);
-          setSelectedStepIds([]);
-        }
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
@@ -301,32 +301,7 @@ export function ProposalDetailsDialog({
               </div>
             )}
           </DialogHeader>
-          {userType === 'prestador' && ticketId && (currentTicketStatus || "").toLowerCase() === 'em andamento' && isStepPayment && !isCustomPayment && (
-            <div className="flex items-center space-x-2 border-b pb-4 pt-2">
-              <Switch
-                id="allow-grouped-payment"
-                checked={allowGroupedPayment}
-                onCheckedChange={(checked) => onToggleGroupedPayment?.(ticketId, checked)}
-              />
-              <Label htmlFor="allow-grouped-payment" className="text-sm">
-                Permitir que o cliente pague múltiplas etapas de uma vez.
-              </Label>
-            </div>
-          )}
-
-          {userType === "contratante" && groupedPaymentEnabled && isStepPayment && (
-            <div className="mb-2 space-y-2">
-              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
-                Esta proposta permite o pagamento de várias etapas em uma única cobrança.
-              </div>
-              {!isMultiSelectMode && (
-                <Button variant="outline" className="w-full" onClick={() => setIsMultiSelectMode(true)}>
-                  Selecionar várias etapas para pagamento
-                </Button>
-              )}
-            </div>
-          )}
-
+          
           <div className="flex-1 overflow-y-auto pr-2">
 
           {displayPaymentPreference === "at_end" && currentTicketStatus && (currentTicketStatus as string).toLowerCase() !== "em andamento" && (
@@ -365,7 +340,24 @@ export function ProposalDetailsDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {steps.map((step, index) => {
+              {groupedSteps.map((group) => (
+                <div key={group.id} className={`space-y-2 ${isCustomPayment ? 'border rounded-xl p-4 bg-gray-50' : ''}`}>
+                  {isCustomPayment && group.name && (
+                    <div className="mb-2 pb-2 border-b border-gray-200 flex justify-between items-center">
+                      <h3 className="font-semibold text-gray-900">
+                        {group.name.trim().toLowerCase().startsWith("grupo")
+                        ? group.name
+                        : `Grupo ${group.name}`}
+                      </h3>
+                      {isCustomPayment && userType === "contratante" && group.paid && (
+                        <span className="text-sm text-green-600 flex items-center shrink-0 mt-0.5" title="Etapa Paga">
+                          <CheckCircle className="h-4 w-4 mr-1" /> Pagamento realizado
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {group.steps.map((step) => {
+                const index = steps.findIndex(s => s.id === step.id);
                 const isSignatureStep = step.title === SIGNATURE_STEP_TITLE || index === 0
                 const signatureSigned =
                   isSignatureStep &&
@@ -383,7 +375,7 @@ export function ProposalDetailsDialog({
                 const prevDone = prev && ((prev.status || '').toLowerCase() === 'concluido' || ((prev as any).confirm_freelancer && (prev as any).confirm_contractor));
                 const prevPaid = prevIsSignature
                   ? true
-                  : Boolean((prev as any)?.is_financially_cleared || (prev as any)?.paid);                // bloqueia se a anterior não foi concluída ou (pagamento por etapa e anterior não foi paga) 
+                  : Boolean((prev as any)?.is_financially_cleared || (prev as any)?.paid);             
                 const prevBlocking = !!(
                   prev && (!prevDone || (requiresSequentialPayment && !prevPaid))
                 );
@@ -406,17 +398,10 @@ export function ProposalDetailsDialog({
                 const stepConcluded = isConcluded(step);
                 const stepPrice = Number(step.price || 0);
                 const isRejected = status === "recusado";
-                const canSelectForPayment =
-                  isStepPayment &&
-                  !isSignatureStep &&
-                  !paid &&
-                  stepPrice > 0 &&
-                  !isRejected &&
-                  (isCustomPayment || stepConcluded);
 
                 const statusLabel = isConcluded(step)
                   ? "Concluído"
-                  : status === 'em andamento'
+                  : status === "em andamento"
                     ? "Em Andamento"
                   : status === "pendente"
                     ? "Pendente"
@@ -439,22 +424,10 @@ export function ProposalDetailsDialog({
                   !isRework;
                 const isBlocked = prevBlocking || waitingStart;
 
-                const showCheckbox = isMultiSelectMode && userType === "contratante" && !isSignatureStep;
-
-                const isCurrentStepForPayment = !groupedPaymentEnabled && index === _currentIndex;
-
                 return (
-                  <div key={step.id} className="border rounded-lg p-4">
+                  <div key={step.id} className="border rounded-lg p-4 bg-white shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
-                        {showCheckbox && (
-                          <Checkbox
-                            id={`step-${step.id}`}
-                            checked={selectedStepIds.includes(step.id)}
-                            onCheckedChange={() => toggleStepSelection(step.id)}
-                            disabled={!canSelectForPayment}
-                          />
-                        )}
                       <h4 className="font-medium">Etapa {index + 1}</h4>
                       </div>
                       <Badge variant="outline">{statusLabel}</Badge>
@@ -472,7 +445,7 @@ export function ProposalDetailsDialog({
                           }).format(step.price || 0)}
                     </p>
 
-                    {userType === "contratante" && paid && (
+                    {userType === "contratante" && paid && !group.paid &&(
                       <span className="mt-[10px] inline-block text-s text-green-600" title="Etapa Paga">
                         <CheckCircle className="inline mr-1" /> Pagamento realizado
                       </span>
@@ -653,8 +626,8 @@ export function ProposalDetailsDialog({
 
                       {userType === "contratante" &&
                         isStepPayment &&
-                        !isMultiSelectMode &&
                         !isSignatureStep &&
+                        !isCustomPayment &&
                         !paid &&
                         stepPrice > 0 &&
                         !isRejected &&
@@ -848,6 +821,31 @@ export function ProposalDetailsDialog({
 
                 )
               })}
+              
+              {/* botão de pagar grupo */}
+              {isCustomPayment && userType === "contratante" && group.total > 0 && !group.paid && (
+                 <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                    <div className="text-sm">
+                       <span className="text-gray-500">Total do grupo:</span>{" "}
+                       <span className="font-bold text-gray-900">
+                          {new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL"
+                          }).format(group.total)}
+                       </span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                      onClick={() => onPaySteps?.(group.steps)}
+                    >
+                       <QrCode className="h-4 w-4 mr-2" />
+                       Pagar grupo
+                    </Button>
+                 </div>
+              )}
+              </div>
+              ))}
 
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex justify-between items-center">
@@ -865,48 +863,6 @@ export function ProposalDetailsDialog({
             </div>
           )}
           </div>
-           {userType === "contratante" && isStepPayment && isMultiSelectMode ? (
-          <DialogFooter className="pt-4 border-t">
-            <div className="w-full space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">
-                    {stepsToPay.length} etapa(s) selecionada(s)
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Total:{" "}
-                    <span className="font-bold">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(totalSelected)}
-                    </span>
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsMultiSelectMode(false);
-                    setSelectedStepIds([]);
-                  }}
-                >
-                  Cancelar seleção
-                </Button>
-                <Button
-                  onClick={() => onPaySteps?.(stepsToPay)}
-                  disabled={stepsToPay.length === 0}
-                >
-                  Pagar etapas selecionadas
-                </Button>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">
-                As etapas selecionadas ficam liberadas após a confirmação do pagamento.
-              </p>
-            </div>
-          </DialogFooter>
-        ) : null}
         </DialogContent>
       </Dialog>
 

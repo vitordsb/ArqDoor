@@ -87,7 +87,7 @@ const PAYMENT_STATUS_CONFIG: Record<
     badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-200",
   },
   steps_paid: {
-    label: "Pagamentos em dia",
+    label: "Pagamento finalizado",
     badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
   },
 };

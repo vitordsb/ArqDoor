@@ -125,7 +125,7 @@ export default function DemandsPage() {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <p className="text-lg text-slate-600">
-                {filtered.length === 0 ? "Nenhuma demanda encontrada" :
+                {filtered.length === 0 ? "" :
                   `${filtered.length} demanda${filtered.length !== 1 ? 's' : ''} encontrada${filtered.length !== 1 ? 's' : ''}`}
               </p>
               {searchTerm && (

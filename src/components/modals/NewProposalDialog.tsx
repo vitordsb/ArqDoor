@@ -1,4 +1,3 @@
-
 // src/components/modals/NewProposalDialog.tsx
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -7,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Info, CalendarDays, PlusCircle, FileText } from "lucide-react";
+import { Info, CalendarDays, PlusCircle, FileText, X, Plus } from "lucide-react";
 
 type ProposalStep = {
   id: string;
@@ -15,6 +14,7 @@ type ProposalStep = {
   price: number;
   startDate?: string;
   endDate?: string;
+  paymentGroupId?: number;
 };
 
 export const formatIsoToBr = (iso?: string) => {
@@ -42,11 +42,11 @@ interface NewProposalDialogProps {
   onRemoveStep: (id: string) => void;
   onUpdateStep: (
     id: string,
-    field: "title" | "price" | "startDate" | "endDate",
+    field: "title" | "price" | "startDate" | "endDate" | "paymentGroupId",
     value: string | number
   ) => void;
   onContractFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSendProposal: () => void;
+  onSendProposal: (groups?: { id: number; name: string }[]) => void;
   sendingProposal: boolean;
   showToast?: (message: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
   paymentPreference?: "per_step" | "at_end" | "custom";
@@ -71,6 +71,55 @@ export function NewProposalDialog({
   onPaymentPreferenceChange,
 }: NewProposalDialogProps) {
   const [priceDigits, setPriceDigits] = React.useState<Record<string, string>>({});
+  const [paymentGroups, setPaymentGroups] = React.useState<{ id: number; name: string }[]>([]);
+  const [newGroupName, setNewGroupName] = React.useState("");
+
+  const handleAddGroup = () => {
+    if (!newGroupName.trim()) return;
+    const nextId = paymentGroups.length > 0 ? Math.max(...paymentGroups.map(g => g.id)) + 1 : 1;
+    setPaymentGroups([...paymentGroups, { id: nextId, name: newGroupName.trim() }]);
+    setNewGroupName("");
+  };
+
+  const handleRemoveGroup = (id: number) => {
+    if (paymentGroups.length <= 1) return;
+    
+    setPaymentGroups(prev => {
+      const filtered = prev.filter(g => g.id !== id);
+      return filtered.map((g, index) => ({ ...g, id: index + 1 }));
+    });
+
+    proposalSteps.forEach(step => {
+      const currentGroupId = step.paymentGroupId || 1;
+      if (currentGroupId === id) {
+        onUpdateStep(step.id, "paymentGroupId", Math.max(1, id - 1));
+      } else if (currentGroupId > id) {
+        onUpdateStep(step.id, "paymentGroupId", currentGroupId - 1);
+      }
+    });
+  };
+
+  const handleUpdateGroupName = (id: number, name: string) => {
+    setPaymentGroups(prev => prev.map(g => g.id === id ? { ...g, name } : g));
+  };
+
+  React.useEffect(() => {
+    if (open) {
+      const usedIds = new Set(proposalSteps.map(s => s.paymentGroupId).filter((id): id is number => !!id));
+      setPaymentGroups(prev => {
+        const existingIds = new Set(prev.map(g => g.id));
+        const newGroups = [...prev];
+        let changed = false;
+        usedIds.forEach(id => {
+          if (!existingIds.has(id)) {
+            newGroups.push({ id, name: `Grupo ${id}` });
+            changed = true;
+          }
+        });
+        return changed ? newGroups.sort((a, b) => a.id - b.id) : prev;
+      });
+    }
+  }, [open]);
 
   const getDigitsFromPrice = (price?: number) => {
     if (price == null || isNaN(price)) return '';
@@ -224,6 +273,46 @@ export function NewProposalDialog({
                 </RadioGroup>
               </div>
             )}
+
+            {paymentPreference === "custom" && (
+              <div className="rounded-2xl border border-dashed p-3 bg-white space-y-3">
+                <Label className="text-sm font-semibold">Grupos de Pagamento</Label>
+                <div className="space-y-2">
+                  {paymentGroups.map((group, index) => (
+                    <div key={group.id} className="flex items-center gap-2 text-sm">
+                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 shrink-0">{group.id}</Badge>
+                      <Input
+                        value={group.name}
+                        onChange={(e) => handleUpdateGroupName(group.id, e.target.value)}
+                        className="h-8 text-sm flex-1"
+                      />
+                      {paymentGroups.length > 1 && (
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRemoveGroup(group.id)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Nome do grupo" 
+                    value={newGroupName} 
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    className="h-8 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddGroup();
+                      }
+                    }}
+                  />
+                  <Button size="sm" variant="secondary" onClick={handleAddGroup} className="h-8 px-2">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </aside>
 
           <section className="space-y-5 overflow-hidden">
@@ -253,6 +342,22 @@ export function NewProposalDialog({
                       </Button>
                     )}
                   </div>
+
+                  {paymentPreference === "custom" && (
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase text-muted-foreground">Grupo de Pagamento</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        value={step.paymentGroupId || 1}
+                        onChange={(e) => onUpdateStep(step.id, "paymentGroupId", parseInt(e.target.value) || 1)}
+                      >
+                        {paymentGroups.map(g => (
+                          <option key={g.id} value={g.id}>{g.id} - {g.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">Etapas com o mesmo número de grupo serão pagas juntas.</p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label className="text-xs uppercase text-muted-foreground">
@@ -372,7 +477,7 @@ export function NewProposalDialog({
 
         <DialogFooter className="pt-4">
           <Button
-            onClick={onSendProposal}
+            onClick={() => onSendProposal(paymentPreference === 'custom' ? paymentGroups : undefined)}
             disabled={sendingProposal}
             className="bg-orange-600 hover:bg-orange-700 text-white"
           >

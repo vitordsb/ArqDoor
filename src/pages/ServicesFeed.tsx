@@ -227,7 +227,7 @@ export default function ServicesFeed() {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - serviceDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7; // Considera novo se foi criado nos últimos 7 dias
+    return diffDays <= 7; 
   };
 
   return (
@@ -237,7 +237,7 @@ export default function ServicesFeed() {
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <p className="text-lg text-slate-600">
-                {filtered.length === 0 ? "Nenhum serviço encontrado" :
+                {filtered.length === 0 ? "" :
                   `${filtered.length} serviço${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
               </p>
               {searchTerm && (

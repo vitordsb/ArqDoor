@@ -132,6 +132,7 @@ export default function Messages() {
     steps: ProposalStepPayload[];
     contractFile?: File | null;
     paymentPreference?: 'per_step' | 'at_end' | 'custom';
+    paymentGroups?: { id: number; name: string }[];
   } | null>(null);
   const [sendingProposal, setSendingProposal] = useState(false);
 
@@ -275,7 +276,7 @@ export default function Messages() {
   };
 
   // ---------- handlers: proposta nova ----------
-  const handleSendProposal = () => {
+  const handleSendProposal = (groups?: { id: number; name: string }[]) => {
     if (!currentConversation || !user || !canCreateProposal()) return;
     if (!contractFile) {
       toast({
@@ -325,11 +326,13 @@ export default function Messages() {
       price: step.price,
       startDate: toIso(step.startDate),
       endDate: toIso(step.endDate),
+      payment_group_id: (step as any).paymentGroupId,
     }));
     setPendingProposalData({
       steps: payloadSteps,
       contractFile,
       paymentPreference: proposalPaymentPreference,
+      paymentGroups: groups,
     });
     openProposalSignatureDialog();
   };
@@ -1463,13 +1466,14 @@ export default function Messages() {
             pendingProposalData.contractFile || undefined,
             password,
             pendingProposalData.paymentPreference || proposalPaymentPreference,
+            pendingProposalData.paymentGroups,
           );
           if (!ok) return;
           setShowSignatureModal(false);
           resetSignatureDialogState();
           setPendingProposalData(null);
           setShowProposalModal(false);
-          setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0 }]);
+          setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0, paymentGroupId: 1 }]);
           setContractFile(null);
           return;
         } finally {

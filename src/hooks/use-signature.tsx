@@ -60,7 +60,19 @@ export function useSignature(conversationId?: number) {
       const fd = new FormData();
       fd.append('file', file, (file as File).name || `ticket-${ticketId}.pdf`);
       const res = await apiRequest('POST', `/upload/pdf/${ticketId}`, fd);
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const body = await res.json();
+          throw new Error(body.message || "Erro ao enviar contrato PDF");
+        } else {
+          const text = await res.text();
+          if (text.includes("ENOENT")) {
+            throw new Error("Erro interno: Diretório de uploads não encontrado no servidor.");
+          }
+          throw new Error(`Erro no upload: ${res.status} ${res.statusText}`);
+        }
+      }
       const json = await res.json();
       queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
       toast({ title: 'Contrato enviado', description: 'Contrato PDF enviado com sucesso!' });
