@@ -521,7 +521,7 @@ export default function Messages() {
                 ...s,
                 confirm_freelancer: false,
                 confirm_contractor: false,
-                status: 'Pendente',
+                status: 'em andamento',
               }
             : s
         )

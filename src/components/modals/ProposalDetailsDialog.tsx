@@ -392,8 +392,16 @@ export function ProposalDetailsDialog({
                   (s?.confirm_freelancer && s?.confirm_contractor);
                 const providerMarkedDone = !!step.confirm_freelancer;
 
+                // variáveis pra controle de bloqueio de botões de feedback/problema
+                const reworks = Number((step as any).rework_count) || 0;
+                const isRework = reworks > 0;
+                
                 // padroniza status
-                const status = normalizeStatus(step.status);
+                const normalizedStatus = normalizeStatus(step.status);
+                const status =
+                  isRework && normalizedStatus === 'pendente'
+                    ? 'em andamento'
+                    : normalizedStatus;
 
                 const stepConcluded = isConcluded(step);
                 const stepPrice = Number(step.price || 0);
@@ -409,9 +417,15 @@ export function ProposalDetailsDialog({
                       ? "Recusado"
                       : "—"
 
-                // variáveis pra controle de bloqueio de botões de feedback/problema
-                const reworks = Number((step as any).rework_count) || 0;
-                const isRework = reworks > 0;
+                // adiciona cores de fundo com base no status da etapa
+                  const stepBackgroundClass = (() => {
+                    if (stepConcluded) return "bg-green-50 border-green-200";
+                    if (isRejected) return "bg-red-50 border-red-200";
+                    if (status === "em andamento") return "bg-blue-50 border-blue-200";
+                    return "bg-white border-gray-200";
+                  })();
+
+                // condições de bloqueio
                 const needsPaymentToStart =
                   isCustomPayment &&
                   !paid &&
@@ -425,7 +439,7 @@ export function ProposalDetailsDialog({
                 const isBlocked = prevBlocking || waitingStart;
 
                 return (
-                  <div key={step.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                  <div key={step.id} className={`border rounded-lg p-4 shadow-sm ${stepBackgroundClass}`}>
                     <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <h4 className="font-medium">Etapa {index + 1}</h4>
