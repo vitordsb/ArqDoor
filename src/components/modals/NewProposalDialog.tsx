@@ -103,6 +103,21 @@ export function NewProposalDialog({
     setPaymentGroups(prev => prev.map(g => g.id === id ? { ...g, name } : g));
   };
 
+  // Auto-assign payment group based on previous step
+  React.useEffect(() => {
+    if (paymentPreference === 'custom') {
+      for (let i = 0; i < proposalSteps.length; i++) {
+        const step = proposalSteps[i];
+        if (!step.paymentGroupId) {
+          const prevGroup = i > 0 ? proposalSteps[i - 1].paymentGroupId : 1;
+          const targetGroup = prevGroup || 1;
+          onUpdateStep(step.id, "paymentGroupId", targetGroup);
+          return;
+        }
+      }
+    }
+  }, [proposalSteps, paymentPreference, onUpdateStep]);
+
   React.useEffect(() => {
     if (open) {
       const usedIds = new Set(proposalSteps.map(s => s.paymentGroupId).filter((id): id is number => !!id));
