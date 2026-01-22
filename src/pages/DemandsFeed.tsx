@@ -64,7 +64,7 @@ export default function DemandsPage() {
             userName: d.User?.name || "Usuário Desconhecido",
             userEmail: d.User?.email || "N/A",
             userPerfil: (d.User as any)?.perfil,
-            price: parseFloat((d as any).budget || '0') // Garante que o preço é um número
+            price: parseFloat((d as any).price || (d as any).budget || '0') // Garante que o preço é um número
           } as any;
         });
 

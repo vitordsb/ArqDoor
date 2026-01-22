@@ -341,7 +341,16 @@ export function ProposalDetailsDialog({
           ) : (
             <div className="space-y-4">
               {groupedSteps.map((group) => (
-                <div key={group.id} className={`space-y-2 ${isCustomPayment ? 'border rounded-xl p-4 bg-gray-50' : ''}`}>
+                <div
+                  key={group.id}
+                  className={`space-y-2 ${
+                    isCustomPayment
+                      ? `border rounded-xl p-4 ${
+                          group.paid ? "bg-emerald-50 border-green-200" : "bg-gray-50"
+                        }`
+                      : ""
+                  }`}
+                >
                   {isCustomPayment && group.name && (
                     <div className="mb-2 pb-2 border-b border-gray-200 flex justify-between items-center">
                       <h3 className="font-semibold text-gray-900">
@@ -419,7 +428,7 @@ export function ProposalDetailsDialog({
 
                 // adiciona cores de fundo com base no status da etapa
                   const stepBackgroundClass = (() => {
-                    if (stepConcluded) return "bg-green-50 border-green-200";
+                    if (stepConcluded) return "bg-green-50 border-green-300";
                     if (isRejected) return "bg-red-50 border-red-200";
                     if (status === "em andamento") return "bg-blue-50 border-blue-200";
                     return "bg-white border-gray-200";
