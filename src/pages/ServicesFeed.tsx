@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ChevronLeft,
   ChevronRight,
@@ -32,9 +33,17 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { ServicesResponse, EnrichedService } from "@/lib/Interfaces";
+
+const buildImageUrl = (path?: string) => {
+  if (!path) return "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
 export default function ServicesFeed() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -98,14 +107,16 @@ export default function ServicesFeed() {
               userName: userData.name,
               userEmail: userData.email,
               userType: userData.type,
-            });
+              userPerfil: userData.perfil,
+            } as any);
           } else {
             enriched.push({
               ...service,
               userName: service.ServiceProvider.profession || "Prestador",
               userEmail: "Email não disponível",
               userType: "prestador",
-            });
+              userPerfil: null,
+            } as any);
             console.warn(`Usando fallback para serviço ${service.id_serviceFreelancer}`);
           }
         } catch (error) {
@@ -288,9 +299,12 @@ export default function ServicesFeed() {
                     <CardContent className="space-y-6 pb-6 relative z-10">
 
                       <div className="flex items-center space-x-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-orange-300/50">
-                          <User className="h-6 w-6 text-white" />
-                        </div>
+                        <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
+                          <AvatarImage src={buildImageUrl((svc as any).userPerfil)} alt={svc.userName} className="object-cover" />
+                          <AvatarFallback className="bg-gradient-to-br from-orange-500 to-amber-600 text-white">
+                            <User className="h-6 w-6" />
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-800 truncate text-lg">{svc.userName}</p>
                           <div className="flex items-center space-x-1">
@@ -369,9 +383,12 @@ export default function ServicesFeed() {
                               </span>
                             </div>
                             <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-orange-300/50">
-                                <User className="h-5 w-5 text-white" />
-                              </div>
+                              <Avatar className="w-10 h-10 border-2 border-white shadow-sm">
+                                <AvatarImage src={buildImageUrl((svc as any).userPerfil)} alt={svc.userName} className="object-cover" />
+                                <AvatarFallback className="bg-gradient-to-br from-orange-500 to-amber-600 text-white">
+                                  <User className="h-5 w-5" />
+                                </AvatarFallback>
+                              </Avatar>
                               <div>
                                 <span className="font-semibold text-slate-700">{svc.userName}</span>
                                 <p className="text-sm text-slate-500">{svc.userEmail}</p>
@@ -498,5 +515,3 @@ export default function ServicesFeed() {
     </ApplicationLayout>
   );
 }
-
-

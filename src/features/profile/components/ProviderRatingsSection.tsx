@@ -5,6 +5,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save, Star, X } from "lucide-react";
 import { PortfolioComment } from "@/components/modals/PortfolioModal";
+import { API_BASE_URL } from "@/lib/queryClient";
+
+const buildImageUrl = (path?: string) => {
+  if (!path) return "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
 interface RatingItem {
   id: number;
@@ -13,7 +22,7 @@ interface RatingItem {
   createdAt: string;
   user?: {
     name?: string;
-    avatar?: string;
+    perfil?: string;
   } | null;
 }
 
@@ -156,7 +165,7 @@ export function ProviderRatingsSection({
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Avatar className="w-8 h-8">
-                        <AvatarImage src={(rating.user as any)?.avatar} alt={rating.user?.name} />
+                        <AvatarImage src={buildImageUrl(rating.user?.perfil)} alt={rating.user?.name} className="object-cover" />
                         <AvatarFallback>
                           {(rating.user?.name || "??").slice(0, 2).toUpperCase()}
                         </AvatarFallback>

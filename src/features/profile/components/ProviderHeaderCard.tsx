@@ -4,6 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Eye, MessageCircle, Star } from "lucide-react";
 import { ProviderApi, UserApi } from "../types";
+import { API_BASE_URL } from "@/lib/queryClient";
+
+const buildImageUrl = (path?: string) => {
+  if (!path) return "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
 interface ProviderHeaderCardProps {
   user: UserApi;
@@ -31,7 +40,7 @@ export function ProviderHeaderCard({
     <Card className="p-6 flex items-center gap-6">
       <Avatar className="w-24 h-24 border-2 border-orange-500">
         <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-        <AvatarImage src={(user as any)?.avatar} alt={user.name} />
+        <AvatarImage src={buildImageUrl((user as any)?.perfil)} alt={user.name} className="object-cover" />
       </Avatar>
       <div className="flex-1">
         <h1 className="text-2xl font-bold">{user.name}</h1>

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,9 +23,17 @@ import {
   DollarSign,
   Briefcase,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { Demand, EnrichedDemand } from "@/lib/Interfaces";
 import { getInitials } from "@/lib/utils";
+
+const buildImageUrl = (path?: string) => {
+  if (!path) return "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
 export default function DemandsPage() {
   const [demands, setDemands] = useState<EnrichedDemand[]>([]);
@@ -54,8 +63,9 @@ export default function DemandsPage() {
             ...d,
             userName: d.User?.name || "Usuário Desconhecido",
             userEmail: d.User?.email || "N/A",
+            userPerfil: (d.User as any)?.perfil,
             price: parseFloat((d as any).budget || '0') // Garante que o preço é um número
-          };
+          } as any;
         });
 
         setDemands(enriched);
@@ -179,9 +189,12 @@ export default function DemandsPage() {
                       </p>
 
                       <div className="flex items-center space-x-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
-                        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-300/50">
-                          {getInitials(demand.userName)}
-                        </div>
+                        <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
+                          <AvatarImage src={buildImageUrl((demand as any).userPerfil)} alt={demand.userName} className="object-cover" />
+                          <AvatarFallback className="bg-amber-100 text-amber-700">
+                            {getInitials(demand.userName)}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-800 truncate text-lg">{demand.userName}</p>
                           <p className="text-sm text-slate-500 truncate">{demand.userEmail}</p>
@@ -228,9 +241,12 @@ export default function DemandsPage() {
                               </span>
                             </div>
                             <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-300/50">
-                                <User className="h-5 w-5 text-white" />
-                              </div>
+                              <Avatar className="w-10 h-10 border-2 border-white shadow-sm">
+                                <AvatarImage src={buildImageUrl((demand as any).userPerfil)} alt={demand.userName} className="object-cover" />
+                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+                                  <User className="h-5 w-5" />
+                                </AvatarFallback>
+                              </Avatar>
                               <div>
                                 <span className="font-semibold text-slate-700">{demand.userName}</span>
                               </div>

@@ -44,7 +44,7 @@ import {
   DollarSign,
   Eye,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useMessaging } from "@/hooks/use-messaging";
@@ -73,6 +73,8 @@ interface User {
   cnpj?: string;
   cidade_id: number;
   type: "prestador" | "contratante";
+  perfil?: string;
+  banner?: string;
 }
 
 interface UsersResponse {
@@ -128,51 +130,16 @@ interface DemandsResponse {
   success: boolean;
 }
 
-const UserBanner = ({ userId, className = '' }: { userId: number; className?: string }) => {
-  const [imageUrl, setImageUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+const buildImageUrl = (path?: string) => {
+  if (!path) return null;
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
-  useEffect(() => {
-    const fetchUserImage = async () => {
-      if (!userId) {
-        setLoading(false);
-        setError(true);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(false);
-
-        const response = await apiRequest("GET", `/users/images/${userId}`);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.success && data.images && data.images.length > 0) {
-          const firstImage = data.images[0];
-          if (firstImage.image_url) {
-            setImageUrl(firstImage.image_url);
-          } else {
-            setError(true);
-          }
-        } else {
-          setError(true);
-        }
-      } catch (err) {
-        console.error('Erro ao buscar imagem do usuário:', err);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserImage();
-  }, [userId]);
+const UserBanner = ({ user, className = '' }: { user: User; className?: string }) => {
+  const imageUrl = buildImageUrl(user.banner);
 
   const bannerStyle = {
     width: '100%',
@@ -184,73 +151,18 @@ const UserBanner = ({ userId, className = '' }: { userId: number; className?: st
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
-    backgroundColor: error || !imageUrl ? '#FEF8C3' : 'transparent',
-    backgroundImage: imageUrl && !error ? `url(${imageUrl})` : 'none'
+    backgroundColor: !imageUrl ? '#FEF8C3' : 'transparent',
+    backgroundImage: imageUrl ? `url(${imageUrl})` : 'none'
   };
-
-  if (loading) {
-    return (
-      <div className={`${className}`} style={{ ...bannerStyle, backgroundColor: '#f3f4f6' }}>
-        <div className="text-gray-500 text-xs">Carregando...</div>
-      </div>
-    );
-  }
 
   return (
     <div className={`${className}`} style={bannerStyle}>
-      {(error || !imageUrl) && (
-        <div className="text-gray-600 text-xs">
-        </div>
-      )}
     </div>
   );
 };
 
-const UserAvatar = ({ userId, className = '', size = 'md' }: { userId: number; className?: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) => {
-  const [imageUrl, setImageUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    const fetchUserImage = async () => {
-      if (!userId) {
-        setLoading(false);
-        setError(true);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(false);
-
-        const response = await apiRequest("GET", `/users/images/${userId}`);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.success && data.images && data.images.length > 0) {
-          const firstImage = data.images[0];
-          if (firstImage.image_url) {
-            setImageUrl(firstImage.image_url);
-          } else {
-            setError(true);
-          }
-        } else {
-          setError(true);
-        }
-      } catch (err) {
-        console.error('Erro ao buscar imagem do usuário:', err);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserImage();
-  }, [userId]);
+const UserAvatar = ({ user, className = '', size = 'md' }: { user: User; className?: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) => {
+  const imageUrl = buildImageUrl(user.perfil);
 
   const sizeClasses = {
     sm: 'w-10 h-10 sm:w-12 sm:h-12',
@@ -259,15 +171,7 @@ const UserAvatar = ({ userId, className = '', size = 'md' }: { userId: number; c
     xl: 'w-20 h-20 sm:w-24 sm:h-24'
   };
 
-  if (loading) {
-    return (
-      <div className={`${sizeClasses[size]} rounded-full bg-gray-200 flex items-center justify-center ${className}`}>
-        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-      </div>
-    );
-  }
-
-  if (error || !imageUrl) {
+  if (!imageUrl) {
     return (
       <div className={`${sizeClasses[size]} rounded-full bg-orange-100 flex items-center justify-center ${className}`}>
         <User className="w-6 h-6 text-orange-600" />
@@ -1194,11 +1098,11 @@ export default function SocialFeed() {
                       transition={{ duration: 0.3 }}
                     >
                       <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
-                        <UserBanner userId={item.user.id} />
+                        <UserBanner user={item.user} />
                         <CardContent className="relative p-4">
                           <div className="flex justify-center -mt-10 mb-4">
                             <UserAvatar
-                              userId={item.user.id}
+                              user={item.user}
                               size="lg"
                               className="ring-4 ring-white"
                             />

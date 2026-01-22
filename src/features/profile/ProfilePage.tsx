@@ -47,9 +47,10 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const buildImageUrl = (path?: string) => {
     if (!path) return "";
-    return path.startsWith("http")
-      ? path
-      : `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
+    const normalizedPath = path.replace(/\\/g, "/");
+    return normalizedPath.startsWith("http")
+      ? normalizedPath
+      : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
   };
 
   const onlyDigits = (v: string) => (v || '').toString().replace(/\D/g, '');
@@ -270,12 +271,21 @@ export default function ProfilePage() {
       };
       setDocumentsData(next);
       setDocumentsOriginal(next);
+
+      if (body?.user) {
+        if (body.user.perfil !== user.perfil || body.user.banner !== user.banner) {
+          updateUserLocal({
+            perfil: body.user.perfil,
+            banner: body.user.banner,
+          });
+        }
+      }
     } catch (error) {
       console.error(error);
     } finally {
       setLoadingDocuments(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.perfil, user?.banner, updateUserLocal]);
 
   useEffect(() => {
     loadDocumentsData();
@@ -1176,7 +1186,9 @@ export default function ProfilePage() {
         item={selectedPortfolioItem}
         imageUrl={buildImageUrl(selectedPortfolioItem?.UserImage?.image_path)}
         userName={user.name}
+        userAvatar={buildImageUrl((user as any)?.perfil)}
         viewerName={user.name}
+        viewerAvatar={buildImageUrl((user as any)?.perfil)}
         initialLikes={0}
         initialLiked={false}
         initialComments={[]}

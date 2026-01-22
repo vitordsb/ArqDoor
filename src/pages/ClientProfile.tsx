@@ -4,14 +4,14 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import {
   Card,
   CardHeader,
   CardContent,
   CardTitle,
 } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -26,6 +26,7 @@ export interface UserApi {
   createdAt: string;
   perfil_completo?: boolean;
   cpf?: string;
+  perfil?: string;
 }
 
 export interface Demand {
@@ -36,6 +37,14 @@ export interface Demand {
   price: number;
   created_at: string;
 }
+
+const buildImageUrl = (path?: string) => {
+  if (!path) return "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
 export default function ClientProfile() {
   const { user_id } = useParams<{ user_id: string }>();
@@ -117,6 +126,7 @@ export default function ClientProfile() {
         <Card className="p-6 flex items-center gap-6">
           <Avatar className="w-24 h-24 border-2 border-orange-500">
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+            <AvatarImage src={buildImageUrl(user.perfil)} alt={user.name} className="object-cover" />
           </Avatar>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{user.name}</h1>

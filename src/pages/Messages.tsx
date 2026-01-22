@@ -9,7 +9,7 @@ import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
 import { Button } from '@/components/ui/button';
 import MessagesLayout from '@/components/layouts/MessagesLayout';
 import { EmptyConversationState } from "@/features/messages/components/EmptyConversationState";
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, API_BASE_URL } from '@/lib/queryClient';
 import type { Step } from '@/lib/Interfaces';
 import { ConversationsSidebar } from '@/features/messages/components/ConversationsSidebar';
 import { ConversationHeader } from '@/features/messages/components/ConversationHeader';
@@ -52,6 +52,14 @@ type SignatureFlow =
       paymentPreference?: 'per_step' | 'at_end' | 'custom' | null;
     } & SignatureDialogOverrides)
   | ({ type: 'proposal-first-step' } & SignatureDialogOverrides);
+
+const buildImageUrl = (path?: string) => {
+  if (!path) return "";
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
 
 export default function Messages() {
   const [location, setLocation] = useLocation();
@@ -206,6 +214,50 @@ export default function Messages() {
     if (typeof ticket.groupedPaymentEnabled === "boolean") return ticket.groupedPaymentEnabled;
     return undefined;
   };
+
+  const processedConversations = useMemo(() => (conversations || []).map((c: any) => {
+    const otherUser = c.otherUser || {};
+    const img = otherUser.perfil || otherUser.avatar;
+    const url = buildImageUrl(img);
+    return {
+      ...c,
+      otherUser: {
+        ...otherUser,
+        perfil: url,
+        avatar: url,
+      }
+    };
+  }), [conversations]);
+
+  const processedCurrentConversation = useMemo(() => {
+    if (!currentConversation) return null;
+    const otherUser = currentConversation.otherUser || {};
+    const img = otherUser.perfil || otherUser.avatar;
+    const url = buildImageUrl(img);
+    return {
+      ...currentConversation,
+      otherUser: {
+        ...otherUser,
+        perfil: url,
+        avatar: url,
+      }
+    };
+  }, [currentConversation]);
+
+  const processedMessages = useMemo(() => (messages || []).map((m: any) => {
+    if (!m.sender) return m;
+    const sender = m.sender;
+    const img = sender.perfil || sender.avatar;
+    const url = buildImageUrl(img);
+    return {
+      ...m,
+      sender: {
+        ...sender,
+        perfil: url,
+        avatar: url,
+      }
+    };
+  }), [messages]);
 
   // ---------- efeitos ----------
   useEffect(() => {
@@ -1604,8 +1656,8 @@ export default function Messages() {
     <MessagesLayout>
       <div className="flex p-4 bg-gray-100 h-[calc(100dvh-58px)]">
         <ConversationsSidebar
-          conversations={conversations}
-          currentConversation={currentConversation}
+          conversations={processedConversations}
+          currentConversation={processedCurrentConversation}
           loading={loadingConversations}
           conversationsError={conversationsError}
           unreadMessageCount={unreadMessageCount}
@@ -1613,17 +1665,17 @@ export default function Messages() {
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {currentConversation ? (
+          {processedCurrentConversation ? (
             <>
               <ConversationHeader
-                conversation={currentConversation}
+                conversation={processedCurrentConversation}
                 canCreateProposal={canCreateProposal()}
                 onOpenProposal={() => setShowProposalModal(true)}
                 onViewProfile={handleViewProfile}
               />
               <div className="flex-1 flex overflow-hidden">
                 <ChatPanel
-                  messages={messages}
+                  messages={processedMessages}
                   currentUserId={user?.id}
                   newMessage={newMessage}
                   sendingMessage={sendingMessage}

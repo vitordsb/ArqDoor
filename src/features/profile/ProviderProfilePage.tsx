@@ -398,9 +398,9 @@ export default function ProviderProfilePage() {
         item={selectedPortfolioItem}
         imageUrl={buildImageUrl(selectedPortfolioItem?.UserImage?.image_path)}
         userName={user.name}
-        userAvatar={(user as any)?.avatar}
+        userAvatar={buildImageUrl((user as any)?.perfil)}
         viewerName={currentUser?.name || "Convidado"}
-        viewerAvatar={(currentUser as any)?.avatar}
+        viewerAvatar={buildImageUrl((currentUser as any)?.perfil)}
         initialLikes={
           selectedPortfolioItem
             ? portfolioMeta[selectedPortfolioItem.id]?.likes || 0
@@ -431,7 +431,8 @@ export default function ProviderProfilePage() {
 
 const buildImageUrl = (path?: string) => {
   if (!path) return "";
-  return path.startsWith("http")
-    ? path
-    : `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
 };
