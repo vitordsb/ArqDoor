@@ -304,7 +304,7 @@ export function ProposalDetailsDialog({
           
           <div className="flex-1 overflow-y-auto pr-2">
 
-          {displayPaymentPreference === "at_end" && currentTicketStatus && (currentTicketStatus as string).toLowerCase() !== "em andamento" && (
+          {displayPaymentPreference === "at_end" && currentTicketStatus && (currentTicketStatus as string).toLowerCase() !== "em andamento" && (currentTicketStatus as string).toLowerCase() !== "concluida" && (currentTicketStatus as string).toLowerCase() !== "concluída" && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <div className="flex items-center justify-between gap-3">
                 <span>Aguardando pagamento do depósito em garantia para liberar as ações do projeto.</span>
