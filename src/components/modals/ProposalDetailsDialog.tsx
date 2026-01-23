@@ -35,6 +35,7 @@ import { SIGNATURE_STEP_TITLE } from "@/constants/contracts"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Timer } from "@/components/ui/timer"
 
 type ProposalDetailsDialogProps = {
   open: boolean
@@ -472,6 +473,24 @@ export function ProposalDetailsDialog({
                       <span className="mt-[10px] inline-block text-s text-green-600" title="Etapa Paga">
                         <CheckCircle className="inline mr-1" /> Pagamento realizado
                       </span>
+                    )}
+                      
+                    {/* Timer para etapa em andamento */}
+                    {isStepPayment && (step as any).started_at && !stepConcluded && (
+                      <Timer 
+                        startDate={(step as any).started_at}
+                        label="Tempo nesta etapa"
+                        variant="compact"
+                      />
+                    )}
+                    
+                    {/* Timer para etapa concluída */}
+                    {stepConcluded && (step as any).started_at && (
+                      <Timer 
+                        startDate={(step as any).started_at}
+                        endDate={(step as any).updated_at}
+                        variant="compact"
+                      />
                     )}
                       
                     <div className="mt-3 flex flex-wrap gap-2">
