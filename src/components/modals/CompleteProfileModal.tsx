@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -213,7 +213,7 @@ export default function CompleteProfileModal() {
 
   return (
     <Dialog open={shouldOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Complete seu cadastro</DialogTitle>
           <DialogDescription>
@@ -221,6 +221,7 @@ export default function CompleteProfileModal() {
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto pr-2 py-1">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm">Nome</label>
@@ -412,7 +413,8 @@ export default function CompleteProfileModal() {
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        </div>
+        <DialogFooter className="mt-4 pt-2 border-t">
           {canSkip ? (
             <Button
               type="button"
@@ -429,7 +431,7 @@ export default function CompleteProfileModal() {
           <Button onClick={handleSubmit} disabled={isSaving}>
             {isSaving ? "Salvando..." : "Salvar e continuar"}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
