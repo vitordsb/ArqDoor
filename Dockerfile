@@ -2,6 +2,10 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
+# Accept build arguments
+ARG VITE_API_URL
+ARG VITE_GOOGLE_CLIENT_ID
+
 # Copy package files
 COPY package*.json ./
 
@@ -11,7 +15,9 @@ RUN npm ci && npm cache clean --force
 # Copy source code
 COPY . .
 
-# Build application
+# Build application with environment variables
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 # Stage 2: Development
