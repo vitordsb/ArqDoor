@@ -25,13 +25,13 @@ export const useProposalComposer = ({
   const addProposalStep = () =>
     setProposalSteps((ps) => [
       ...ps,
-      { id: crypto.randomUUID(), title: "", price: 0, startDate: "", endDate: "" },
+      { id: crypto.randomUUID(), title: "", price: 0, startDate: "", endDate: "", paymentGroupId: 1 },
     ]);
   const removeProposalStep = (id: string) =>
     setProposalSteps((ps) => ps.filter((s) => s.id !== id));
   const updateProposalStep = (
     id: string,
-    field: "title" | "price" | "startDate" | "endDate",
+    field: "title" | "price" | "startDate" | "endDate" | "paymentGroupId",
     value: string | number,
   ) =>
     setProposalSteps((ps) =>

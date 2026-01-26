@@ -6,6 +6,7 @@ export type ProposalStep = {
   price: number;
   startDate?: string;
   endDate?: string;
+  paymentGroupId?: number;
 };
 
 export type ProposalStepPayload = Omit<CreateStepRequest, "ticket_id"> & {
