@@ -229,13 +229,17 @@ export function NewProposalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className={`${paymentPreference === 'custom' ? 'max-w-[95vw]' : 'max-w-3xl'} max-h-[90vh] flex flex-col`}>
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <p className="text-sm text-muted-foreground">{dialogDescription}</p>
         </DialogHeader>
 
-        <div className="grid gap-6 lg:grid-cols-[260px,1fr] overflow-hidden flex-1">
+        <div className={`grid gap-6 overflow-hidden flex-1 ${
+          paymentPreference === 'custom' 
+            ? 'lg:grid-cols-[240px,1fr,300px]'
+            : 'lg:grid-cols-[260px,1fr]'
+        }`}>
           <aside className="rounded-2xl border bg-muted/30 p-4 space-y-3 overflow-y-auto">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Info className="h-4 w-4 text-orange-500" /> Como preencher
@@ -327,86 +331,10 @@ export function NewProposalDialog({
           </aside>
 
           <section className="space-y-5 overflow-hidden">
-            {/* Payment Groups Section - Prominent and First! */}
-            {paymentPreference === "custom" && (
-              <div className="rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100/50 p-6 space-y-4 shadow-md">
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-full bg-orange-500 flex items-center justify-center shrink-0 shadow-lg">
-                    <span className="text-white font-bold text-xl">1</span>
-                  </div>
-                  <div className="flex-1">
-                    <Label className="text-lg font-bold text-gray-900 block mb-2">Defina os Grupos de Pagamento</Label>
-                    <p className="text-sm text-gray-700 leading-relaxed">
-                      Crie grupos para agrupar etapas em um único pagamento. Exemplo: "Conceito Inicial", "Desenvolvimento", "Finalização".
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3 pl-16">
-                  {paymentGroups.map((group) => (
-                    <div key={group.id} className="flex items-center gap-3">
-                      <Badge className="h-8 w-8 flex items-center justify-center p-0 shrink-0 bg-orange-500 hover:bg-orange-600 text-white font-semibold">
-                        {group.id}
-                      </Badge>
-                      <Input
-                        value={group.name}
-                        onChange={(e) => handleUpdateGroupName(group.id, e.target.value)}
-                        className="h-10 text-sm flex-1 border-2 border-orange-200 focus-visible:ring-orange-500 focus-visible:border-orange-400 bg-white"
-                        placeholder={`Nome do grupo ${group.id}`}
-                      />
-                      {paymentGroups.length > 1 && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-100" 
-                          onClick={() => handleRemoveGroup(group.id)}
-                        >
-                          <X className="h-5 w-5" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="flex gap-3 pl-16">
-                  <Input 
-                    placeholder="Digite o nome do novo grupo" 
-                    value={newGroupName} 
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    className="h-10 text-sm border-2 border-orange-200 focus-visible:ring-orange-500 focus-visible:border-orange-400 bg-white"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddGroup();
-                      }
-                    }}
-                  />
-                  <Button 
-                    size="default" 
-                    onClick={handleAddGroup} 
-                    className="h-10 px-4 bg-orange-500 hover:bg-orange-600 text-white font-medium shadow-md"
-                  >
-                    <Plus className="h-5 w-5 mr-2" /> Adicionar Grupo
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Steps Section with numbered header when custom */}
             <div className="space-y-3 h-full overflow-y-auto pr-1 pb-4">
-              {paymentPreference === "custom" && (
-                <div className="flex items-start gap-4 p-5 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border-2 border-blue-200 shadow-sm">
-                  <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center shrink-0 shadow-lg">
-                    <span className="text-white font-bold text-xl">2</span>
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-gray-900 mb-1">Agora crie as etapas e atribua aos grupos</p>
-                    <p className="text-sm text-gray-700">
-                      Cada etapa pode ser atribuída a um grupo de pagamento diferente usando o seletor abaixo.
-                    </p>
-                  </div>
-                </div>
-              )}
+
+
+
               {proposalSteps.map((step, idx) => (
                 <div
                   key={step.id}
@@ -563,6 +491,102 @@ export function NewProposalDialog({
               </Button>
             </div>
           </section>
+
+          {/* Right Sidebar - Payment Groups (only for custom mode) */}
+          {paymentPreference === "custom" && (
+            <aside className="rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50/50 to-white p-5 space-y-4 overflow-y-auto">
+              <div className="space-y-2">
+                <Label className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-orange-500 flex items-center justify-center">
+                    <span className="text-white font-semibold text-sm">G</span>
+                  </div>
+                  Grupos de Pagamento
+                </Label>
+                <p className="text-xs text-gray-600">
+                  Crie grupos e atribua etapas a eles
+                </p>
+              </div>
+
+              {/* Groups List */}
+              <div className="space-y-2">
+                {paymentGroups.map((group) => {
+                  const groupSteps = proposalSteps.filter(s => s.paymentGroupId === group.id);
+                  const groupTotal = groupSteps.reduce((acc, s) => acc + (Number(s.price) || 0), 0);
+                  
+                  return (
+                    <div key={group.id} className="rounded-xl border-2 border-orange-200 bg-white p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className="h-6 w-6 flex items-center justify-center p-0 shrink-0 bg-orange-500 text-white font-semibold text-xs">
+                          {group.id}
+                        </Badge>
+                        <Input
+                          value={group.name}
+                          onChange={(e) => handleUpdateGroupName(group.id, e.target.value)}
+                          className="h-8 text-xs flex-1 border-orange-200 focus-visible:ring-orange-500"
+                          placeholder={`Grupo ${group.id}`}
+                        />
+                        {paymentGroups.length > 1 && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-red-500 hover:bg-red-100" 
+                            onClick={() => handleRemoveGroup(group.id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {/* Steps in this group */}
+                      <div className="pl-8 space-y-1">
+                        {groupSteps.length > 0 ? (
+                          <>
+                            {groupSteps.map((step, idx) => (
+                              <div key={step.id} className="text-xs text-gray-600 flex items-center gap-1">
+                                <span className="text-orange-500">•</span>
+                                <span className="truncate flex-1">{step.title || `Etapa ${proposalSteps.indexOf(step) + 1}`}</span>
+                                <span className="text-gray-500 font-mono text-[10px]">
+                                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(step.price) || 0)}
+                                </span>
+                              </div>
+                            ))}
+                            <div className="text-xs font-semibold text-orange-600 pt-1 border-t border-orange-100">
+                              Total: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(groupTotal)}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-gray-400 italic">Nenhuma etapa atribuída</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add Group Button */}
+              <div className="space-y-2">
+                <Input 
+                  placeholder="Nome do novo grupo" 
+                  value={newGroupName} 
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="h-9 text-sm border-orange-200 focus-visible:ring-orange-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddGroup();
+                    }
+                  }}
+                />
+                <Button 
+                  size="sm" 
+                  onClick={handleAddGroup} 
+                  className="w-full h-9 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Adicionar Grupo
+                </Button>
+              </div>
+            </aside>
+          )}
         </div>
 
         <DialogFooter className="pt-4">
