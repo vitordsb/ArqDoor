@@ -51,6 +51,8 @@ interface NewProposalDialogProps {
   showToast?: (message: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
   paymentPreference?: "per_step" | "at_end" | "custom";
   onPaymentPreferenceChange?: (value: "per_step" | "at_end" | "custom") => void;
+  paymentGroups?: { id: number; name: string }[];
+  onPaymentGroupsChange?: (groups: { id: number; name: string }[]) => void;
 }
 
 export function NewProposalDialog({
@@ -69,24 +71,46 @@ export function NewProposalDialog({
   showToast,
   paymentPreference = "at_end",
   onPaymentPreferenceChange,
+  paymentGroups: externalPaymentGroups,
+  onPaymentGroupsChange,
 }: NewProposalDialogProps) {
   const [priceDigits, setPriceDigits] = React.useState<Record<string, string>>({});
-  const [paymentGroups, setPaymentGroups] = React.useState<{ id: number; name: string }[]>([]);
+  const [internalPaymentGroups, setInternalPaymentGroups] = React.useState<{ id: number; name: string }[]>([{ id: 1, name: "Grupo 1" }]);
   const [newGroupName, setNewGroupName] = React.useState("");
+
+  // Use external state if provided, otherwise use internal
+  const paymentGroups = externalPaymentGroups || internalPaymentGroups;
+  
+  // Wrapper to handle both types of setters
+  const updatePaymentGroups = React.useCallback((updater: { id: number; name: string }[] | ((prev: { id: number; name: string }[]) => { id: number; name: string }[])) => {
+    if (onPaymentGroupsChange) {
+      if (typeof updater === 'function') {
+        onPaymentGroupsChange(updater(externalPaymentGroups || internalPaymentGroups));
+      } else {
+        onPaymentGroupsChange(updater);
+      }
+    } else {
+      if (typeof updater === 'function') {
+        setInternalPaymentGroups(updater);
+      } else {
+        setInternalPaymentGroups(updater);
+      }
+    }
+  }, [onPaymentGroupsChange, externalPaymentGroups, internalPaymentGroups]);
 
   const handleAddGroup = () => {
     if (!newGroupName.trim()) return;
     const nextId = paymentGroups.length > 0 ? Math.max(...paymentGroups.map(g => g.id)) + 1 : 1;
-    setPaymentGroups([...paymentGroups, { id: nextId, name: newGroupName.trim() }]);
+    updatePaymentGroups([...paymentGroups, { id: nextId, name: newGroupName.trim() }]);
     setNewGroupName("");
   };
 
   const handleRemoveGroup = (id: number) => {
     if (paymentGroups.length <= 1) return;
     
-    setPaymentGroups(prev => {
-      const filtered = prev.filter(g => g.id !== id);
-      return filtered.map((g, index) => ({ ...g, id: index + 1 }));
+    updatePaymentGroups((prev: { id: number; name: string }[]) => {
+      const filtered = prev.filter((g: { id: number; name: string }) => g.id !== id);
+      return filtered.map((g: { id: number; name: string }, index: number) => ({ ...g, id: index + 1 }));
     });
 
     proposalSteps.forEach(step => {
@@ -100,7 +124,7 @@ export function NewProposalDialog({
   };
 
   const handleUpdateGroupName = (id: number, name: string) => {
-    setPaymentGroups(prev => prev.map(g => g.id === id ? { ...g, name } : g));
+    updatePaymentGroups((prev: { id: number; name: string }[]) => prev.map((g: { id: number; name: string }) => g.id === id ? { ...g, name } : g));
   };
 
   // Auto-assign payment group based on previous step
@@ -121,16 +145,26 @@ export function NewProposalDialog({
   React.useEffect(() => {
     if (open) {
       const usedIds = new Set(proposalSteps.map(s => s.paymentGroupId).filter((id): id is number => !!id));
-      setPaymentGroups(prev => {
-        const existingIds = new Set(prev.map(g => g.id));
-        const newGroups = [...prev];
+      updatePaymentGroups((prev: { id: number; name: string }[]) => {
+        const existingIds = prev.map((g: { id: number; name: string }) => g.id);
+        const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+        let newGroups = [...prev];
         let changed = false;
+
+        // Add any usedIds that are not already in existingGroups
         usedIds.forEach(id => {
-          if (!existingIds.has(id)) {
+          if (!existingIds.includes(id)) {
             newGroups.push({ id, name: `Grupo ${id}` });
             changed = true;
           }
         });
+
+        // Ensure there's at least one group if none exist after processing usedIds
+        if (newGroups.length === 0) {
+          newGroups.push({ id: 1, name: "Grupo 1" });
+          changed = true;
+        }
+
         return changed ? newGroups.sort((a, b) => a.id - b.id) : prev;
       });
     }

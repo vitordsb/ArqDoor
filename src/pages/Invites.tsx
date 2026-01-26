@@ -31,6 +31,7 @@ type ProposalStep = {
   price: number;
   startDate?: string;
   endDate?: string;
+  paymentGroupId?: number;
 };
 
 const normalizeInviteSteps = (raw: unknown): InviteStep[] => {
@@ -83,6 +84,7 @@ export default function Invites() {
   const [steps, setSteps] = useState<ProposalStep[]>([createEmptyStep()]);
   const [contractFile, setContractFile] = useState<File | null>(null);
   const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | "custom">("at_end");
+  const [paymentGroups, setPaymentGroups] = useState<{ id: number; name: string }[]>([{ id: 1, name: "Grupo 1" }]);
   const [saving, setSaving] = useState(false);
 
   const isProvider = user?.type === "prestador";
@@ -130,6 +132,7 @@ export default function Invites() {
     setSteps([createEmptyStep()]);
     setContractFile(null);
     setPaymentPreference("at_end");
+    setPaymentGroups([{ id: 1, name: "Grupo 1" }]);
     setEditingInvite(null);
   };
 
@@ -160,7 +163,7 @@ export default function Invites() {
 
   const handleUpdateStep = (
     id: string,
-    field: "title" | "price" | "startDate" | "endDate",
+    field: "title" | "price" | "startDate" | "endDate" | "paymentGroupId",
     value: string | number
   ) => {
     setSteps((prev) =>
@@ -230,6 +233,7 @@ export default function Invites() {
         price: Number(step.price),
         start_date: step.startDate ? parseBrToIso(step.startDate) : null,
         end_date: step.endDate ? parseBrToIso(step.endDate) : null,
+        payment_group_id: step.paymentGroupId,
       }));
 
       let inviteId = editingInvite?.id;
@@ -238,6 +242,7 @@ export default function Invites() {
         const res = await apiRequest("PUT", `/invites/${editingInvite.id}`, {
           steps: payloadSteps,
           payment_preference: paymentPreference,
+          payment_groups: paymentPreference === "custom" ? paymentGroups : undefined,
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body?.success === false) {
@@ -248,6 +253,7 @@ export default function Invites() {
         const res = await apiRequest("POST", "/invites", {
           steps: payloadSteps,
           payment_preference: paymentPreference,
+          payment_groups: paymentPreference === "custom" ? paymentGroups : undefined,
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body?.success === false) {
@@ -402,6 +408,8 @@ export default function Invites() {
         sendingProposal={saving}
         paymentPreference={paymentPreference}
         onPaymentPreferenceChange={setPaymentPreference}
+        paymentGroups={paymentGroups}
+        onPaymentGroupsChange={setPaymentGroups}
       />
     </div>
   );
