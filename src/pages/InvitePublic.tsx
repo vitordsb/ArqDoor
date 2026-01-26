@@ -15,6 +15,14 @@ type InviteStep = {
   price: number;
   start_date?: string | null;
   end_date?: string | null;
+  group_id?: number | null;
+  payment_group_id?: number | null;
+};
+
+type PaymentGroup = {
+  id: number;
+  name: string;
+  sequence: number;
 };
 
 type InviteData = {
@@ -23,7 +31,8 @@ type InviteData = {
   status: "draft" | "active" | "accepted" | "cancelled";
   steps: InviteStep[];
   contract_pdf_path?: string | null;
-  payment_preference?: "per_step" | "at_end";
+  payment_preference?: "per_step" | "at_end" | "custom";
+  payment_groups?: PaymentGroup[];
   created_at?: string;
 };
 
@@ -225,7 +234,9 @@ export default function InvitePublic() {
             <Badge variant="outline">
               {invite.payment_preference === "at_end"
                 ? "Depósito em garantia"
-                : "Pagamento por etapa"}
+                : invite.payment_preference === "custom"
+                  ? "Pagamento Personalizado"
+                  : "Pagamento por etapa"}
             </Badge>
           </div>
 
@@ -252,30 +263,110 @@ export default function InvitePublic() {
           )}
         </div>
 
-        <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Etapas do contrato</h2>
-          <div className="space-y-3">
-            {safeSteps.map((step, idx) => (
-              <div key={`${step.title}-${idx}`} className="rounded-2xl border p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-gray-900">Etapa {idx + 1}</p>
-                    <p className="text-sm text-muted-foreground">{step.title}</p>
-                  </div>
-                  <span className="font-semibold text-gray-900">
-                    {formatPrice(Number(step.price) || 0)}
-                  </span>
-                </div>
-                {(step.start_date || step.end_date) && (
-                  <div className="text-xs text-muted-foreground mt-2">
-                    {step.start_date ? `Início: ${formatDate(step.start_date)}` : ""}
-                    {step.end_date ? ` · Fim: ${formatDate(step.end_date)}` : ""}
-                  </div>
-                )}
-              </div>
-            ))}
+        {/* Group-based view for custom payment */}
+        {invite.payment_preference === "custom" && invite.payment_groups && invite.payment_groups.length > 0 ? (
+          <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">Grupos de Pagamento</h2>
+            <p className="text-sm text-muted-foreground">
+              Este contrato está organizado em {invite.payment_groups.length} grupo(s) de pagamento. 
+              Você pagará cada grupo completo em sequência.
+            </p>
+            <div className="space-y-4">
+              {invite.payment_groups
+                .sort((a, b) => a.sequence - b.sequence)
+                .map((group, groupIdx) => {
+                  const groupSteps = safeSteps.filter(
+                    (s) => (s.group_id || s.payment_group_id) === group.id
+                  );
+                  const groupTotal = groupSteps.reduce(
+                    (sum, s) => sum + (Number(s.price) || 0),
+                    0
+                  );
+
+                  return (
+                    <div
+                      key={group.id}
+                      className="rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50/50 to-white p-5 space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-orange-500 flex items-center justify-center shrink-0">
+                            <span className="text-white font-bold">{groupIdx + 1}</span>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{group.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {groupSteps.length} etapa(s)
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-orange-600">
+                            {formatPrice(groupTotal)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Total do grupo</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pl-13">
+                        {groupSteps.map((step, stepIdx) => (
+                          <div
+                            key={`${step.title}-${stepIdx}`}
+                            className="flex items-center justify-between gap-2 text-sm p-2 rounded-lg bg-white/50"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-orange-500">•</span>
+                              <span className="text-gray-700">{step.title}</span>
+                            </div>
+                            <span className="font-medium text-gray-600">
+                              {formatPrice(Number(step.price) || 0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {(groupSteps[0]?.start_date || groupSteps[0]?.end_date) && (
+                        <div className="text-xs text-muted-foreground pl-13 pt-2 border-t border-orange-100">
+                          {groupSteps[0].start_date
+                            ? `Início: ${formatDate(groupSteps[0].start_date)}`
+                            : ""}
+                          {groupSteps[0].end_date
+                            ? ` · Fim: ${formatDate(groupSteps[0].end_date)}`
+                            : ""}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Regular step-by-step view */
+          <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">Etapas do contrato</h2>
+            <div className="space-y-3">
+              {safeSteps.map((step, idx) => (
+                <div key={`${step.title}-${idx}`} className="rounded-2xl border p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-gray-900">Etapa {idx + 1}</p>
+                      <p className="text-sm text-muted-foreground">{step.title}</p>
+                    </div>
+                    <span className="font-semibold text-gray-900">
+                      {formatPrice(Number(step.price) || 0)}
+                    </span>
+                  </div>
+                  {(step.start_date || step.end_date) && (
+                    <div className="text-xs text-muted-foreground mt-2">
+                      {step.start_date ? `Início: ${formatDate(step.start_date)}` : ""}
+                      {step.end_date ? ` · Fim: ${formatDate(step.end_date)}` : ""}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Assinatura</h2>
