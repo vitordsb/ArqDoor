@@ -4,3 +4,4 @@ node_modules
 .env*.local
 reset-docker.sh
 DOCKER_COMMANDS.md
+dist
