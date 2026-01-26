@@ -20,10 +20,13 @@ export type PaymentMethod = "PIX" | "BOLETO" | "CREDIT_CARD" | "DEBIT_CARD";
 
 export type PaymentDialogState = {
   step: Step;
-  type: "step" | "deposit";
+  type: "step" | "deposit" | "group";
   data: any | null;
   method: PaymentMethod;
   loading: boolean;
+  groupId?: number;
+  groupName?: string;
+  amount?: number;
 };
 
 export type GroupedPaymentDialogState = {
@@ -31,4 +34,5 @@ export type GroupedPaymentDialogState = {
   data: any | null;
   method: PaymentMethod;
   loading: boolean;
+  groupId?: number;
 };

@@ -710,13 +710,23 @@ export default function Messages() {
       }
 
       const ticketId = (target.steps[0] as any)?.ticket_id;
-      const response = await apiRequest("POST", "/payments", {
-        description: ticketId
-          ? `Pagamento agrupado do ticket #${ticketId}`
-          : "Pagamento agrupado de etapas",
-        method: target.method,
-        step_ids: stepIds,
-      });
+      const groupId = target.groupId || (target.steps[0] as any)?.group_id || (target.steps[0] as any)?.payment_group_id;
+
+      let response;
+      if (groupId) {
+         response = await apiRequest("POST", `/payments/groups/${groupId}`, {
+          description: `Pagamento do Grupo ${groupId}`,
+          method: target.method,
+        });
+      } else {
+        response = await apiRequest("POST", "/payments", {
+          description: ticketId
+            ? `Pagamento agrupado do ticket #${ticketId}`
+            : "Pagamento agrupado de etapas",
+          method: target.method,
+          step_ids: stepIds,
+        });
+      }
 
       let payload: any = {};
       try {

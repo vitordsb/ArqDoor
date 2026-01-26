@@ -354,16 +354,41 @@ export function ProposalDetailsDialog({
                 >
                   {isCustomPayment && group.name && (
                     <div className="mb-2 pb-2 border-b border-gray-200 flex justify-between items-center">
-                      <h3 className="font-semibold text-gray-900">
-                        {group.name.trim().toLowerCase().startsWith("grupo")
-                        ? group.name
-                        : `Grupo ${group.name}`}
-                      </h3>
-                      {isCustomPayment && userType === "contratante" && group.paid && (
-                        <span className="text-sm text-green-600 flex items-center shrink-0 mt-0.5" title="Etapa Paga">
-                          <CheckCircle className="h-4 w-4 mr-1" /> Pagamento realizado
-                        </span>
-                      )}
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-semibold text-gray-900">
+                          {group.name.trim().toLowerCase().startsWith("grupo")
+                          ? group.name
+                          : `Grupo ${group.name}`}
+                        </h3>
+                        {/* Show total group value */}
+                        {group.total > 0 && (
+                          <span className="text-sm font-medium text-gray-600">
+                            ({new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL"
+                            }).format(group.total)})
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {isCustomPayment && userType === "contratante" && !group.paid && group.total > 0 && (
+                           <Button
+                              size="sm"
+                              className="bg-orange-600 hover:bg-orange-700 text-white h-8"
+                              onClick={() => onPaySteps?.(group.steps)}
+                            >
+                              <QrCode className="h-3.5 w-3.5 mr-1.5" />
+                              Pagar Grupo
+                            </Button>
+                        )}
+
+                        {isCustomPayment && userType === "contratante" && group.paid && (
+                          <span className="text-sm text-green-600 flex items-center shrink-0 mt-0.5" title="Etapa Paga">
+                            <CheckCircle className="h-4 w-4 mr-1" /> Pagamento realizado
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                   {group.steps.map((step) => {
@@ -669,12 +694,12 @@ export function ProposalDetailsDialog({
                       {userType === "contratante" &&
                         isStepPayment &&
                         !isSignatureStep &&
-                        !isCustomPayment &&
+                        !isSignatureStep &&
                         !paid &&
                         stepPrice > 0 &&
                         !isRejected &&
                         (isCustomPayment
-                          ? true
+                          ? false // Hide individual buttons for custom (group) payment
                           : canPayStep
                             ? canPayStep(step, steps)
                             : stepConcluded) && (
