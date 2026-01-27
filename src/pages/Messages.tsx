@@ -1664,17 +1664,19 @@ export default function Messages() {
 
   return (
     <MessagesLayout>
-      <div className="flex p-4 bg-gray-100 h-[calc(100dvh-58px)]">
-        <ConversationsSidebar
-          conversations={processedConversations}
-          currentConversation={processedCurrentConversation}
-          loading={loadingConversations}
-          conversationsError={conversationsError}
-          unreadMessageCount={unreadMessageCount}
-          onSelectConversation={handleConversationClick}
-        />
+      <div className="flex p-0 md:p-4 bg-gray-100 h-[calc(100dvh-58px)]">
+        <div className={`flex flex-col h-full w-full md:w-80 bg-white border-r border-gray-200 ${processedCurrentConversation ? 'hidden md:flex' : 'flex'}`}>
+          <ConversationsSidebar
+            conversations={processedConversations}
+            currentConversation={processedCurrentConversation}
+            loading={loadingConversations}
+            conversationsError={conversationsError}
+            unreadMessageCount={unreadMessageCount}
+            onSelectConversation={handleConversationClick}
+          />
+        </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={`flex-1 flex-col overflow-hidden w-full ${!processedCurrentConversation ? 'hidden md:flex' : 'flex'}`}>
           {processedCurrentConversation ? (
             <>
               <ConversationHeader
@@ -1682,6 +1684,11 @@ export default function Messages() {
                 canCreateProposal={canCreateProposal()}
                 onOpenProposal={() => setShowProposalModal(true)}
                 onViewProfile={handleViewProfile}
+                onBack={() => {
+                  selectConversation(null as any); // hack to deselect
+                  // Or navigate to /messages root if using router
+                  setLocation('/messages');
+                }}
               />
               <div className="flex-1 flex overflow-hidden">
                 <ChatPanel

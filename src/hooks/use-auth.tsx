@@ -34,6 +34,26 @@ const persistSession = (
   return payload;
 };
 
+const fetchAndMergeProfile = (
+  user: User,
+  setUser: React.Dispatch<React.SetStateAction<User | null>>
+) => {
+  if (!user.id) return;
+  apiRequest("GET", `/users/${user.id}`)
+    .then((res) => {
+      if (res.ok) return res.json();
+      throw new Error("Failed to fetch user");
+    })
+    .then((data) => {
+      if (data?.user) {
+        setUser((prev) => (prev ? { ...prev, ...data.user } : prev));
+      }
+    })
+    .catch((err) => {
+      console.error("Erro ao atualizar dados do usuário:", err);
+    });
+};
+
 export const login = async (
   data: LoginInterface,
   setUser: React.Dispatch<React.SetStateAction<User | null>>,
@@ -66,6 +86,7 @@ export const login = async (
       description: "Seja bem vindo!",
       variant: "default",
     });
+    if (payload) fetchAndMergeProfile(payload, setUser);
     return true;
   } catch (error) {
     console.log(error);
@@ -134,7 +155,7 @@ export const loginWithGoogleRequest = async (
       data: { token: string; needs_onboarding?: boolean };
       message?: string;
     };
-    persistSession(body.data.token, setUser);
+
     const needsOnboarding = !!body?.data?.needs_onboarding;
     setNeedsOnboarding(needsOnboarding);
     setOnboardingOptional(false);
@@ -142,6 +163,8 @@ export const loginWithGoogleRequest = async (
       title: "Login via Google realizado",
       description: body?.message || "Seja bem vindo!",
     });
+    const sessionPayload = persistSession(body.data.token, setUser);
+    if (sessionPayload) fetchAndMergeProfile(sessionPayload, setUser);
     return {
       status: needsOnboarding ? "logged_in_needs_onboarding" as const : "logged_in" as const,
     };
@@ -260,6 +283,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(payload?.id ? payload : null);
         setNeedsOnboardingState(storedOnboarding);
         setOnboardingOptionalState(storedOptional);
+
+        // Fetch full profile data (image) if user is valid
+        if (payload?.id) {
+          apiRequest("GET", `/users/${payload.id}`)
+            .then((res) => {
+              if (res.ok) return res.json();
+              throw new Error("Failed to fetch user");
+            })
+            .then((data) => {
+              if (data?.user) {
+                // Merge payload (token) with fetched data (profile image)
+                setUser((prev) => (prev ? { ...prev, ...data.user } : prev));
+              }
+            })
+            .catch((err) => {
+              console.error("Erro ao atualizar dados do usuário:", err);
+            });
+        }
       } catch {
         sessionStorage.clear();
         setUser(null);

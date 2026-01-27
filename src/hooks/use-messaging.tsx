@@ -104,7 +104,7 @@ export function useMessaging(initialPartnerId?: string | null) {
               email: "",
               type: "contratante" as const,
             } as any),
-          unreadCount: 0,
+          unreadCount: conv.unread_count || conv.unreadCount || 0,
         };
         if (!processed.id || typeof processed.id !== "number") return null;
         return processed;

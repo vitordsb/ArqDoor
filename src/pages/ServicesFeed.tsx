@@ -50,7 +50,8 @@ export default function ServicesFeed() {
   const [sortBy, setSortBy] = useState<"newest" | "priceAsc" | "priceDesc">("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
-  const perPage = 6;
+  // Increase perPage to accommodate larger grids
+  const perPage = 12;
   const { user: currentUser } = useAuth();
   const {
     data: servicesData,
@@ -262,7 +263,7 @@ export default function ServicesFeed() {
           {/* Services Grid/List */}
           <div
             className={`transition-all duration-500 ease-in-out ${viewMode === "grid"
-              ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 xl:gap-8"
               : "space-y-6"
               }`}
           >

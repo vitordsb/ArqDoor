@@ -39,6 +39,7 @@ export interface User {
   termos_aceitos: boolean;
   perfil_completo?: boolean;
   signature_password_set?: boolean | null;
+  perfil?: string;
 }
 export interface AuthContextType {
   user: User | null;

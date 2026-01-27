@@ -22,15 +22,16 @@ const CombinedHomeSections = () => {
           backgroundSize: "cover",
           backgroundPosition: "center",
           height: "85vh",
+          minHeight: "600px", // Ensure minimum height on mobile
         }}
       >
-        <div className="container mx-auto px-4 text-center text-white">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
+        <div className="container mx-auto px-4 text-center text-white max-w-[1920px]">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl 2xl:text-7xl font-bold mb-6">
             <span className="text-orange-500">Sua Casa dos Sonhos</span> com Segurança e Velocidade
           </h1>
 
           {/* Texto de apoio conforme a imagem */}
-          <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl 2xl:text-2xl mb-8 max-w-2xl 2xl:max-w-4xl mx-auto">
             Encontre os melhores arquitetos e engenheiros para realizar os seus sonhos com o máximo de segurança
           </p>
 
@@ -46,7 +47,7 @@ const CombinedHomeSections = () => {
 
       {/* HowItWorks Section */}
       <section id="how-it-works" className="py-20 bg-white">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 max-w-[1920px]">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">
             Como funciona o ArqDoor
           </h2>
@@ -120,7 +121,7 @@ const CombinedHomeSections = () => {
 
       {/* Benefits Section */}
       <section id="benefits" className="py-20 bg-gray-50">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 max-w-[1920px]">
           <div className="flex flex-col md:flex-row items-center">
             <div className="md:w-1/2 mb-10 md:mb-0 md:pr-10">
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Por que usar o ArqDoor?</h2>

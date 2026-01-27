@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { useUnreadCount } from "@/hooks/use-unread-count";
 import { getInitials } from "@/lib/utils";
 import SearchBar from "@/components/SearchBar";
 import logo from "../../public/images/arqdoorlogo.jpg";
@@ -26,6 +27,7 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [location, navigate] = useLocation();
   const { user, isLoggedIn, logout } = useAuth();
+  const unreadCount = useUnreadCount();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -98,6 +100,15 @@ const Navbar = () => {
               <div className="relative">
                 <Button variant="ghost" size="icon" aria-label="Messages">
                   <MessageCircle className="h-5 w-5 text-gray-700" />
+                  {unreadCount > 0 && (
+                    <span 
+                      className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-red-500 text-white font-bold border-2 border-white ${
+                        unreadCount > 10 ? "h-3 w-3 p-0" : "h-5 w-5 text-[10px]"
+                      }`}
+                    >
+                      {unreadCount <= 10 ? unreadCount : ""}
+                    </span>
+                  )}
                 </Button>
               </div>
             </Link>
@@ -165,7 +176,13 @@ const Navbar = () => {
                 {isLoggedIn && (
                   <Link href="/messages">
                     <div className="relative flex items-center gap-1 text-gray-700 hover:text-amber-500">
-                      <MessageCircle className="h-5 w-5" /> Mensagens
+                      <MessageCircle className="h-5 w-5" /> 
+                      Mensagens
+                      {unreadCount > 0 && (
+                        <span className="ml-2 bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                          {unreadCount > 10 ? "10+" : unreadCount}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 )}
