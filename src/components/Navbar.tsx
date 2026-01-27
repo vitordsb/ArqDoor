@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { getInitials } from "@/lib/utils";
-import SearchBar from "@/components/SearchBar";
+import { getInitials } from "@/lib/utils";
 import logo from "../../public/images/arqdoorlogo.jpg";
 
 const Navbar = () => {
@@ -58,13 +58,7 @@ const Navbar = () => {
         </Link>
 
         <div className="hidden md:block w-full max-w-md mx-8">
-          {isLoggedIn && (
-            <SearchBar
-              onSearch={(params) => console.log(params)}
-              placeholder="Buscar designers ou serviços..."
-              simpleNavbar
-            />
-          )}
+          {/* SearchBar removed */}
         </div>
 
         <div className="hidden md:flex items-center space-x-6">

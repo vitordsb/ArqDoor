@@ -123,19 +123,31 @@ export default function ClientProfile() {
     <ApplicationLayout>
       <div className="max-w-6xl mx-auto p-6 space-y-8">
         {/* Header */}
-        <Card className="p-6 flex items-center gap-6">
-          <Avatar className="w-24 h-24 border-2 border-orange-500">
-            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-            <AvatarImage src={buildImageUrl(user.perfil)} alt={user.name} className="object-cover" />
-          </Avatar>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">{user.name}</h1>
-            <p className="text-slate-600">Contratante</p>
-            <Badge className="mt-2">Membro desde {new Date(user.createdAt).toLocaleDateString()}</Badge>
+        {/* Header */}
+        <Card className="overflow-hidden">
+           {/* Banner */}
+           <div 
+             className="h-32 sm:h-48 w-full bg-slate-100 bg-cover bg-center"
+             style={{ 
+               backgroundImage: (user as any).banner ? `url(${buildImageUrl((user as any).banner)})` : undefined,
+               backgroundColor: !(user as any).banner ? '#FEF8C3' : undefined 
+             }} 
+           />
+
+          <div className="p-6 flex flex-col sm:flex-row items-center sm:items-end gap-6 -mt-12 md:-mt-16">
+            <Avatar className="w-24 h-24 sm:w-32 sm:h-32 border-4 border-white shadow-md z-10">
+              <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+              <AvatarImage src={buildImageUrl((user as any).perfil)} alt={user.name} className="object-cover" />
+            </Avatar>
+            <div className="flex-1 text-center sm:text-left pt-2 sm:pt-0">
+              <h1 className="text-2xl font-bold">{user.name}</h1>
+              <p className="text-slate-600">Contratante</p>
+              <Badge className="mt-2 text-xs">Membro desde {new Date(user.createdAt).toLocaleDateString()}</Badge>
+            </div>
+            <Button size="sm" onClick={() => setLocation(`/messages/${user.id}`)} className="mt-4 sm:mt-0 mb-2">
+              <MessageCircle className="w-4 h-4 mr-1" /> Enviar mensagem
+            </Button>
           </div>
-          <Button size="sm" onClick={() => setLocation(`/messages/${user.id}`)}>
-            <MessageCircle className="w-4 h-4 mr-1" /> Enviar mensagem
-          </Button>
         </Card>
 
         <div className="grid md:grid-cols-3 gap-6">
