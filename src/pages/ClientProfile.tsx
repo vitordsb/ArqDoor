@@ -1,7 +1,7 @@
 
 // src/pages/ClientProfile.tsx
 import React, { useState, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
@@ -140,7 +140,7 @@ export default function ClientProfile() {
               <AvatarImage src={buildImageUrl((user as any).perfil)} alt={user.name} className="object-cover" />
             </Avatar>
             <div className="flex-1 text-center sm:text-left pt-2 sm:pt-0">
-              <h1 className="text-2xl font-bold">{user.name}</h1>
+              <h1 className="text-2xl font-bold mt-1">{user.name}</h1>
               <p className="text-slate-600">Contratante</p>
               <Badge className="mt-2 text-xs">Membro desde {new Date(user.createdAt).toLocaleDateString()}</Badge>
             </div>
@@ -189,10 +189,17 @@ export default function ClientProfile() {
                   <p className="text-slate-500">Nenhuma demanda publicada.</p>
                 ) : (
                   demands.map((d) => (
-                    <div key={d.id_demand} className="p-3 border rounded-lg">
-                      <h3 className="font-semibold">{d.title}</h3>
-                      <p className="text-slate-600">{d.description}</p>
-                      <p className="text-green-600 font-bold">R$ {d.price}</p>
+                    <div key={d.id_demand} className="p-3 border rounded-lg space-y-2">
+                      <div>
+                        <h3 className="font-semibold">{d.title}</h3>
+                        <p className="text-slate-600 line-clamp-2">{d.description}</p>
+                        <p className="text-green-600 font-bold">R$ {d.price}</p>
+                      </div>
+                      <Link href={`/messages/${user.id}?text=${encodeURIComponent(`Olá ${user.name}, vi sua demanda "${d.title}" no seu perfil e tenho interesse em atender.`)}`}>
+                        <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-8 text-xs font-medium rounded-md">
+                          Ver Detalhes / Responder
+                        </Button>
+                      </Link>
                     </div>
                   ))
                 )}

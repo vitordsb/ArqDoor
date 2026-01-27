@@ -363,7 +363,7 @@ export default function ProviderProfilePage() {
           </div>
 
           <div className="space-y-6">
-            <ProviderServicesSection services={services} loading={loadingExtra} />
+            <ProviderServicesSection services={services} loading={loadingExtra} user={user} />
             <ProviderPortfolioSection
               portfolio={portfolio}
               loading={loadingExtra}

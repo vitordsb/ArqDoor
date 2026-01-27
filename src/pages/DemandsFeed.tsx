@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,8 @@ import {
   Clock,
   DollarSign,
   Briefcase,
+  Grid3X3,
+  List
 } from "lucide-react";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { Demand, EnrichedDemand } from "@/lib/Interfaces";
@@ -44,7 +47,7 @@ export default function DemandsPage() {
   const [sortBy, setSortBy] = useState<"newest" | "priceAsc" | "priceDesc">("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
-  const perPage = 6;
+  const perPage = 12;
 
   useEffect(() => {
     (async () => {
@@ -55,8 +58,6 @@ export default function DemandsPage() {
         const body = await demandRes.json();
         console.log(body)
         const fetchedDemands: Demand[] = Array.isArray(body.demands) ? body.demands : [];
-
-        
 
         const enriched: EnrichedDemand[] = fetchedDemands.map(d => {
           return {
@@ -80,13 +81,10 @@ export default function DemandsPage() {
   if (loading) {
     return (
       <ApplicationLayout>
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
-          <div className="flex items-center justify-center h-screen">
-            <div className="text-center space-y-6 bg-white/80 backdrop-blur-sm p-8 rounded-3xl border border-white/20 shadow-xl">
-            </div>
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-amber-600 mx-auto">
-
-            </div>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-amber-600 mb-4"></div>
+            <p className="text-slate-500 font-medium">Carregando demandas...</p>
           </div>
         </div>
       </ApplicationLayout>
@@ -96,13 +94,14 @@ export default function DemandsPage() {
   if (error) {
     return (
       <ApplicationLayout>
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
-          <div className="flex items-center justify-center h-screen">
-            <div className="text-center space-y-6 bg-white/80 backdrop-blur-sm p-8 rounded-3xl border border-red-200 shadow-xl">
-              <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-200 rounded-full flex items-center justify-center mx-auto">
-                <span className="text-red-600 text-3xl">⚠️</span>
-              </div>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-center p-8 bg-white rounded-lg shadow-sm border border-slate-200 max-w-md">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-red-500 text-xl font-bold">!</span>
             </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Erro ao carregar</h3>
+            <p className="text-slate-500 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} variant="outline">Tentar novamente</Button>
           </div>
         </div>
       </ApplicationLayout>
@@ -128,236 +127,211 @@ export default function DemandsPage() {
   const totalPages = Math.ceil(filtered.length / perPage);
   const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(price);
+  };
+
   return (
     <ApplicationLayout>
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 scroll-smooth">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <p className="text-lg text-slate-600">
-                {filtered.length === 0 ? "" :
-                  `${filtered.length} demanda${filtered.length !== 1 ? 's' : ''} encontrada${filtered.length !== 1 ? 's' : ''}`}
-              </p>
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Demandas Recentes</h1>
+              <p className="text-slate-500 mt-2">Veja o que os clientes estão precisando agora</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar demandas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full md:w-64 bg-white"
+                />
+              </div>
+              <div className="flex items-center bg-white border rounded-md p-1">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setViewMode("list")}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sort & Filters Toolbar (Simplified) */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">
+                {filtered.length} resultados
+              </span>
               {searchTerm && (
-                <Badge className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md">
-                  Buscando por: "{searchTerm}"
+                <Badge variant="secondary" className="text-xs font-normal">
+                  Busca: {searchTerm}
                 </Badge>
               )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={sortBy === "newest" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("newest")}
+                className="text-xs h-8"
+              >
+                Mais Recentes
+              </Button>
+              <Button
+                variant={sortBy === "priceAsc" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("priceAsc")}
+                className="text-xs h-8"
+              >
+                Menor Valor
+              </Button>
+              <Button
+                variant={sortBy === "priceDesc" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("priceDesc")}
+                className="text-xs h-8"
+              >
+                Maior Valor
+              </Button>
             </div>
           </div>
 
           {/* Demands Grid/List */}
           <div
-            className={`transition-all duration-500 ease-in-out ${viewMode === "grid"
-              ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
-              : "space-y-6"
+            className={`transition-all duration-300 ${viewMode === "grid"
+              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              : "space-y-4"
               }`}
           >
             {pageItems.map((demand, index) => (
               <Card
                 key={demand.id_demand}
-                className={`group relative overflow-hidden bg-white/80 backdrop-blur-sm border-white/30 rounded-3xl shadow-lg hover:shadow-2xl hover:shadow-amber-100/50 transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] ${viewMode === "list" ? "flex flex-row" : ""
-                  }`}
-                style={{
-                  animationDelay: `${index * 100}ms`,
-                  animation: 'fadeInUp 0.6s ease-out forwards'
-                }}
+                className={`group bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 overflow-hidden flex ${viewMode === 'list' ? 'flex-row' : 'flex-col'}`}
               >
-                {/* Efeito de brilho no hover */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
-
-                {viewMode === "grid" ? (
-                  <>
-                    <CardHeader className="pb-4 relative z-10">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-xl font-bold text-slate-800 group-hover:text-amber-600 transition-colors duration-300 line-clamp-2 mb-3">
-                            {demand.title}
-                          </CardTitle>
-                          <div className="flex items-center space-x-2">
-                            <CardDescription className="text-2xl font-bold text-green-600">
-                              R$ {demand.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="space-y-6 pb-6 relative z-10">
-                      <p className="text-slate-600 line-clamp-3 leading-relaxed text-base">
-                        {demand.description}
-                      </p>
-
-                      <div className="flex items-center space-x-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
-                        <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
-                          <AvatarImage src={buildImageUrl((demand as any).userPerfil)} alt={demand.userName} className="object-cover" />
-                          <AvatarFallback className="bg-amber-100 text-amber-700">
-                            {getInitials(demand.userName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-800 truncate text-lg">{demand.userName}</p>
-                          <p className="text-sm text-slate-500 truncate">{demand.userEmail}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center text-sm text-slate-500">
-                        <Clock className="h-4 w-4 mr-2" />
-                        Publicada em {demand.createdAt.split("T")[0].split("-").reverse().join("/")}
-                      </div>
-                    </CardContent>
-
-                    <CardFooter className="flex justify-between pt-2">
-                      <Link href={`/user/${demand.id_user}`}>
-                        <Button
-                          size="lg"
-                          variant="secondary"
-                          className="text-slate-600 hover:text-amber-600"
-                        >
-                          <Briefcase className="h-4 w-4 mr-2" />
-                          Ver perfil
-                        </Button>
-                      </Link>
-                    </CardFooter>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex-1 p-8 relative z-10">
-                      <div className="flex items-start justify-between mb-6">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-3">
-                            <h3 className="text-2xl font-bold text-slate-800 group-hover:text-blue-600 transition-colors duration-300">
-                              {demand.title}
-                            </h3>
-                          </div>
-                          <p className="text-slate-600 line-clamp-2 mb-6 text-lg leading-relaxed">
-                            {demand.description}
-                          </p>
-                          <div className="flex items-center space-x-6">
-                            <div className="flex items-center space-x-2">
-                              <DollarSign className="h-5 w-5 text-green-600" />
-                              <span className="text-2xl font-bold text-green-600">
-                                R$ {demand.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="w-10 h-10 border-2 border-white shadow-sm">
-                                <AvatarImage src={buildImageUrl((demand as any).userPerfil)} alt={demand.userName} className="object-cover" />
-                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
-                                  <User className="h-5 w-5" />
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <span className="font-semibold text-slate-700">{demand.userName}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2 text-slate-500">
-                              <Clock className="h-4 w-4" />
-                              <span>{demand.createdAt.split("T")[0].split("-").reverse().join("/")}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex space-x-3 ml-6">
-                          <Link href={`/users/${demand.id_user}`}>
-                            <Button
-                              size="lg"
-                              variant="default"
-                              className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-amber-400 hover:bg-amber-50/50 transition-all duration-300 rounded-xl hover:scale-105 hover:shadow-lg focus:ring-2 focus:ring-amber-300"
-                            >
-                              Ver Contratante
-                            </Button>
-                          </Link>
-                          <Link href={`/demand/${demand.id_demand}`}>
-                            <Button
-                              size="lg"
-                              variant="default"
-                              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1 focus:ring-2 focus:ring-amber-300"
-                            >
-                              <Briefcase className="h-4 w-4 mr-2" />
-                              Ver Detalhes
-                            </Button>
-                          </Link>
-                        </div>
+                {/* Card Content */}
+                <div className={`p-5 flex flex-col ${viewMode === 'list' ? 'flex-1' : 'h-full'}`}>
+                  {/* Header: Author Info */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8 border border-slate-100">
+                        <AvatarImage src={buildImageUrl((demand as any).userPerfil)} />
+                        <AvatarFallback className="text-xs bg-amber-100 text-amber-700">{getInitials(demand.userName)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-slate-700 leading-none">{demand.userName}</span>
+                        <span className="text-[10px] text-slate-400 leading-tight mt-1">{formatDate(demand.createdAt)}</span>
                       </div>
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  {/* Body */}
+                  <div className="mb-4 flex-1">
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <h3 className="font-semibold text-slate-900 leading-tight line-clamp-2 group-hover:text-amber-600 transition-colors">
+                              {demand.title}
+                            </h3>
+                    </div>
+                    <p className="text-sm text-slate-500 line-clamp-3 mb-4">
+                      {demand.description}
+                    </p>
+                    <p className="text-lg font-bold text-green-600">
+                      {formatPrice(demand.price)}
+                    </p>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-50">
+                    {/* Reply / Chat Link */}
+                    <Link href={`/messages/${demand.id_user}?text=${encodeURIComponent(`Olá ${demand.userName}, vi sua demanda "${demand.title}" no ArqDoor e tenho interesse em atender.`)}`} className="flex-1">
+                      <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-9 text-xs font-medium rounded-md">
+                        Ver Detalhes / Responder
+                            </Button>
+                    </Link>
+                    <Link href={`/user/${demand.id_user}`}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md">
+                        <User className="h-4 w-4" />
+                            </Button>
+                    </Link>
+                  </div>
+                </div>
               </Card>
             ))}
           </div>
 
           {/* Empty State */}
           {pageItems.length === 0 && (
-            <div className="text-center py-20">
-              <div className="bg-white/80 backdrop-blur-sm p-12 rounded-3xl max-w-md mx-auto shadow-xl border border-white/20">
-                <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-full flex items-center justify-center mx-auto mb-8">
-                  <Search className="h-16 w-16 text-blue-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-slate-700 mb-4">Nenhuma demanda encontrada</h3>
-                <p className="text-slate-500 mb-8 leading-relaxed">
-                  Não encontramos demandas que correspondam aos seus critérios de busca.
-                  Tente ajustar os filtros ou usar termos diferentes.
-                </p>
-                <Button
-                  onClick={() => window.location.reload()}
-                  className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium px-6 py-2 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-                  Limpar filtros
-                </Button>
+            <div className="text-center py-24">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-6">
+                <Search className="h-8 w-8 text-slate-400" />
               </div>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">Nenhuma demanda encontrada</h3>
+              <p className="text-slate-500 max-w-sm mx-auto mb-6">
+                Não encontramos resultados para sua busca. Tente termos diferentes ou remova os filtros.
+              </p>
+              <Button
+                onClick={() => {
+                  setSearchTerm("");
+                  setSortBy("newest");
+                  setPage(1);
+                }}
+                variant="outline"
+              >
+                Limpar Filtros
+              </Button>
             </div>
           )}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center space-x-3 mt-16">
+            <div className="flex justify-center items-center gap-2 mt-12">
               <Button
                 disabled={page === 1}
                 onClick={() => setPage((p) => p - 1)}
                 variant="outline"
-                size="lg"
-                className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-blue-400 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-blue-300"
+                size="icon"
+                className="h-9 w-9"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-
-              <div className="flex space-x-2">
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === page ? "default" : "outline"}
-                      size="lg"
-                      onClick={() => setPage(pageNum)}
-                      className={pageNum === page
-                        ? "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl"
-                        : "bg-white/80 backdrop-blur-sm border-white/30 hover:border-amber-400 transition-all duration-300 hover:scale-105 rounded-xl hover:shadow-lg focus:ring-2 focus:ring-amber-300"
-                      }
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
+              <div className="text-sm font-medium text-slate-600">
+                Página {page} de {totalPages}
               </div>
-
               <Button
                 disabled={page === totalPages}
                 onClick={() => setPage((p) => p + 1)}
                 variant="outline"
-                size="lg"
-                className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-blue-400 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-blue-300"
+                size="icon"
+                className="h-9 w-9"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}

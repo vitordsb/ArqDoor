@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { getInitials } from "@/lib/utils";
-import { getInitials } from "@/lib/utils";
+
 import logo from "../../public/images/arqdoorlogo.jpg";
 
 const Navbar = () => {
@@ -70,16 +70,20 @@ const Navbar = () => {
                   <Home className="w-4 h-4" /> Início
                 </div>
               </Link>
-              <Link href="/services">
-                <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <Newspaper className="w-4 h-4" /> Serviços
-                </div>
-              </Link>
-              <Link href="/demands">
-                <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <Image className="w-4 h-4" /> Demandas
-                </div>
-              </Link>
+              {user?.type === "contratante" && (
+                <Link href="/services">
+                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
+                    <Newspaper className="w-4 h-4" /> Serviços
+                  </div>
+                </Link>
+              )}
+              {user?.type === "prestador" && (
+                <Link href="/demands">
+                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
+                    <Image className="w-4 h-4" /> Demandas
+                  </div>
+                </Link>
+              )}
               {user?.type === "prestador" && (
                 <Link href="/convites">
                   <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">

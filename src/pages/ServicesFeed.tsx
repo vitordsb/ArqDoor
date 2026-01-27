@@ -244,270 +244,198 @@ export default function ServicesFeed() {
 
   return (
     <ApplicationLayout>
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 scroll-smooth">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <p className="text-lg text-slate-600">
-                {filtered.length === 0 ? "" :
-                  `${filtered.length} serviço${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
-              </p>
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Serviços Disponíveis</h1>
+              <p className="text-slate-500 mt-2">Encontre profissionais qualificados para o seu projeto</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar serviços..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full md:w-64 bg-white"
+                />
+              </div>
+              <div className="flex items-center bg-white border rounded-md p-1">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setViewMode("list")}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sort & Filters Toolbar (Simplified) */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">
+                {filtered.length} resultados
+              </span>
               {searchTerm && (
-                <Badge className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md">
-                  Buscando por: "{searchTerm}"
+                <Badge variant="secondary" className="text-xs font-normal">
+                  Busca: {searchTerm}
                 </Badge>
               )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={sortBy === "newest" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("newest")}
+                className="text-xs h-8"
+              >
+                Mais Recentes
+              </Button>
+              <Button
+                variant={sortBy === "priceAsc" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("priceAsc")}
+                className="text-xs h-8"
+              >
+                Menor Preço
+              </Button>
+              <Button
+                variant={sortBy === "priceDesc" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("priceDesc")}
+                className="text-xs h-8"
+              >
+                Maior Preço
+              </Button>
             </div>
           </div>
 
           {/* Services Grid/List */}
           <div
-            className={`transition-all duration-500 ease-in-out ${viewMode === "grid"
-              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 xl:gap-8"
-              : "space-y-6"
+            className={`transition-all duration-300 ${viewMode === "grid"
+              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              : "space-y-4"
               }`}
           >
             {pageItems.map((svc, index) => (
               <Card
                 key={svc.id_serviceFreelancer}
-                className={`group relative overflow-hidden bg-white/80 backdrop-blur-sm border-white/30 rounded-3xl shadow-lg hover:shadow-2xl hover:shadow-orange-100/50 transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] ${viewMode === "list" ? "flex flex-row" : ""
-                  }`}
-                style={{
-                  animationDelay: `${index * 100}ms`,
-                  animation: 'fadeInUp 0.6s ease-out forwards'
-                }}
+                className={`group bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 overflow-hidden flex ${viewMode === 'list' ? 'flex-row' : 'flex-col'}`}
               >
-                {/* Efeito de brilho no hover */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
-
-                {viewMode === "grid" ? (
-                  <>
-                    <CardHeader className="pb-4 relative z-10">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-xl font-bold text-slate-800 group-hover:text-orange-600 transition-colors duration-300 line-clamp-2 mb-3">
-                            {svc.title}
-                          </CardTitle>
-                          <div className="flex items-center space-x-2">
-                            <CardDescription className="text-2xl font-bold text-green-600">
-                              {formatPrice(svc.price)}
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="space-y-6 pb-6 relative z-10">
-
-                      <div className="flex items-center space-x-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
-                        <Avatar className="w-12 h-12 border-2 border-white shadow-sm">
-                          <AvatarImage src={buildImageUrl((svc as any).userPerfil)} alt={svc.userName} className="object-cover" />
-                          <AvatarFallback className="bg-gradient-to-br from-orange-500 to-amber-600 text-white">
-                            <User className="h-6 w-6" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-800 truncate text-lg">{svc.userName}</p>
-                          <div className="flex items-center space-x-1">
-                            <Badge className="mt-1 bg-blue-100 text-blue-800 text-xs">
-                              {svc.ServiceProvider.profession || "Não informado"}
-                            </Badge>
-                            <Badge className="mt-1 bg-blue-100 text-blue-800 text-xs">
-                              {svc.userType.charAt(0).toUpperCase() + svc.userType.slice(1)}
-                            </Badge>
-                          </div>
-                          {currentUser && svc.ServiceProvider.user_id === currentUser.id && (
-                            <Badge className="mt-1 ml-2 bg-green-100 text-green-800 text-xs">
-                              Seu serviço
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center text-sm text-slate-500">
-                        <Clock className="h-4 w-4 mr-2" />
-                        Publicado em {formatDate(svc.createdAt)}
-                      </div>
-                    </CardContent>
-
-                    <CardFooter className="flex justify-between pt-6 border-t border-white/20 relative z-10">
-                      <Link href={`/providers/${svc.ServiceProvider.provider_id}`}>
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-orange-400 hover:bg-orange-50/50 transition-all duration-300 rounded-xl hover:scale-105 hover:shadow-lg focus:ring-2 focus:ring-orange-300"
-                        >
-                          <User className="h-4 w-4 mr-2" />
-                          Ver Perfil
-                        </Button>
-                      </Link>
-                      <Link href={`/providers/${svc.id_provider}`}>
-                        <Button
-                          size="lg"
-                          className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1 focus:ring-2 focus:ring-orange-300"
-                        >
-                          Ver Detalhes
-                        </Button>
-                      </Link>
-                    </CardFooter>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex-1 p-8 relative z-10">
-                      <div className="flex items-start justify-between mb-6">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-3">
-                            <h3 className="text-2xl font-bold text-slate-800 group-hover:text-orange-600 transition-colors duration-300">
-                              {svc.title}
-                            </h3>
-                            {isNewService(svc.createdAt) && (
-                              <Badge className="bg-gradient-to-r from-green-500 to-emerald-600 text-white transition-all duration-200 hover:scale-105 hover:shadow-lg">
-                                <Star className="h-3 w-3 mr-1" />
-                                Novo
-                              </Badge>
-                            )}
-                            {/* Indicador se é o usuário logado */}
-                            {currentUser && svc.ServiceProvider.user_id === currentUser.id && (
-                              <Badge className="bg-green-100 text-green-800 text-xs">
-                                Seu serviço
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-slate-600 line-clamp-2 mb-6 text-lg leading-relaxed">
-                            {svc.description}
-                          </p>
-                          <div className="flex items-center space-x-6">
-                            <div className="flex items-center space-x-2">
-                              <DollarSign className="h-5 w-5 text-green-600" />
-                              <span className="text-2xl font-bold text-green-600">
-                                {formatPrice(svc.price)}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="w-10 h-10 border-2 border-white shadow-sm">
-                                <AvatarImage src={buildImageUrl((svc as any).userPerfil)} alt={svc.userName} className="object-cover" />
-                                <AvatarFallback className="bg-gradient-to-br from-orange-500 to-amber-600 text-white">
-                                  <User className="h-5 w-5" />
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <span className="font-semibold text-slate-700">{svc.userName}</span>
-                                <p className="text-sm text-slate-500">{svc.userEmail}</p>
-                                <Badge className="mt-1 bg-blue-100 text-blue-800 text-xs">
-                                  {svc.ServiceProvider.profession}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2 text-slate-500">
-                              <Clock className="h-4 w-4" />
-                              <span>{formatDate(svc.createdAt)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex space-x-3 ml-6">
-                          <Link href={`/providers/${svc.ServiceProvider.provider_id}`}>
-                            <Button
-                              size="lg"
-                              variant="outline"
-                              className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-orange-400 hover:bg-orange-50/50 transition-all duration-300 rounded-xl hover:scale-105 hover:shadow-lg focus:ring-2 focus:ring-orange-300"
-                            >
-                              Ver Perfil
-                            </Button>
-                          </Link>
-                          <Link href={`/providers/${svc.id_serviceFreelancer}`}>
-                            <Button
-                              size="lg"
-                              className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1 focus:ring-2 focus:ring-orange-300"
-                            >
-                              Ver Detalhes
-                            </Button>
-                          </Link>
-                        </div>
+                {/* Card Content */}
+                <div className={`p-5 flex flex-col ${viewMode === 'list' ? 'flex-1' : 'h-full'}`}>
+                  {/* Header: Author Info */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8 border border-slate-100">
+                        <AvatarImage src={buildImageUrl((svc as any).userPerfil)} />
+                        <AvatarFallback className="text-xs">{svc.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-slate-700 leading-none">{svc.userName}</span>
+                        <span className="text-[10px] text-slate-400 leading-tight mt-1">{formatDate(svc.createdAt)}</span>
                       </div>
                     </div>
-                  </>
-                )}
+                    {isNewService(svc.createdAt) && (
+                      <Badge className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200 text-[10px] px-2 py-0.5 h-5">
+                        NOVO
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Body */}
+                  <div className="mb-4 flex-1">
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <h3 className="font-semibold text-slate-900 leading-tight line-clamp-2 group-hover:text-amber-600 transition-colors">
+                              {svc.title}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-slate-500 line-clamp-3 mb-4">
+                      {svc.description}
+                    </p>
+                    <p className="text-lg font-bold text-slate-900">
+                      {formatPrice(svc.price)}
+                    </p>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-50">
+                    <Link href={`/messages/${svc.ServiceProvider.user_id}?text=${encodeURIComponent(`Olá ${svc.userName}, vi seu serviço "${svc.title}" no ArqDoor e gostaria de saber mais detalhes.`)}`} className="flex-1">
+                      <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-9 text-xs font-medium rounded-md">
+                        Ver Detalhes / Conversar
+                      </Button>
+                    </Link>
+                    <Link href={`/providers/${svc.ServiceProvider.provider_id}`}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md">
+                        <User className="h-4 w-4" />
+                            </Button>
+                    </Link>
+                  </div>
+                </div>
               </Card>
             ))}
           </div>
 
           {/* Empty State */}
           {pageItems.length === 0 && (
-            <div className="text-center py-20">
-              <div className="bg-white/80 backdrop-blur-sm p-12 rounded-3xl max-w-md mx-auto shadow-xl border border-white/20">
-                <div className="w-32 h-32 bg-gradient-to-br from-orange-100 to-amber-200 rounded-full flex items-center justify-center mx-auto mb-8">
-                  <Search className="h-16 w-16 text-orange-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-slate-700 mb-4">Nenhum serviço encontrado</h3>
-                <p className="text-slate-500 mb-8 leading-relaxed">
-                  Não encontramos serviços que correspondam aos seus critérios de busca.
-                  Tente ajustar os filtros ou usar termos diferentes.
-                </p>
-                <Button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSortBy("newest");
-                    setPage(1);
-                  }}
-                  className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold px-8 py-3 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1"
-                >
-                  Limpar filtros
-                </Button>
+            <div className="text-center py-24">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-6">
+                <Search className="h-8 w-8 text-slate-400" />
               </div>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">Nenhum serviço encontrado</h3>
+              <p className="text-slate-500 max-w-sm mx-auto mb-6">
+                Não encontramos resultados para sua busca. Tente termos diferentes ou remova os filtros.
+              </p>
+              <Button
+                onClick={() => {
+                  setSearchTerm("");
+                  setSortBy("newest");
+                  setPage(1);
+                }}
+                variant="outline"
+              >
+                Limpar Filtros
+              </Button>
             </div>
           )}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center space-x-3 mt-16">
+            <div className="flex justify-center items-center gap-2 mt-12">
               <Button
                 disabled={page === 1}
                 onClick={() => setPage((p) => p - 1)}
                 variant="outline"
-                size="lg"
-                className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-orange-400 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-orange-300"
+                size="icon"
+                className="h-9 w-9"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-
-              <div className="flex space-x-2">
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === page ? "default" : "outline"}
-                      size="lg"
-                      onClick={() => setPage(pageNum)}
-                      className={pageNum === page
-                        ? "bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-semibold shadow-lg rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl"
-                        : "bg-white/80 backdrop-blur-sm border-white/30 hover:border-orange-400 transition-all duration-300 hover:scale-105 rounded-xl hover:shadow-lg focus:ring-2 focus:ring-orange-300"
-                      }
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
+              <div className="text-sm font-medium text-slate-600">
+                Página {page} de {totalPages}
               </div>
-
               <Button
                 disabled={page === totalPages}
                 onClick={() => setPage((p) => p + 1)}
                 variant="outline"
-                size="lg"
-                className="bg-white/80 backdrop-blur-sm border-white/30 hover:border-orange-400 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-orange-300"
+                size="icon"
+                className="h-9 w-9"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}

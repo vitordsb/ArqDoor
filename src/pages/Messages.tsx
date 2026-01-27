@@ -63,10 +63,12 @@ const buildImageUrl = (path?: string) => {
 
 export default function Messages() {
   const [location, setLocation] = useLocation();
+  const search = window.location.search; // wouter doesn't have useSearch hook built-in easily accessible 
   const { userId } = useParams<{ userId?: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
   const initialPartnerId = userId;
+
 
   const {
     conversations,
@@ -81,6 +83,19 @@ export default function Messages() {
     selectConversation,
     conversationsError,
   } = useMessaging(initialPartnerId);
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const text = params.get("text");
+    if (text) {
+      if (!newMessage) {
+        setNewMessage(text);
+      }
+      // Limpar o parametro da URL visualmente e para evitar re-uso
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [search, newMessage]);
 
   const {
     tickets,

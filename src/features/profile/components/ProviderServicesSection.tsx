@@ -2,12 +2,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { Service } from "../types";
 
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+
+
 interface ProviderServicesSectionProps {
   services: Service[];
   loading: boolean;
+  user: any; // UserApi
 }
 
-export function ProviderServicesSection({ services, loading }: ProviderServicesSectionProps) {
+export function ProviderServicesSection({ services, loading, user }: ProviderServicesSectionProps) {
   return (
     <Card>
       <CardHeader>
@@ -20,10 +25,17 @@ export function ProviderServicesSection({ services, loading }: ProviderServicesS
           <p className="text-slate-500">Nenhum serviço cadastrado.</p>
         ) : (
           services.map((s) => (
-            <div key={s.id_serviceFreelancer} className="p-3 border rounded-lg">
-              <h3 className="font-semibold">{s.title}</h3>
-              <p className="text-slate-600">{s.description}</p>
-              <p className="text-orange-600 font-bold">R$ {s.price}</p>
+            <div key={s.id_serviceFreelancer} className="p-3 border rounded-lg space-y-2">
+              <div>
+                <h3 className="font-semibold">{s.title}</h3>
+                <p className="text-slate-600 line-clamp-2">{s.description}</p>
+                <p className="text-orange-600 font-bold">R$ {s.price}</p>
+              </div>
+              <Link href={`/messages/${user.id}?text=${encodeURIComponent(`Olá ${user.name}, vi seu serviço "${s.title}" no seu perfil e gostaria de saber mais detalhes.`)}`}>
+                <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-8 text-xs font-medium rounded-md">
+                  Ver Detalhes / Conversar
+                </Button>
+              </Link>
             </div>
           ))
         )}

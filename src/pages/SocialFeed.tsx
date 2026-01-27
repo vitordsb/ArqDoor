@@ -13,8 +13,10 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Search,
   MapPin,
@@ -24,13 +26,20 @@ import {
   ChevronLeft,
   ChevronRight,
   Briefcase,
+  UserCheck,
+  Award,
+  MessageCircle,
+  Shield,
+  User,
+  Star,
+  Eye,
 } from "lucide-react";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { User, Provider } from "@/lib/Interfaces";
-import ServiceCard from "@/components/cards/ServiceCard";
-import DemandCard from "@/components/cards/DemandCard";
+import { User as UserInterface, Provider } from "@/lib/Interfaces";
+import { getInitials } from "@/lib/utils";
+import { useMessaging } from "@/hooks/use-messaging"; 
 
 // Estados do Brasil para o filtro
 const BR_STATES = [
@@ -63,6 +72,70 @@ const carouselImages = [
   }
 ];
 
+const buildImageUrl = (path?: string) => {
+  if (!path) return null;
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith("http")
+    ? normalizedPath
+    : `${API_BASE_URL}/${normalizedPath.replace(/^\/+/, "")}`;
+};
+
+// --- Components ---
+
+const UserBanner = ({ user, className = '' }: { user: UserInterface; className?: string }) => {
+  const imageUrl = buildImageUrl(user.banner);
+
+  const bannerStyle = {
+    width: '100%',
+    height: 'clamp(60px, 8vw, 100px)', // Altura responsiva
+    borderRadius: '12px 12px 0 0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    backgroundColor: !imageUrl ? '#FEF8C3' : 'transparent',
+    backgroundImage: imageUrl ? `url(${imageUrl})` : 'none'
+  };
+
+  return (
+    <div className={`${className}`} style={bannerStyle}>
+    </div>
+  );
+};
+
+const UserAvatar = ({ user, className = '', size = 'md' }: { user: UserInterface; className?: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) => {
+  const imageUrl = buildImageUrl(user.perfil);
+
+  const sizeClasses = {
+    sm: 'w-10 h-10 sm:w-12 sm:h-12',
+    md: 'w-14 h-14 sm:w-16 sm:h-16',
+    lg: 'w-16 h-16 sm:w-20 sm:h-20',
+    xl: 'w-20 h-20 sm:w-24 sm:h-24'
+  };
+
+  if (!imageUrl) {
+    return (
+      <div className={`${sizeClasses[size]} rounded-full bg-orange-100 flex items-center justify-center ${className}`}>
+        <User className="w-6 h-6 text-orange-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${sizeClasses[size]} rounded-full overflow-hidden border-4 border-white shadow-lg ${className}`}>
+      <img
+        src={imageUrl}
+        alt="Avatar do usuário"
+        className="w-full h-full object-cover"
+      />
+    </div>
+  );
+};
+
+// ----------------------------------
+
 export default function SocialFeed() {
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState<"keyword" | "location">("keyword");
@@ -70,7 +143,9 @@ export default function SocialFeed() {
   const [selectedCity, setSelectedCity] = useState("");
   const [currentSlide, setCurrentSlide] = useState(0);
   const { user: currentUser } = useAuth();
-  
+  const { toast } = useToast();
+  const [, setLocation] = useLocation(); 
+
   // Carousel Logic
   useEffect(() => {
     const timer = setInterval(() => {
@@ -83,81 +158,77 @@ export default function SocialFeed() {
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length);
 
   // Data Fetching
-  const { data: usersData } = useQuery<{ users: User[] }>({
+  const { data: usersRes, isLoading: loadingUsers } = useQuery<{ users: UserInterface[] }>({
     queryKey: ["allUsers"],
-    queryFn: async () => (await apiRequest("GET", "/users")).json(),
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/users");
+      const data = await response.json();
+      console.log("DEBUG: Users API Response:", data);
+      return data;
+    },
   });
 
-  const { data: servicesRes, isLoading: loadingServices } = useQuery<{ servicesFreelancer: any[] }>({
-    queryKey: ["servicesFreelancer"],
-    queryFn: async () => (await apiRequest("GET", "/servicesfreelancer/getall")).json(),
-    enabled: !!currentUser && (currentUser.type === "contratante" || !currentUser),
+  const { data: provRes, isLoading: loadingProv } = useQuery<{ providers: any[] }>({
+    queryKey: ["providers"],
+    queryFn: async () => (await apiRequest("GET", "/providers")).json(),
   });
 
-  const { data: demandsRes, isLoading: loadingDemands } = useQuery<{ demands: any[] }>({
-    queryKey: ["demands"],
-    queryFn: async () => (await apiRequest("GET", "/demands/getall")).json(),
-    enabled: !!currentUser && currentUser.type === "prestador",
-  });
+  const allUsers = usersRes?.users || [];
+  const providers = provRes?.providers || [];
 
-  const allUsers = usersData?.users || [];
+  // Logic to determine what to show (Profiles)
+  const isFreelancer = currentUser?.type === "prestador";
 
-  // Logic to determine what to show
-  const showServices = !currentUser || currentUser.type === "contratante"; // Clients see Services
-  
-  // Enrich Data
-  const filteredList = useMemo(() => {
-    let rawList: any[] = [];
-    
-    if (showServices) {
-      // Enrich Services
-      rawList = (servicesRes?.servicesFreelancer || []).map(svc => {
-        const owner = allUsers.find(u => u.id === svc.ServiceProvider?.user_id);
-        return {
-          ...svc,
-          userName: owner?.name || "Prestador",
-          userEmail: owner?.email || "",
-          userPerfil: owner?.perfil,
-          userType: owner?.type || "prestador",
-          // Normalize price
-          price: svc.price
-        };
-      });
-    } else {
-      // Enrich Demands
-      rawList = (demandsRes?.demands || []).map(demand => {
-        const owner = allUsers.find(u => u.id === demand.id_user);
-        return {
-          ...demand,
-          userName: owner?.name || "Contratante",
-          userEmail: owner?.email || "",
-          userPerfil: owner?.perfil,
-          // Normalize price/budget
-          price: parseFloat(demand.price || demand.budget || '0'),
-          createdAt: demand.createdAt || new Date().toISOString()
-        };
-      });
-    }
+  // Process Data for Profiles
+  const displayList = useMemo(() => {
+    if (loadingUsers || loadingProv) return [];
 
-    // Filter Logic
-    return rawList.filter(item => {
-      if (searchType === "keyword") {
-        const term = search.toLowerCase();
-        return (
-          item.title?.toLowerCase().includes(term) ||
-          item.description?.toLowerCase().includes(term) ||
-          item.userName?.toLowerCase().includes(term)
-        );
+    // Combine Data
+    const combined = allUsers.map(user => {
+      const providerData = providers.find(p => p.user_id === user.id);
+      return { user, provider: providerData || null };
+    }).filter(item => {
+      // Logic:
+      // If Freelancer -> Show Clients (contratante)
+      // If Client (or empty) -> Show Freelancers (prestador)
+      if (isFreelancer) {
+        return item.user.type === "contratante";
       } else {
-        // Location Filter (Mock logic as data might not strictly support name matching yet)
-        // If we had city names in item, we would check them here.
-        // For now, we assume true or partial match if available.
-        // TODO: Implement rigorous City ID -> Name mapping or backend filter.
-        return true; 
+        return item.user.type === "prestador" && item.provider;
       }
     });
 
-  }, [showServices, servicesRes, demandsRes, allUsers, search, searchType, selectedState, selectedCity]);
+    // Filter Logic
+    return combined.filter(item => {
+      const locationData = (item.user as any).LocationUser;
+      const userCity = locationData?.city || "";
+      const userState = locationData?.state || "";
+
+      // Keyword Search
+      const term = search.toLowerCase();
+      // Se tiver termo de busca, verifica nome, profissão, sobre OU a cidade
+      const matchesKeyword = (
+        item.user.name.toLowerCase().includes(term) ||
+        (item.provider?.profession || "").toLowerCase().includes(term) ||
+        (item.provider?.about || "").toLowerCase().includes(term) ||
+        userCity.toLowerCase().includes(term)
+      );
+
+      // Location Filter Strict
+      if (searchType === "location") {
+        // Se selecionou estado
+        if (selectedState && userState !== selectedState) return false;
+
+        // Se digitou cidade (busca parcial no nome da cidade)
+        if (selectedCity && !userCity.toLowerCase().includes(selectedCity.toLowerCase())) return false;
+
+        return true;
+      }
+
+      return matchesKeyword;
+    });
+
+  }, [allUsers, providers, isFreelancer, search, searchType, selectedState, selectedCity, loadingUsers, loadingProv]);
 
 
   const quickStartStyle = {
@@ -168,10 +239,19 @@ export default function SocialFeed() {
       "radial-gradient(1200px 500px at -10% -40%, var(--paper) 0%, transparent 70%), radial-gradient(900px 400px at 110% -20%, var(--glow) 0%, transparent 60%), radial-gradient(700px 280px at 50% 120%, var(--honey) 0%, transparent 70%)",
   } as CSSProperties;
 
+  const getProfileLink = (item: { user: UserInterface; provider: any }) => {
+    if (item.provider) return `/providers/${item.provider.provider_id}`;
+    return `/user/${item.user.id}`;
+  };
+
+  const handleStartChat = (targetUserId: number) => {
+    setLocation(`/messages/${targetUserId}`);
+  };
+
   return (
     <ApplicationLayout>
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
-        
+
         {/* Hero Carousel */}
         <div className="relative h-48 sm:h-64 lg:h-72 overflow-hidden">
           {carouselImages.map((image, index) => (
@@ -215,9 +295,11 @@ export default function SocialFeed() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
-            
-            {/* Sidebar de Filtro Refatorada */}
+
+            {/* Sidebar (With Filter Widget) */}
             <div className="lg:w-80 space-y-6">
+
+              {/* Filter Widget */}
               <Card className="border-0 bg-white/90 shadow-lg backdrop-blur-sm sticky top-24" style={quickStartStyle}>
                 <CardHeader>
                   <div className="flex items-center gap-2 text-orange-600 mb-2">
@@ -225,10 +307,10 @@ export default function SocialFeed() {
                     <span className="font-bold uppercase tracking-wider text-xs">Filtros</span>
                   </div>
                   <CardTitle className="text-xl text-slate-800">
-                    O que você procura?
+                    Encontre Profissionais
                   </CardTitle>
                   <CardDescription>
-                    {showServices ? "Encontre serviços ideais" : "Encontre demandas de clientes"}
+                    {isFreelancer ? "Busque por clientes potenciais" : "Encontre arquitetos e designers"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -236,118 +318,171 @@ export default function SocialFeed() {
                   <div className="flex p-1 bg-orange-100/50 rounded-xl">
                     <button
                       onClick={() => setSearchType("keyword")}
-                      className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                        searchType === "keyword" 
-                          ? "bg-white text-orange-600 shadow-sm" 
-                          : "text-slate-500 hover:text-orange-500"
-                      }`}
+                      className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${searchType === "keyword"
+                        ? "bg-white text-orange-600 shadow-sm"
+                        : "text-slate-500 hover:text-orange-500"
+                        }`}
                     >
-                      Palavra-chave
+                      Busca
                     </button>
                     <button
                       onClick={() => setSearchType("location")}
-                      className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                        searchType === "location" 
-                          ? "bg-white text-orange-600 shadow-sm" 
-                          : "text-slate-500 hover:text-orange-500"
-                      }`}
+                      className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${searchType === "location"
+                        ? "bg-white text-orange-600 shadow-sm"
+                        : "text-slate-500 hover:text-orange-500"
+                        }`}
                     >
-                      Localização
+                      Local
                     </button>
                   </div>
 
                   {/* Inputs */}
                   {searchType === "keyword" ? (
                     <div className="space-y-2">
-                       <label className="text-xs font-semibold text-slate-500 uppercase">Busca Livre</label>
-                       <div className="relative">
-                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                         <Input 
-                           value={search}
-                           onChange={(e) => setSearch(e.target.value)}
-                           placeholder={showServices ? "Ex: Render 3D, Interiores..." : "Ex: Projeto Casa, Reforma..."}
-                           className="pl-9 bg-white/50 border-orange-200 focus:border-orange-400 focus:ring-orange-100"
-                         />
-                       </div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase">Palavras-chave</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input 
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Nome, profissão, cidade..."
+                          className="pl-9 bg-white/50 border-orange-200 focus:border-orange-400 focus:ring-orange-100"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <label className="text-xs font-semibold text-slate-500 uppercase">Estado (UF)</label>
                         <select 
-                          value={selectedState}
-                          onChange={(e) => setSelectedState(e.target.value)}
-                          className="w-full h-10 px-3 rounded-md border border-orange-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
-                        >
-                          <option value="">Selecione...</option>
-                          {BR_STATES.map((uf) => (
-                            <option key={uf.sigla} value={uf.sigla}>{uf.nome}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold text-slate-500 uppercase">Cidade</label>
-                        <div className="relative">
-                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                          <Input 
-                            value={selectedCity}
-                            onChange={(e) => setSelectedCity(e.target.value)}
-                            placeholder="Digite a cidade..."
-                            className="pl-9 bg-white/50 border-orange-200 focus:border-orange-400 focus:ring-orange-100"
-                          />
+                            value={selectedState}
+                            onChange={(e) => setSelectedState(e.target.value)}
+                            className="w-full h-10 px-3 rounded-md border border-orange-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-400"
+                          >
+                            <option value="">Selecione...</option>
+                            {BR_STATES.map((uf) => (
+                              <option key={uf.sigla} value={uf.sigla}>{uf.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold text-slate-500 uppercase">Cidade</label>
+                          <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                              value={selectedCity}
+                              onChange={(e) => setSelectedCity(e.target.value)}
+                              placeholder="Digite a cidade..."
+                              className="pl-9 bg-white/50 border-orange-200 focus:border-orange-400 focus:ring-orange-100"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <p className="text-xs text-slate-400 italic">
-                        Mostrando resultados na região selecionada.
-                      </p>
-                    </div>
                   )}
 
                   <Button className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white shadow-md">
-                    Filtrar Resultados
+                    Filtrar Perfis
                   </Button>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Main Content Feed */}
+            {/* Main Content Feed (Original Card Design) */}
             <div className="flex-1 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-slate-800">
-                  {showServices ? "Serviços em Destaque" : "Demandas Recentes"}
+                  {isFreelancer ? "Clientes Disponíveis" : "Profissionais em Destaque"}
                 </h2>
                 <Badge variant="outline" className="text-slate-500 border-slate-300">
-                  {filteredList.length} encontrado(s)
+                  {displayList.length} encontrados
                 </Badge>
               </div>
 
-              {(loadingServices || loadingDemands) ? (
-                 <div className="flex justify-center py-20">
-                   <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
-                 </div>
-              ) : filteredList.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {filteredList.map((item: any, idx) => (
-                    showServices ? (
-                      <ServiceCard key={item.id_serviceFreelancer || idx} service={item} currentUser={currentUser} />
-                    ) : (
-                      <DemandCard key={item.id_demand || idx} demand={item} currentUser={currentUser} />
-                    )
+              {(loadingUsers || loadingProv) ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
+                </div>
+              ) : displayList.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {displayList.map((item, idx) => (
+                    <Card
+                      key={item.user.id}
+                      className="group relative overflow-hidden bg-white/80 backdrop-blur-sm border-white/30 rounded-xl shadow-lg flex flex-col h-full"
+                    >
+                      {/* Banner + Avatar Overlapping */}
+                      <UserBanner user={item.user} />
+
+                      <CardContent className="pt-0 flex-1 flex flex-col items-center -mt-8 relative z-10 px-4">
+                        <UserAvatar user={item.user} />
+
+                        <div className="mt-3 text-center w-full">
+                          <h3 className="text-lg font-bold text-slate-800 truncate px-2">{item.user.name}</h3>
+
+                          {/* Profession Badge (Explicit) */}
+                          {item.provider && (
+                            <Badge variant="secondary" className="mt-1 bg-orange-100 text-orange-700 hover:bg-orange-200">
+                              {item.provider.profession}
+                            </Badge>
+                          )}
+                          {!item.provider && (
+                            <Badge variant="secondary" className="mt-1 bg-blue-100 text-blue-700 hover:bg-blue-200">
+                              Cliente
+                            </Badge>
+                          )}
+
+                          {item.provider?.about && (
+                            <p className="text-sm text-slate-500 mt-3 line-clamp-3 leading-relaxed">
+                              {item.provider.about}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="w-full mt-auto pt-6 pb-2">
+                          <div className="flex items-center justify-center gap-4 text-xs text-slate-400 mb-4">
+                            {/* New City Display */}
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {(item.user as any).LocationUser?.city || "Brasil"}
+                            </span>
+
+                            {item.provider?.views_profile !== undefined && (
+                              <span className="flex items-center gap-1">
+                                <Eye className="h-3 w-3" /> {item.provider.views_profile}
+                              </span>
+                              )}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Link href={getProfileLink(item)} className="flex-1">
+                              <Button className="w-full bg-slate-100 hover:bg-orange-100 text-slate-700 hover:text-orange-700 font-semibold border border-transparent hover:border-orange-200 transition-all rounded-xl h-10 px-0">
+                                Ver Perfil
+                              </Button>
+                            </Link>
+                            <Button
+                              onClick={() => handleStartChat(item.user.id)}
+                              className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white shadow-md rounded-xl h-10 w-10 p-0 flex items-center justify-center"
+                              title="Enviar mensagem"
+                            >
+                              <MessageCircle className="h-5 w-5" />
+                            </Button>
+                          </div>
+
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
-              ) : (
-                <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-10 text-center border-2 border-dashed border-slate-200">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Search className="h-8 w-8 text-slate-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-700">Nenhum resultado encontrado</h3>
-                  <p className="text-slate-500 mt-2">Tente ajustar os filtros ou buscar por outros termos.</p>
-                  <Button 
-                    variant="link" 
-                    className="mt-4 text-orange-600"
-                    onClick={() => { setSearch(""); setSearchType("keyword"); }}
+                ) : (
+                  <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-10 text-center border-2 border-dashed border-slate-200">
+                    <Search className="h-8 w-8 text-slate-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-700">Nenhum perfil encontrado</h3>
+                    <p className="text-slate-500 mt-2">Ajuste os filtros para encontrar o que precisa.</p>
+                    <Button 
+                        variant="link"
+                        className="mt-4 text-orange-600"
+                        onClick={() => { setSearch(""); setSearchType("keyword"); }}
                   >
-                    Limpar filtros
+                        Limpar filtros
                   </Button>
                 </div>
               )}
