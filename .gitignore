@@ -5,3 +5,4 @@ node_modules
 reset-docker.sh
 DOCKER_COMMANDS.md
 dist
+.ftpconfig
