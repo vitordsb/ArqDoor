@@ -114,6 +114,30 @@ export default function InvitePublic() {
     return safeSteps.reduce((acc, step) => acc + (Number(step.price) || 0), 0);
   }, [safeSteps]);
 
+  // Derive groups from steps (New Logic)
+  const paymentGroups = useMemo(() => {
+    if (invite?.payment_preference !== 'custom') return [];
+    
+    // Check if groups are already provided (unlikely given backend)
+    if (invite.payment_groups && invite.payment_groups.length > 0) return invite.payment_groups;
+
+    // Derive groups
+    const groupsMap = new Map<number, PaymentGroup>();
+    safeSteps.forEach(step => {
+        const gid = step.group_id || step.payment_group_id;
+         if (gid) {
+             if (!groupsMap.has(gid)) {
+                 groupsMap.set(gid, {
+                     id: gid,
+                     name: `Grupo ${gid}`, // Default name if not found
+                     sequence: gid
+                 });
+             }
+         }
+    });
+    return Array.from(groupsMap.values()).sort((a, b) => a.sequence - b.sequence);
+  }, [invite, safeSteps]);
+
   const cpfDigits = (user?.cpf || "").toString().replace(/\D/g, "");
   const needsCpf = isLoggedIn && cpfDigits.length !== 11;
   const inviteUnavailable = invite?.status && invite.status !== "active";
@@ -264,16 +288,15 @@ export default function InvitePublic() {
         </div>
 
         {/* Group-based view for custom payment */}
-        {invite.payment_preference === "custom" && invite.payment_groups && invite.payment_groups.length > 0 ? (
+        {invite.payment_preference === "custom" && paymentGroups.length > 0 ? (
           <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Grupos de Pagamento</h2>
             <p className="text-sm text-muted-foreground">
-              Este contrato está organizado em {invite.payment_groups.length} grupo(s) de pagamento. 
+              Este contrato está organizado em {paymentGroups.length} grupo(s) de pagamento. 
               Você pagará cada grupo completo em sequência.
             </p>
             <div className="space-y-4">
-              {invite.payment_groups
-                .sort((a, b) => a.sequence - b.sequence)
+              {paymentGroups
                 .map((group, groupIdx) => {
                   const groupSteps = safeSteps.filter(
                     (s) => (s.group_id || s.payment_group_id) === group.id
