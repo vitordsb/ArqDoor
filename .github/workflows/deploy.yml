@@ -28,7 +28,7 @@ jobs:
       - name: 📤 Deploy to Hostinger via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ftp.arqdoor.com
+          server: 157.173.209.244
           username: vitinho
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
