@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Accept build arguments
@@ -21,7 +21,7 @@ ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 # Stage 2: Development
-FROM node:18-alpine AS development
+FROM node:22-alpine AS development
 WORKDIR /app
 
 # Install dependencies
