@@ -887,30 +887,7 @@ export function ProposalDetailsDialog({
                   </div>
 
                 )
-              })}
-              
-              {/* botão de pagar grupo */}
-              {isCustomPayment && userType === "contratante" && group.total > 0 && !group.paid && (
-                 <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
-                    <div className="text-sm">
-                       <span className="text-gray-500">Total do grupo:</span>{" "}
-                       <span className="font-bold text-gray-900">
-                          {new Intl.NumberFormat("pt-BR", {
-                            style: "currency",
-                            currency: "BRL"
-                          }).format(group.total)}
-                       </span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      className="bg-orange-600 hover:bg-orange-700 text-white"
-                      onClick={() => onPaySteps?.(group.steps)}
-                    >
-                       <QrCode className="h-4 w-4 mr-2" />
-                       Pagar grupo
-                    </Button>
-                 </div>
-              )}
+                  })}
               </div>
               ))}
 
