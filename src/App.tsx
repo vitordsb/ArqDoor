@@ -19,6 +19,7 @@ import Admin from "@/pages/Admin";
 import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
 import Invites from "@/pages/Invites";
 import InvitePublic from "@/pages/InvitePublic";
+import CookieConsent from "@/components/CookieConsent";
 
 const LANDING_ROUTES = ["/", "/auth", "/admin"];
 
@@ -78,6 +79,7 @@ function App() {
     <>
       <AppContent />
       <CompleteProfileModal />
+      <CookieConsent />
       <Toaster />
     </>
   );

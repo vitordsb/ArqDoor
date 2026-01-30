@@ -236,7 +236,7 @@ export const AuthModals: React.FC<{
       onError: () => {
         toast({
           title: "Erro no login com Google",
-          description: "Não foi possível concluir o login, tente novamente.",
+          description: "Não foi possível abrir o login. Verifique se pop-ups estão liberados.",
           variant: "destructive",
         });
         const mode = googleModeRef.current;
