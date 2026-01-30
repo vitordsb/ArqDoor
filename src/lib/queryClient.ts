@@ -4,7 +4,7 @@ const getBaseUrl = () => {
   const v2 = import.meta.env.VITE_API_BASE_URL;
   if (v1 && v1 !== "undefined") return v1;
   if (v2 && v2 !== "undefined") return v2;
-  return "/api";
+  return "http://89.116.225.129";
 };
 export const API_BASE_URL = getBaseUrl();
 
