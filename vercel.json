@@ -8,6 +8,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "http://89.116.225.129:8080/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
