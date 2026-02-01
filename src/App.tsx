@@ -20,6 +20,7 @@ import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
 import Invites from "@/pages/Invites";
 import InvitePublic from "@/pages/InvitePublic";
 import CookieConsent from "@/components/CookieConsent";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const LANDING_ROUTES = ["/", "/auth", "/admin"];
 
@@ -76,12 +77,12 @@ function AppContent() {
 }
 function App() {
   return (
-    <>
+    <ErrorBoundary>
       <AppContent />
       <CompleteProfileModal />
       <CookieConsent />
       <Toaster />
-    </>
+    </ErrorBoundary>
   );
 }
 

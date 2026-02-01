@@ -1194,10 +1194,10 @@ export default function Messages() {
       } catch {
         /* ignore polling errors */
       }
-    }, 2_000);
+    }, 5000);
 
-    return () => clearInterval(interval);
-  }, [showProposalDetails, selectedTicketSteps, getStepsWithPayment]);
+    return () => clearInterval(interval); // Cleanup to prevent memory leaks
+  }, [showProposalDetails, selectedTicketSteps, getStepsWithPayment, refetchTickets]);
 
   const getProviderPaymentPreference = useCallback(
     async (providerId?: number | null) => {

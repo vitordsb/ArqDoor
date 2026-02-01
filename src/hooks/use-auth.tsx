@@ -284,23 +284,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setNeedsOnboardingState(storedOnboarding);
         setOnboardingOptionalState(storedOptional);
 
-        // Fetch full profile data (image) if user is valid
-        if (payload?.id) {
-          apiRequest("GET", `/users/${payload.id}`)
-            .then((res) => {
-              if (res.ok) return res.json();
-              throw new Error("Failed to fetch user");
-            })
-            .then((data) => {
-              if (data?.user) {
-                // Merge payload (token) with fetched data (profile image)
-                setUser((prev) => (prev ? { ...prev, ...data.user } : prev));
-              }
-            })
-            .catch((err) => {
-              console.error("Erro ao atualizar dados do usuário:", err);
-            });
-        }
+        // Profile data will be fetched on next login
+        // No need to fetch here - reduces duplicate API calls
       } catch {
         sessionStorage.clear();
         setUser(null);
