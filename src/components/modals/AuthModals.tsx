@@ -1,6 +1,6 @@
 
 // src/components/AuthModals.tsx
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Loader2, Mail, Lock, UserRound, CalendarDays, Eye, EyeOff, BadgeCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -139,7 +139,7 @@ export const AuthModals: React.FC<{
   onSuccess?: () => void;
   onSwitchToRegister: () => void;
   onSwitchToLogin: () => void;
-  autoLoginAfterRegister?: boolean;
+  preFilledEmail?: string;
 }> = ({
   isLoginOpen,
   isRegisterOpen,
@@ -148,7 +148,7 @@ export const AuthModals: React.FC<{
   onSuccess,
   onSwitchToRegister,
   onSwitchToLogin,
-  autoLoginAfterRegister = false,
+  preFilledEmail = "",
 }) => {
     const { toast } = useToast();
     const { login, register, loginWithGoogle } = useAuth();
@@ -156,6 +156,7 @@ export const AuthModals: React.FC<{
     const [registerLoading, setRegisterLoading] = useState(false);
     const [googleLoginLoading, setGoogleLoginLoading] = useState(false);
     const [googleRegisterLoading, setGoogleRegisterLoading] = useState(false);
+  const [emailToPreFill, setEmailToPreFill] = useState<string>("");
     const googleModeRef = useRef<"login" | "register" | null>(null);
     const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -178,6 +179,21 @@ export const AuthModals: React.FC<{
 
     const [isPrestador, setIsPrestador] = useState(false);
     const fieldClasses = "w-full";
+
+  // Pre-fill email in login form when provided
+  useEffect(() => {
+    if (preFilledEmail && isLoginOpen) {
+      loginForm.setValue("email", preFilledEmail);
+    }
+  }, [preFilledEmail, isLoginOpen, loginForm]);
+
+  // Pre-fill email from internal state (after registration)
+  useEffect(() => {
+    if (emailToPreFill && isLoginOpen) {
+      loginForm.setValue("email", emailToPreFill);
+      setEmailToPreFill(""); // Clear after setting
+    }
+  }, [emailToPreFill, isLoginOpen, loginForm]);
 
     const handlePrestadorChange = (checked: boolean) => {
       registerForm.setValue("type", checked ? "prestador" : "contratante");
@@ -213,10 +229,22 @@ export const AuthModals: React.FC<{
             type: userType,
             mode: mode || "login",
           });
-          if (result?.status === "logged_in" || result?.status === "logged_in_needs_onboarding") {
-            onSuccess?.();
-          } else if (result?.status === "already_connected") {
-            onSwitchToLogin();
+
+          if (isRegisterMode) {
+            // Registration via Google - don't auto-login
+            if (result?.status === "registered") {
+              onRegisterClose();
+              onSwitchToLogin();
+            } else if (result?.status === "already_connected") {
+              onSwitchToLogin();
+            }
+          } else {
+          // Login via Google
+            if (result?.status === "logged_in" || result?.status === "logged_in_needs_onboarding") {
+              onSuccess?.();
+            } else if (result?.status === "already_connected") {
+              onSwitchToLogin();
+            }
           }
         } catch (err) {
           toast({
@@ -316,8 +344,6 @@ export const AuthModals: React.FC<{
       if (!data.termos_aceitos)
         return toast({ title: "Termos não aceitos", description: "Aceite os termos para continuar.", variant: "destructive" });
 
-      let registered = false;
-      let loggedIn = false;
       try {
         setRegisterLoading(true);
         const registerData: RegisterInterface = {
@@ -330,19 +356,19 @@ export const AuthModals: React.FC<{
           type: isPrestador ? "prestador" : "contratante",
           termos_aceitos: data.termos_aceitos,
         };
-        registered = await register(registerData);
+
+        const registered = await register(registerData);
         if (!registered) return;
-        if (autoLoginAfterRegister) {
-          loggedIn = await login({
-            email: registerData.email,
-            password: registerData.password,
-          });
-          if (loggedIn) {
-            onSuccess?.();
-          }
-        } else {
-          onSuccess?.();
-        }
+
+        // Don't auto-login, redirect to login with email pre-filled
+        toast({
+          title: "Cadastro realizado com sucesso!",
+          description: "Faça login para continuar",
+        });
+
+        setEmailToPreFill(registerData.email);
+        onRegisterClose();
+        onSwitchToLogin();
       } catch (err) {
         toast({
           title: "Erro no cadastro",
@@ -351,11 +377,6 @@ export const AuthModals: React.FC<{
         });
       } finally {
         setRegisterLoading(false);
-        if (autoLoginAfterRegister && registered && loggedIn) {
-          onRegisterClose();
-        } else if (!autoLoginAfterRegister) {
-          onSwitchToLogin();
-        }
       }
     }
 

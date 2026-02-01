@@ -466,7 +466,6 @@ export default function InvitePublic() {
           setRegisterOpen(false);
           setLoginOpen(true);
         }}
-        autoLoginAfterRegister
       />
     </div>
   );

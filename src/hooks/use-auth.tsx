@@ -122,6 +122,16 @@ export const loginWithGoogleRequest = async (
       mode: payload.mode || "login",
     });
 
+    // Check if this was a registration (status 201)
+    if (res.status === 201 && payload.mode === "register") {
+      const body = await res.json();
+      toast({
+        title: "Conta criada com sucesso!",
+        description: body?.message || "Faça login com Google para continuar",
+      });
+      return { status: "registered" as const };
+    }
+
     if (res.status === 409) {
       const errorBody = await res.json().catch(() => null);
       toast({

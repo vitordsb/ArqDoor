@@ -12,7 +12,7 @@ export interface GoogleLoginPayload {
   mode?: "login" | "register";
 }
 export interface GoogleLoginResult {
-  status: "logged_in" | "logged_in_needs_onboarding" | "already_connected" | "failed";
+  status: "logged_in" | "logged_in_needs_onboarding" | "already_connected" | "failed" | "registered";
 }
 export interface RegisterInterface {
   name: string;
