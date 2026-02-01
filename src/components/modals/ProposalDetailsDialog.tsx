@@ -187,8 +187,14 @@ export function ProposalDetailsDialog({
       let groupName: string | undefined;
 
       if (isCustomPayment) {
+        // Try group_sequence first (from invite), then group_id (from manual)
+        const groupSeq = (step as any).group_sequence;
         const pgId = (step as any).group_id || (step as any).payment_group_id;
-        if (pgId) {
+
+        if (groupSeq) {
+          groupId = `group-seq-${groupSeq}`;
+          groupName = `Grupo ${groupSeq}`;
+        } else if (pgId) {
           groupId = `group-${pgId}`;
           const rawName = (step as any).payment_group?.name || (step as any).paymentGroup?.name;
           groupName = rawName || `Grupo ${pgId}`;

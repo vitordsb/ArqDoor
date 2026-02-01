@@ -199,18 +199,26 @@ export interface ServicesResponse {
 export type StepStatus = 'Recusado' | 'Concluido' | 'Pendente';
 
 export interface Step {
-  id: number
-  ticket_id: number
-  title: string
-  price: number
-  confirm_contractor?: boolean
-  confirm_freelancer?: boolean
-  start_date?: Date
-  end_date?: Date
-  createdAt?: string
-  updatedAt?: string
-  status: StepStatus
-  rejection_reason?: string
+  id: number;
+  ticket_id: number;
+  status: string;
+  title: string;
+  price: number;
+  confirm_freelancer?: boolean;
+  confirm_contractor?: boolean;
+  rework_count?: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_financially_cleared?: boolean;
+  group_id?: number | null;
+  group_sequence?: number | null; // Sequence number for grouping (no FK)
+  payment_group?: {
+    id: number;
+    name: string;
+  };
+  started_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Ticket {
