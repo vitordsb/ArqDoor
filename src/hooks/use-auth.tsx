@@ -6,6 +6,7 @@ import React, {
   useEffect,
 } from "react";
 import { parseJwt } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   User,
   AuthContextType,
@@ -248,6 +249,7 @@ export const logout = async (
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -324,7 +326,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         register,
         logout() {
-          return logout(setUser, setNeedsOnboarding, setOnboardingOptional);
+          const result = logout(setUser, setNeedsOnboarding, setOnboardingOptional);
+          queryClient.clear(); // Limpa todo o cache do React Query
+          return result;
         },
         isInitialized,
         needsOnboarding,

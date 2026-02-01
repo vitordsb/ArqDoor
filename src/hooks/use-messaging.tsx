@@ -33,8 +33,8 @@ export function useMessaging(initialPartnerId?: string | null) {
     error: conversationsError,
     refetch: refetchConversations,
   } = useQuery({
-    queryKey: ["conversations"],
-    enabled: isLoggedIn && !!user,
+    queryKey: ["conversations", user?.id],
+    enabled: isLoggedIn && !!user?.id,
     staleTime: 5_000,
     refetchInterval: isVisible ? 2_000 : 10_000, // conversas: rápido visível, mais lento em bg
     queryFn: async () => {
@@ -117,7 +117,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     isLoading: loadingMessages,
     error: messagesError,
   } = useQuery<Message[]>({
-    queryKey: ["messages", currentConversation?.id],
+    queryKey: ["messages", currentConversation?.id, user?.id],
     enabled: !!currentConversation?.id && isLoggedIn,
     staleTime: 1_000,
     refetchInterval: isVisible ? 1_000 : 5_000,
@@ -148,8 +148,8 @@ export function useMessaging(initialPartnerId?: string | null) {
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", currentConversation?.id] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages", currentConversation?.id, user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
       setNewMessage("");
     },
     onError: () => {
