@@ -935,7 +935,7 @@ export default function Messages() {
         return;
       }
 
-      if (cleaned.length === 1) {
+      if (cleaned.length === 1 && !isCustomPayment) {
         await handleClientPayStep(cleaned[0]);
         return;
       }
