@@ -53,7 +53,7 @@ type SignatureFlow =
     } & SignatureDialogOverrides)
   | ({ type: 'proposal-first-step' } & SignatureDialogOverrides);
 
-const buildImageUrl = (path?: string) => {
+const buildImageUrl = (path?: string | null) => {
   if (!path) return "";
   const normalizedPath = path.replace(/\\/g, "/");
   return normalizedPath.startsWith("http")

@@ -37,7 +37,7 @@ import {
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { User as UserInterface, Provider } from "@/lib/Interfaces";
+import { User as UserInterface } from "@/lib/Interfaces";
 import { getInitials } from "@/lib/utils";
 import { useMessaging } from "@/hooks/use-messaging"; 
 
@@ -72,7 +72,7 @@ const carouselImages = [
   }
 ];
 
-const buildImageUrl = (path?: string) => {
+const buildImageUrl = (path?: string | null) => {
   if (!path) return null;
   const normalizedPath = path.replace(/\\/g, "/");
   return normalizedPath.startsWith("http")

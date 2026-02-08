@@ -40,6 +40,8 @@ export interface User {
   perfil_completo?: boolean;
   signature_password_set?: boolean | null;
   perfil?: string;
+  banner?: string | null;
+  avatar?: string | null;
 }
 export interface AuthContextType {
   user: User | null;
@@ -69,6 +71,9 @@ export interface Conversation {
     email: string;
     type: "prestador" | "contratante";
     provider_id?: number | null;
+    perfil?: string | null;
+    avatar?: string | null;
+    banner?: string | null;
   };
   lastMessage?: {
     id: number;
@@ -204,6 +209,7 @@ export interface Step {
   status: string;
   title: string;
   price: number;
+  rejection_reason?: string | null;
   confirm_freelancer?: boolean;
   confirm_contractor?: boolean;
   rework_count?: number;

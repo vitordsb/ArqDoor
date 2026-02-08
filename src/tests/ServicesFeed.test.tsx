@@ -51,7 +51,7 @@ const mockUserProvider = {
 // We need to mock apiRequest default export or named export?
 // The component imports { apiRequest } from ...
 // We can use vi.spyOn
-vi.spyOn(queryClientLib, 'apiRequest').mockImplementation(async (method, url) => {
+vi.spyOn(queryClientLib, 'apiRequest').mockImplementation(async (method: string, url: string) => {
   if (url === '/servicesfreelancer/getall') {
     return {
       ok: true,

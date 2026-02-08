@@ -35,7 +35,7 @@ const mockDemands = [
   }
 ];
 
-vi.spyOn(queryClientLib, 'apiRequest').mockImplementation(async (method, url) => {
+vi.spyOn(queryClientLib, 'apiRequest').mockImplementation(async (method: string, url: string) => {
   if (url === '/demands/getall') {
     return {
       ok: true,
