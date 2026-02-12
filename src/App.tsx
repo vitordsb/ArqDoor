@@ -1,48 +1,60 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { useAuth } from "@/hooks/use-auth";
-import NotFound from "@/pages/not-found";
-import Home from "@/pages/Home";
-import SocialFeed from "@/pages/SocialFeed";
-import ClientProfile from "@/pages/ClientProfile";
-import DemandsFeed from "@/pages/DemandsFeed";
-import ProviderProfile from "@/pages/ProviderProfile";
-import AuthPage from "@/pages/auth-page";
-import Messages from "@/pages/Messages";
-import ServicePage from "@/pages/ServicePage";
 import LandingLayout from "@/components/layouts/LandingLayout";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";
-import ServicesFeed from "@/pages/ServicesFeed.tsx";
-import Profile from "@/pages/Profile";
-import Admin from "@/pages/Admin";
 import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
-import Invites from "@/pages/Invites";
-import InvitePublic from "@/pages/InvitePublic";
 import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const LANDING_ROUTES = ["/", "/auth", "/admin"];
 
+// Route-level code splitting: reduces the initial JS payload in production.
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Home = lazy(() => import("@/pages/Home"));
+const AuthPage = lazy(() => import("@/pages/auth-page"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const SocialFeed = lazy(() => import("@/pages/SocialFeed"));
+const DemandsFeed = lazy(() => import("@/pages/DemandsFeed"));
+const ServicePage = lazy(() => import("@/pages/ServicePage"));
+const ServicesFeed = lazy(() => import("@/pages/ServicesFeed"));
+const ProviderProfile = lazy(() => import("@/pages/ProviderProfile"));
+const ClientProfile = lazy(() => import("@/pages/ClientProfile"));
+const Messages = lazy(() => import("@/pages/Messages"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const Invites = lazy(() => import("@/pages/Invites"));
+const InvitePublic = lazy(() => import("@/pages/InvitePublic"));
+
+function RouteLoading() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
+      Carregando...
+    </div>
+  );
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/auth" component={AuthPage} />
-      <Route path="/profile" component={Profile} />
-      <Route path="/home" component={SocialFeed} />
-      <Route path="/demands" component={DemandsFeed} />
-      <Route path="/services/viewService" component={ServicePage} />
-      <Route path="/services" component={ServicesFeed} />
-      <Route path="/providers/:provider_id" component={ProviderProfile} />
-      <Route path="/user/:user_id" component={ClientProfile} />
-      <Route path="/messages/:userId?" component={Messages} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/convites" component={Invites} />
-      <Route path="/convite/:token" component={InvitePublic} />
-      <Route path="/termos-de-uso" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<RouteLoading />}>
+      <Switch>
+        <Route path="/"><Home /></Route>
+        <Route path="/auth"><AuthPage /></Route>
+        <Route path="/profile"><Profile /></Route>
+        <Route path="/home"><SocialFeed /></Route>
+        <Route path="/demands"><DemandsFeed /></Route>
+        <Route path="/services/viewService"><ServicePage /></Route>
+        <Route path="/services"><ServicesFeed /></Route>
+        <Route path="/providers/:provider_id"><ProviderProfile /></Route>
+        <Route path="/user/:user_id"><ClientProfile /></Route>
+        <Route path="/messages/:userId?"><Messages /></Route>
+        <Route path="/admin"><Admin /></Route>
+        <Route path="/convites"><Invites /></Route>
+        <Route path="/convite/:token"><InvitePublic /></Route>
+        <Route path="/termos-de-uso"><NotFound /></Route>
+        <Route><NotFound /></Route>
+      </Switch>
+    </Suspense>
   );
 }
 function AppContent() {
