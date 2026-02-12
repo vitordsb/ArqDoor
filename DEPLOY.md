@@ -14,6 +14,7 @@ Em **Settings → Secrets and variables → Actions**, crie:
 - `VPS_USER` (ex.: `root`)
 - `VPS_SSH_KEY` (chave privada SSH, ex.: conteúdo do `~/.ssh/id_ed25519`)
 - `VPS_FRONTEND_PATH` (opcional; padrão: `/var/www/arqdoor`)
+- `VITE_GOOGLE_CLIENT_ID` (obrigatório se quiser login com Google no frontend)
 
 ### Como deploya
 
