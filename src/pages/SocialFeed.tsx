@@ -36,10 +36,8 @@ import {
 } from "lucide-react";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
 import { User as UserInterface } from "@/lib/Interfaces";
 import { getInitials } from "@/lib/utils";
-import { useMessaging } from "@/hooks/use-messaging"; 
 
 // Estados do Brasil para o filtro
 const BR_STATES = [
@@ -137,13 +135,14 @@ const UserAvatar = ({ user, className = '', size = 'md' }: { user: UserInterface
 // ----------------------------------
 
 export default function SocialFeed() {
+  const PAGE_SIZE = 6;
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState<"keyword" | "location">("keyword");
   const [selectedState, setSelectedState] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const { user: currentUser } = useAuth();
-  const { toast } = useToast();
   const [, setLocation] = useLocation(); 
 
   // Carousel Logic
@@ -158,34 +157,69 @@ export default function SocialFeed() {
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length);
 
   // Data Fetching
-  const { data: usersRes, isLoading: loadingUsers } = useQuery<{ users: UserInterface[] }>({
-    queryKey: ["allUsers"],
+  const targetType = currentUser?.type === "prestador" ? "contratante" : "prestador";
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [targetType]);
+
+  const { data: usersRes, isLoading: loadingUsers } = useQuery<{
+    users: UserInterface[];
+    pagination?: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }>({
+    queryKey: ["allUsers", currentPage, targetType],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/users");
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(PAGE_SIZE),
+        type: targetType,
+      });
+      const response = await apiRequest("GET", `/users?${params.toString()}`);
       const data = await response.json();
-      console.log("DEBUG: Users API Response:", data);
       return data;
     },
   });
 
-  const { data: provRes, isLoading: loadingProv } = useQuery<{ providers: any[] }>({
-    queryKey: ["providers"],
-    queryFn: async () => (await apiRequest("GET", "/providers")).json(),
-  });
-
   const allUsers = usersRes?.users || [];
-  const providers = provRes?.providers || [];
+  const providerUserIds = useMemo(
+    () => allUsers.filter((u) => u.type === "prestador").map((u) => u.id),
+    [allUsers]
+  );
+
+  const { data: providerMap = {}, isLoading: loadingProv } = useQuery<Record<number, any>>({
+    queryKey: ["providersByUsers", providerUserIds.join(",")],
+    enabled: providerUserIds.length > 0,
+    queryFn: async () => {
+      const entries = await Promise.all(
+        providerUserIds.map(async (userId) => {
+          const response = await apiRequest("GET", `/providers/user/${userId}`);
+          if (!response.ok) return [userId, null] as const;
+          const data = await response.json().catch(() => null);
+          return [userId, data?.provider || null] as const;
+        })
+      );
+      return Object.fromEntries(entries);
+    },
+  });
+  const loadingProviders = providerUserIds.length > 0 && loadingProv;
 
   // Logic to determine what to show (Profiles)
   const isFreelancer = currentUser?.type === "prestador";
 
   // Process Data for Profiles
   const displayList = useMemo(() => {
-    if (loadingUsers || loadingProv) return [];
+    if (loadingUsers || loadingProviders) return [];
 
     // Combine Data
     const combined = allUsers.map(user => {
-      const providerData = providers.find(p => p.user_id === user.id);
+      const providerData = providerMap[user.id] || null;
       return { user, provider: providerData || null };
     }).filter(item => {
       // Logic:
@@ -228,7 +262,16 @@ export default function SocialFeed() {
       return matchesKeyword;
     });
 
-  }, [allUsers, providers, isFreelancer, search, searchType, selectedState, selectedCity, loadingUsers, loadingProv]);
+  }, [allUsers, providerMap, isFreelancer, search, searchType, selectedState, selectedCity, loadingUsers, loadingProviders]);
+
+  const totalPages = usersRes?.pagination?.totalPages || 1;
+  const pageButtons = useMemo(() => {
+    const pages: number[] = [];
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, start + 4);
+    for (let page = start; page <= end; page++) pages.push(page);
+    return pages;
+  }, [currentPage, totalPages]);
 
 
   const quickStartStyle = {
@@ -394,17 +437,18 @@ export default function SocialFeed() {
                   {isFreelancer ? "Clientes Disponíveis" : "Profissionais em Destaque"}
                 </h2>
                 <Badge variant="outline" className="text-slate-500 border-slate-300">
-                  {displayList.length} encontrados
+                  {usersRes?.pagination?.totalItems ?? displayList.length} encontrados
                 </Badge>
               </div>
 
-              {(loadingUsers || loadingProv) ? (
+              {(loadingUsers || loadingProviders) ? (
                 <div className="flex justify-center py-20">
                   <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
                 </div>
               ) : displayList.length > 0 ? (
+                <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {displayList.map((item, idx) => (
+                  {displayList.map((item) => (
                     <Card
                       key={item.user.id}
                       className="group relative overflow-hidden bg-white/80 backdrop-blur-sm border-white/30 rounded-xl shadow-lg flex flex-col h-full"
@@ -472,6 +516,45 @@ export default function SocialFeed() {
                     </Card>
                   ))}
                 </div>
+
+                {totalPages > 1 && (
+                  <div className="mt-8 flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="h-9 px-3"
+                      >
+                        <ChevronLeft className="mr-1 h-4 w-4" /> Anterior
+                      </Button>
+
+                      {pageButtons.map((page) => (
+                        <Button
+                          key={page}
+                          variant={page === currentPage ? "default" : "outline"}
+                          onClick={() => setCurrentPage(page)}
+                          className={`h-9 w-9 p-0 ${page === currentPage ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="h-9 px-3"
+                      >
+                        Próxima <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-slate-500">
+                      Página {currentPage} de {totalPages}
+                    </p>
+                  </div>
+                )}
+                </>
                 ) : (
                   <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-10 text-center border-2 border-dashed border-slate-200">
                     <Search className="h-8 w-8 text-slate-400 mx-auto mb-4" />
