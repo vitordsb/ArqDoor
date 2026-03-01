@@ -17,18 +17,18 @@ import {
 
 const keyMetrics = [
   {
-    value: "52%",
-    label: "Mais velocidade para fechar propostas",
+    value: "Até 7 dias úteis",
+    label: "para receber seus honorários",
     icon: Clock3,
   },
   {
-    value: "38%",
-    label: "Redução de retrabalho em aprovação",
+    value: "0%",
+    label: "de inadimplência",
     icon: LineChart,
   },
   {
-    value: "3x",
-    label: "Mais organização comercial por projeto",
+    value: "Com validade jurídica",
+    label: "Assinatura eletrônica integrada",
     icon: FileStack,
   },
 ];
@@ -131,7 +131,7 @@ const CombinedHomeSections = () => {
           </span>
 
           <h1 className="mb-6 max-w-4xl text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
-            <span className="text-orange-400">Acelere vendas</span> e gerencie seus projetos em um fluxo único
+            <span className="text-orange-400">Acelere vendas</span> e gerencie seus projetos com segurança profissional
           </h1>
 
           <p className="mb-10 max-w-2xl text-base text-slate-100 md:text-lg">
