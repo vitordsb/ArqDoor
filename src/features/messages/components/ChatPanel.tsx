@@ -1,4 +1,4 @@
-import { MutableRefObject, FormEvent } from 'react';
+import { MutableRefObject, FormEvent, ReactNode } from 'react';
 import { Message } from '@/lib/Interfaces';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ interface ChatPanelProps {
   onMessageChange: (value: string) => void;
   onSendMessage: (event: FormEvent<HTMLFormElement>) => void;
   messagesEndRef: MutableRefObject<HTMLDivElement | null>;
+  composerAction?: ReactNode;
 }
 
 export function ChatPanel({
@@ -24,6 +25,7 @@ export function ChatPanel({
   onMessageChange,
   onSendMessage,
   messagesEndRef,
+  composerAction,
 }: ChatPanelProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -68,7 +70,8 @@ export function ChatPanel({
       </div>
 
       <div className="p-4 bg-white border-t border-gray-200">
-        <form onSubmit={onSendMessage} className="flex gap-2">
+        <form onSubmit={onSendMessage} className="flex gap-2 items-center">
+          {composerAction ? <div className="shrink-0">{composerAction}</div> : null}
           <Input
             value={newMessage}
             onChange={e => onMessageChange(e.target.value)}

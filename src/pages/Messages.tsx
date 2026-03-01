@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useMessaging } from '@/hooks/use-messaging';
 import { useContract } from '@/hooks/use-contract';
@@ -23,9 +23,21 @@ import { GroupedPaymentDialog } from '@/components/modals/GroupedPaymentDialog';
 import { SignatureDialog } from '@/components/modals/SignatureDialog';
 import { NewProposalDialog } from '@/components/modals/NewProposalDialog';
 import { OlderContractsDialog } from '@/components/modals/OlderContractsDialog';
+import {
+  CreateAdditionalPaymentDialog,
+  type AdditionalPaymentTicketOption,
+} from '@/components/modals/CreateAdditionalPaymentDialog';
+import { AdditionalPaymentsListDialog } from '@/components/modals/AdditionalPaymentsListDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { StepPaymentDialog } from "@/features/messages/components/StepPaymentDialog";
 import { usePdfViewer } from "@/features/messages/hooks/usePdfViewer";
 import { useProposalComposer } from "@/features/messages/hooks/useProposalComposer";
+import { ImagePlus, List, Plus, ReceiptText } from "lucide-react";
 import type {
   GroupedPaymentDialogState,
   PaymentDialogState,
@@ -208,6 +220,17 @@ export default function Messages() {
   const [confirmingStepPaymentIds, setConfirmingStepPaymentIds] = useState<Record<number, boolean>>({});
   const confirmingStepPaymentRef = useRef<Record<number, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  
+  // Pagamentos Adicionais
+  const [additionalPayments, setAdditionalPayments] = useState<any[]>([]);
+  const [loadingAdditionalPayments, setLoadingAdditionalPayments] = useState(false);
+  const [isProcessingAdditionalPayment, setIsProcessingAdditionalPayment] = useState(false);
+  const [showCreateAdditionalPaymentDialog, setShowCreateAdditionalPaymentDialog] =
+    useState(false);
+  const [showAdditionalPaymentsListDialog, setShowAdditionalPaymentsListDialog] =
+    useState(false);
+  const [selectedAdditionalPaymentsTicketId, setSelectedAdditionalPaymentsTicketId] =
+    useState<number | null>(null);
 
   const paymentMethodLabels = useMemo<Record<PaymentMethod, string>>(
     () => ({
@@ -274,6 +297,34 @@ export default function Messages() {
     };
   }), [messages]);
 
+  const additionalPaymentCreateTicketOptions = useMemo<AdditionalPaymentTicketOption[]>(
+    () =>
+      tickets
+        .filter(
+          (ticket: any) =>
+            String(ticket?.status || "").toLowerCase() === "em andamento"
+        )
+        .slice()
+        .sort(sortTicketsDesc)
+        .map((ticket: any) => ({
+          id: ticket.id,
+          label: `Proposta #${ticket.id}`,
+        })),
+    [tickets]
+  );
+
+  const additionalPaymentListTicketOptions = useMemo<AdditionalPaymentTicketOption[]>(
+    () =>
+      tickets
+        .slice()
+        .sort(sortTicketsDesc)
+        .map((ticket: any) => ({
+          id: ticket.id,
+          label: `Proposta #${ticket.id} (${ticket.status || "sem status"})`,
+        })),
+    [tickets]
+  );
+
   // ---------- efeitos ----------
   useEffect(() => {
     const loadPaymentPreference = async () => {
@@ -330,6 +381,22 @@ export default function Messages() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    if (additionalPaymentListTicketOptions.length === 0) {
+      setSelectedAdditionalPaymentsTicketId(null);
+      return;
+    }
+    setSelectedAdditionalPaymentsTicketId((prev) => {
+      if (
+        prev &&
+        additionalPaymentListTicketOptions.some((option) => option.id === prev)
+      ) {
+        return prev;
+      }
+      return additionalPaymentListTicketOptions[0].id;
+    });
+  }, [additionalPaymentListTicketOptions]);
+
   // ---------- handlers: chat ----------
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -341,6 +408,33 @@ export default function Messages() {
     selectConversation(conversation);
     setLocation(`/messages/${conversation.otherUser.id}`);
   };
+
+  const handleOpenCreateAdditionalPaymentDialog = useCallback(() => {
+    if (user?.type !== "prestador") return;
+    if (additionalPaymentCreateTicketOptions.length === 0) {
+      toast({
+        title: "Sem proposta em andamento",
+        description:
+          "Nenhuma proposta em andamento foi encontrada para vincular a cobrança adicional.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowCreateAdditionalPaymentDialog(true);
+  }, [additionalPaymentCreateTicketOptions.length, toast, user?.type]);
+
+  const handleOpenAdditionalPaymentsListDialog = useCallback(() => {
+    if (user?.type !== "prestador" && user?.type !== "contratante") return;
+    if (additionalPaymentListTicketOptions.length === 0) {
+      toast({
+        title: "Sem propostas",
+        description: "Nenhuma proposta foi encontrada para listar cobranças adicionais.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowAdditionalPaymentsListDialog(true);
+  }, [additionalPaymentListTicketOptions.length, toast, user?.type]);
 
   // ---------- handlers: proposta nova ----------
   const handleSendProposal = (groups?: { id: number; name: string }[]) => {
@@ -405,6 +499,192 @@ export default function Messages() {
   };
 
   // ---------- handlers: detalhes / steps ----------
+  // ---------- handlers: pagamentos adicionais ----------
+  const loadAdditionalPayments = useCallback(async (ticketId: number) => {
+    if (!ticketId) return;
+    setLoadingAdditionalPayments(true);
+    try {
+      const response = await apiRequest("GET", `/additional-payments/ticket/${ticketId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAdditionalPayments(data.data || []);
+      } else {
+        setAdditionalPayments([]);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar pagamentos adicionais:", error);
+      setAdditionalPayments([]);
+    } finally {
+      setLoadingAdditionalPayments(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showAdditionalPaymentsListDialog || !selectedAdditionalPaymentsTicketId) {
+      return;
+    }
+    void loadAdditionalPayments(selectedAdditionalPaymentsTicketId);
+  }, [
+    loadAdditionalPayments,
+    selectedAdditionalPaymentsTicketId,
+    showAdditionalPaymentsListDialog,
+  ]);
+
+  const handleCreateAdditionalPayment = useCallback(async (data: {
+    ticket_id: number;
+    title: string;
+    description: string;
+    amount: number;
+  }) => {
+    setIsProcessingAdditionalPayment(true);
+    try {
+      const response = await apiRequest("POST", "/additional-payments", data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Erro ao criar pagamento adicional");
+      }
+      const result = await response.json();
+      toast({
+        title: "Sucesso",
+        description: "Pagamento adicional criado com sucesso!",
+        variant: "default",
+      });
+      // Recarregar pagamentos
+      await loadAdditionalPayments(data.ticket_id);
+      return result.data;
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao criar pagamento adicional",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsProcessingAdditionalPayment(false);
+    }
+  }, [loadAdditionalPayments, toast]);
+
+  const handleAcceptAdditionalPayment = useCallback(async (id: number, method: string) => {
+    setIsProcessingAdditionalPayment(true);
+    try {
+      const normalizedMethod = (method || "PIX").toUpperCase() as PaymentMethod;
+      const response = await apiRequest("PATCH", `/additional-payments/${id}/respond`, {
+        action: "accept",
+        method: normalizedMethod,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Erro ao aceitar pagamento adicional");
+      }
+      const result = await response.json();
+      
+      // Captura o payload atual, mesmo quando a lista local ainda não foi atualizada
+      const currentPayment =
+        additionalPayments.find((p) => p.id === id) || result?.data?.additional_payment;
+
+      // Recarregar pagamentos para refletir status atualizado
+      if (currentPayment) {
+        await loadAdditionalPayments(currentPayment.ticket_id);
+      }
+      
+      toast({
+        title: "Sucesso",
+        description: "Pagamento adicional aceito! Gerando cobrança...",
+        variant: "default",
+      });
+      
+      // O backend já retorna pagamento/pix no aceite da cobrança adicional.
+      if (currentPayment) {
+        const backendPayment = result?.data?.payment;
+        const backendPix = result?.data?.pix;
+        const dialogData = backendPayment
+          ? {
+              payment_id: backendPayment.id,
+              asaas_payment_id: backendPayment.asaas_payment_id,
+              status: backendPayment.status,
+              amount: Number(backendPayment.amount ?? currentPayment.amount ?? 0),
+              method: normalizedMethod,
+              invoice_url:
+                backendPayment.asaas_invoice_url || backendPayment.checkout_url,
+              checkout_url:
+                backendPayment.checkout_url || backendPayment.asaas_invoice_url,
+              pix:
+                normalizedMethod === "PIX"
+                  ? {
+                      copy_and_paste: backendPix?.payload,
+                      qr_code_image: backendPix?.image,
+                      expires_at: backendPix?.expires_at,
+                    }
+                  : undefined,
+              boleto:
+                normalizedMethod === "BOLETO"
+                  ? {
+                      digitable_line: backendPayment.boleto_barcode,
+                      pdf_url:
+                        backendPayment.boleto_url ||
+                        backendPayment.asaas_invoice_url,
+                      due_date: backendPayment.due_date,
+                    }
+                  : undefined,
+            }
+          : null;
+
+        setPaymentDialog({
+          type: "additional",
+          step: {
+            id: currentPayment.id,
+            ticket_id: currentPayment.ticket_id,
+            title: currentPayment.title,
+            price: Number(currentPayment.amount || 0),
+          } as any,
+          data: dialogData,
+          method: normalizedMethod,
+          loading: false,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao aceitar pagamento adicional",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingAdditionalPayment(false);
+    }
+  }, [additionalPayments, loadAdditionalPayments, toast]);
+
+  const handleRefuseAdditionalPayment = useCallback(async (id: number, reason: string) => {
+    setIsProcessingAdditionalPayment(true);
+    try {
+      const response = await apiRequest("PATCH", `/additional-payments/${id}/respond`, {
+        action: "refuse",
+        reason,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Erro ao recusar pagamento adicional");
+      }
+      toast({
+        title: "Sucesso",
+        description: "Pagamento adicional recusado.",
+        variant: "default",
+      });
+      // Recarregar pagamentos
+      const currentPayment = additionalPayments.find((p) => p.id === id);
+      if (currentPayment) {
+        await loadAdditionalPayments(currentPayment.ticket_id);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao recusar pagamento adicional",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingAdditionalPayment(false);
+    }
+  }, [additionalPayments, loadAdditionalPayments, toast]);
+
   const handleViewProposalDetails = async (ticketId: number) => {
     setShowProposalDetails(true);
     setLoadingSteps(true);
@@ -412,6 +692,8 @@ export default function Messages() {
     try {
       const withPayments = await getStepsWithPayment(ticketId);
       setSelectedTicketSteps(withPayments);
+      // Carregar pagamentos adicionais
+      await loadAdditionalPayments(ticketId);
     } catch (e: any) {
       toast({
         title: 'Erro',
@@ -688,16 +970,23 @@ export default function Messages() {
 
   const requestPayment = useCallback(
     async (target: PaymentDialogState) => {
-      const endpoint =
-        target.type === "deposit"
-          ? `/payments/tickets/${target.step.ticket_id}`
-          : `/payments/steps/${target.step.id}`;
+      let endpoint: string;
+      let description: string;
+
+      if (target.type === "deposit") {
+        endpoint = `/payments/tickets/${target.step.ticket_id}`;
+        description = `Depósito em garantia do ticket #${target.step.ticket_id}`;
+      } else if (target.type === "additional") {
+        throw new Error(
+          "A cobrança adicional já é gerada no aceite. Atualize a lista para ver os dados."
+        );
+      } else {
+        endpoint = `/payments/steps/${target.step.id}`;
+        description = `Pagamento da etapa "${target.step.title}"`;
+      }
 
       const response = await apiRequest("POST", endpoint, {
-        description:
-          target.type === "deposit"
-            ? `Dep¢sito em garantia do ticket #${target.step.ticket_id}`
-            : `Pagamento da etapa "${target.step.title}"`,
+        description,
         method: target.method,
       });
 
@@ -709,7 +998,7 @@ export default function Messages() {
       }
 
       if (!response.ok || payload?.success === false) {
-        throw new Error(payload?.message || "NÆo foi poss¡vel gerar o pagamento.");
+        throw new Error(payload?.message || "Não foi possível gerar o pagamento.");
       }
 
       return payload.data;
@@ -762,6 +1051,14 @@ export default function Messages() {
   const handleGeneratePayment = useCallback(async () => {
     if (!paymentDialog) return;
     const current = paymentDialog;
+    if (current.type === "additional") {
+      toast({
+        title: "Cobrança já gerada",
+        description:
+          "O pagamento adicional é criado no momento do aceite da cobrança.",
+      });
+      return;
+    }
     setPaymentDialog({ ...current, loading: true });
     try {
       const data = await requestPayment(current);
@@ -782,7 +1079,14 @@ export default function Messages() {
 
   const handleChangePaymentMethod = useCallback((method: PaymentMethod) => {
     setLastPaymentMethod(method);
-    setPaymentDialog((prev) => (prev ? { ...prev, method, data: null } : prev));
+    setPaymentDialog((prev) => {
+      if (!prev) return prev;
+      if (prev.type === "additional") {
+        // No adicional o pagamento é criado no aceite; não limpamos os dados existentes.
+        return { ...prev, method };
+      }
+      return { ...prev, method, data: null };
+    });
   }, []);
 
   const handleGroupedPaymentMethodChange = useCallback((method: PaymentMethod) => {
@@ -1714,6 +2018,52 @@ export default function Messages() {
                   onMessageChange={setNewMessage}
                   onSendMessage={handleSendMessage}
                   messagesEndRef={messagesEndRef}
+                  composerAction={
+                    user?.type === "prestador" || user?.type === "contratante" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={
+                              isProcessingAdditionalPayment ||
+                              additionalPaymentListTicketOptions.length === 0
+                            }
+                            className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span className="sr-only">Ações adicionais</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="top" align="start" className="w-64">
+                          {user?.type === "prestador" && (
+                            <DropdownMenuItem
+                              onClick={handleOpenCreateAdditionalPaymentDialog}
+                              disabled={additionalPaymentCreateTicketOptions.length === 0}
+                            >
+                              <ReceiptText className="h-4 w-4" />
+                              Criar pagamento adicional
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={handleOpenAdditionalPaymentsListDialog}
+                            disabled={additionalPaymentListTicketOptions.length === 0}
+                          >
+                            <List className="h-4 w-4" />
+                            Listar pagamentos adicionais
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled
+                            className="text-gray-400"
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                            Adicionar imagem
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null
+                  }
                 />
                 <ContractsPanel
                   tickets={tickets}
@@ -1830,6 +2180,42 @@ export default function Messages() {
           openContractSignatureDialog({ id: ticketId, status: 'pendente' })
         }
         onRejectContract={ticketId => handleRejectContract(ticketId)}
+        additionalPayments={additionalPayments}
+        loadingAdditionalPayments={loadingAdditionalPayments}
+        onAcceptAdditionalPayment={handleAcceptAdditionalPayment}
+        onRefuseAdditionalPayment={handleRefuseAdditionalPayment}
+        isProcessingAdditionalPayment={isProcessingAdditionalPayment}
+      />
+
+      <CreateAdditionalPaymentDialog
+        open={showCreateAdditionalPaymentDialog}
+        onOpenChange={setShowCreateAdditionalPaymentDialog}
+        ticketOptions={additionalPaymentCreateTicketOptions}
+        onCreate={async (data) => {
+          await handleCreateAdditionalPayment(data);
+          setShowCreateAdditionalPaymentDialog(false);
+        }}
+        isCreating={isProcessingAdditionalPayment}
+      />
+
+      <AdditionalPaymentsListDialog
+        open={showAdditionalPaymentsListDialog}
+        onOpenChange={setShowAdditionalPaymentsListDialog}
+        ticketOptions={additionalPaymentListTicketOptions}
+        selectedTicketId={selectedAdditionalPaymentsTicketId}
+        onSelectedTicketChange={setSelectedAdditionalPaymentsTicketId}
+        ticketStatus={
+          selectedAdditionalPaymentsTicketId
+            ? tickets.find((t: any) => t.id === selectedAdditionalPaymentsTicketId)
+                ?.status
+            : undefined
+        }
+        payments={additionalPayments}
+        userType={user?.type as 'prestador' | 'contratante' | undefined}
+        onAccept={handleAcceptAdditionalPayment}
+        onRefuse={handleRefuseAdditionalPayment}
+        isProcessing={isProcessingAdditionalPayment}
+        loading={loadingAdditionalPayments}
       />
 
       <OlderContractsDialog

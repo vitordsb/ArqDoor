@@ -1,0 +1,184 @@
+import React from "react";
+import { AdditionalPaymentCard } from "./AdditionalPaymentCard";
+import { Receipt } from "lucide-react";
+import type { AdditionalPayment } from "@/lib/Interfaces";
+import type { PaymentMethod } from "@/features/messages/types";
+
+type AdditionalPaymentListProps = {
+  payments: AdditionalPayment[];
+  userType?: "prestador" | "contratante";
+  ticketStatus?: string;
+  onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
+  onRefuse?: (id: number, reason: string) => Promise<void>;
+  isProcessing?: boolean;
+  loading?: boolean;
+};
+
+export function AdditionalPaymentList({
+  payments,
+  userType,
+  ticketStatus,
+  onAccept,
+  onRefuse,
+  isProcessing = false,
+  loading = false,
+}: AdditionalPaymentListProps) {
+  const isProvider = userType === "prestador";
+  const isTicketActive =
+    ticketStatus?.toLowerCase() === "em andamento";
+
+  // Separar por status
+  const pendingPayments = payments.filter((p) => p.status === "PENDING");
+  const acceptedPayments = payments.filter((p) => p.status === "ACCEPTED");
+  const refusedPayments = payments.filter((p) => p.status === "REFUSED");
+  const paidPayments = payments.filter((p) => p.status === "PAID");
+  const otherPayments = payments.filter(
+    (p) => !["PENDING", "ACCEPTED", "REFUSED", "PAID"].includes(p.status)
+  );
+
+  if (loading) {
+    return (
+      <div className="text-center py-4 text-sm text-gray-600">
+        Carregando pagamentos adicionais...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Receipt className="h-5 w-5 text-orange-600" />
+        <h3 className="font-semibold text-lg">Pagamentos Adicionais</h3>
+        {payments.length > 0 && (
+          <span className="text-sm text-gray-500">({payments.length})</span>
+        )}
+      </div>
+
+      {/* Lista de Pagamentos */}
+      {payments.length === 0 ? (
+        <div className="text-center py-8 text-sm text-gray-500 border border-dashed rounded-lg">
+          {isProvider ? (
+            <>
+              <Receipt className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p>Nenhuma cobrança adicional criada ainda.</p>
+              {isTicketActive && <p className="text-xs mt-1">Crie uma cobrança no chat.</p>}
+            </>
+          ) : (
+            <>
+              <Receipt className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p>Nenhuma cobrança adicional pendente.</p>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Pendentes */}
+          {pendingPayments.length > 0 && (
+            <div className="space-y-2">
+              {pendingPayments.length > 1 && (
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                  Pendentes ({pendingPayments.length})
+                </p>
+              )}
+              {pendingPayments.map((payment) => (
+                <AdditionalPaymentCard
+                  key={payment.id}
+                  payment={payment}
+                  userType={userType}
+                  onAccept={onAccept}
+                  onRefuse={onRefuse}
+                  isProcessing={isProcessing}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Aceitas */}
+          {acceptedPayments.length > 0 && (
+            <div className="space-y-2">
+              {pendingPayments.length > 0 && (
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mt-4">
+                  Aceitas ({acceptedPayments.length})
+                </p>
+              )}
+              {acceptedPayments.map((payment) => (
+                <AdditionalPaymentCard
+                  key={payment.id}
+                  payment={payment}
+                  userType={userType}
+                  onAccept={onAccept}
+                  onRefuse={onRefuse}
+                  isProcessing={isProcessing}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Pagas */}
+          {paidPayments.length > 0 && (
+            <div className="space-y-2">
+              {(pendingPayments.length > 0 || acceptedPayments.length > 0) && (
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mt-4">
+                  Pagas ({paidPayments.length})
+                </p>
+              )}
+              {paidPayments.map((payment) => (
+                <AdditionalPaymentCard
+                  key={payment.id}
+                  payment={payment}
+                  userType={userType}
+                  onAccept={onAccept}
+                  onRefuse={onRefuse}
+                  isProcessing={isProcessing}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Recusadas */}
+          {refusedPayments.length > 0 && (
+            <div className="space-y-2">
+              {(pendingPayments.length > 0 ||
+                acceptedPayments.length > 0 ||
+                paidPayments.length > 0) && (
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mt-4">
+                  Recusadas ({refusedPayments.length})
+                </p>
+              )}
+              {refusedPayments.map((payment) => (
+                <AdditionalPaymentCard
+                  key={payment.id}
+                  payment={payment}
+                  userType={userType}
+                  onAccept={onAccept}
+                  onRefuse={onRefuse}
+                  isProcessing={isProcessing}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Outros status */}
+          {otherPayments.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mt-4">
+                Outros ({otherPayments.length})
+              </p>
+              {otherPayments.map((payment) => (
+                <AdditionalPaymentCard
+                  key={payment.id}
+                  payment={payment}
+                  userType={userType}
+                  onAccept={onAccept}
+                  onRefuse={onRefuse}
+                  isProcessing={isProcessing}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

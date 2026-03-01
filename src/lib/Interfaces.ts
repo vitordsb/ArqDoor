@@ -148,99 +148,69 @@ export interface SignDocumentRequest {
   password: string;
   user_id: number;
 }
-export interface Demand {
-  User: User;
-  id_demand: number;
-  id_user: number;
-  title: string;
-  description: string;
-  price: number;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
-export interface UserData {
-  id: number;
-  name: string;
-  email: string;
-}
-
-export interface EnrichedDemand extends Demand {
-  userName: string;
-  userEmail: string;
-}
-
-export interface ServiceProvider {
-  provider_id: number;
-  user_id: number;
-  profession: string;
-  views_profile: number;
-  about: string | null;
-}
-
-export interface ServiceFreelancer {
-  id_serviceFreelancer: number;
-  id_provider: number;
-  title: string;
-  description: string;
-  price: string;
-  createdAt: string;
-  updatedAt: string;
-  ServiceProvider: ServiceProvider;
-}
-export interface EnrichedService extends ServiceFreelancer {
-  userName: string;
-  userEmail: string;
-  userType: string;
-}
-export interface ServicesResponse {
-  code: number;
-  message: string;
-  servicesFreelancer: ServiceFreelancer[];
-  success: boolean;
-}
-
-
-export type StepStatus = 'Recusado' | 'Concluido' | 'Pendente';
 
 export interface Step {
   id: number;
   ticket_id: number;
-  status: string;
   title: string;
   price: number;
-  rejection_reason?: string | null;
-  confirm_freelancer?: boolean;
-  confirm_contractor?: boolean;
-  rework_count?: number;
-  start_date?: string | null;
-  end_date?: string | null;
-  is_financially_cleared?: boolean;
-  group_id?: number | null;
-  group_sequence?: number | null; // Sequence number for grouping (no FK)
+  status?: string;
+  sequence?: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  provider_completed?: boolean;
+  client_confirmed?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  group_id?: number;
+  group_sequence?: number;
+  payment_group_id?: number;
   payment_group?: {
     id: number;
     name: string;
   };
-  started_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
+  paymentGroup?: {
+    id: number;
+    name: string;
+  };
 }
 
-export interface Ticket {
-  id: number
-  conversation_id: number
-  created_at: string
-  updated_at?: string
-  status: 'pendente' | 'cancelada' | 'em_andamento' | 'concluída'
-  payment_preference?: "per_step" | "at_end" | "custom"
-  paymentPreference?: "per_step" | "at_end" | "custom"
-  payment_status?: string
-  paymentStatus?: string
-  provider_id?: number
-  payment?: boolean
-  allow_grouped_payment?: boolean
-  allowGroupedPayment?: boolean
-  grouped_payment?: boolean
-  grouped_payment_enabled?: boolean
+export interface TicketService {
+  id: number;
+  conversation_id: number;
+  provider_id: number;
+  status: string;
+  payment_preference?: "per_step" | "at_end" | "custom";
+  allow_grouped_payment?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Pagamento Avulso (Additional Payment)
+export interface AdditionalPayment {
+  id: number;
+  ticket_id: number;
+  provider_id: number;
+  contractor_id: number;
+  payment_id?: number | null;
+  title: string;
+  description: string;
+  amount: number;
+  status: "PENDING" | "ACCEPTED" | "REFUSED" | "PAID" | "CANCELLED";
+  refusal_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAdditionalPaymentRequest {
+  ticket_id: number;
+  title: string;
+  description: string;
+  amount: number;
+}
+
+export interface RespondAdditionalPaymentRequest {
+  action: "accept" | "refuse";
+  method?: "PIX" | "BOLETO" | "CREDIT_CARD" | "DEBIT_CARD";
+  reason?: string;
 }

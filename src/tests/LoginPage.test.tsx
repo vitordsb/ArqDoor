@@ -96,4 +96,58 @@ describe('AuthPage Login Flow', () => {
         });
     });
   });
+
+  it('submits manual register as prestador when checkbox is checked', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthPage />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByText('Criar conta', { selector: 'button' }));
+
+    fireEvent.change(screen.getByPlaceholderText('Seu nome'), {
+      target: { value: 'Prestador Teste' },
+    });
+
+    const emailInput = screen.getAllByPlaceholderText('voce@exemplo.com')[0];
+    fireEvent.change(emailInput, {
+      target: { value: 'prestador.teste@example.com' },
+    });
+
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'Masculino' },
+    });
+
+    const birthInput = document.querySelector('input[type=\"date\"]');
+    if (!birthInput) throw new Error('Birth input not found');
+    fireEvent.change(birthInput, {
+      target: { value: '1990-01-01' },
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Mínimo 8 caracteres'), {
+      target: { value: 'Senha123!' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Repita a senha'), {
+      target: { value: 'Senha123!' },
+    });
+
+    const providerCheckbox = document.getElementById('sou-prestador');
+    if (!providerCheckbox) throw new Error('Provider checkbox not found');
+    fireEvent.click(providerCheckbox);
+
+    const termsCheckbox = document.getElementById('termos_aceitos');
+    if (!termsCheckbox) throw new Error('Terms checkbox not found');
+    fireEvent.click(termsCheckbox);
+    fireEvent.click(screen.getByText('Cadastrar', { selector: 'button' }));
+
+    await waitFor(() => {
+      expect(registerMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'prestador.teste@example.com',
+          type: 'prestador',
+        })
+      );
+    });
+  });
 });

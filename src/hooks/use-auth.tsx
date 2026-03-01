@@ -31,28 +31,38 @@ const persistSession = (
       payload.signature_password_set ? "true" : "false"
     );
   }
+  if (payload?.type) {
+    sessionStorage.setItem("user_type", payload.type);
+  }
   setUser(payload);
   return payload;
 };
 
-const fetchAndMergeProfile = (
+const fetchUserProfile = async (userId?: number) => {
+  if (!userId) return null;
+  const res = await apiRequest("GET", `/users/${userId}`);
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return data?.user || null;
+};
+
+const fetchAndMergeProfile = async (
   user: User,
   setUser: React.Dispatch<React.SetStateAction<User | null>>
 ) => {
-  if (!user.id) return;
-  apiRequest("GET", `/users/${user.id}`)
-    .then((res) => {
-      if (res.ok) return res.json();
-      throw new Error("Failed to fetch user");
-    })
-    .then((data) => {
-      if (data?.user) {
-        setUser((prev) => (prev ? { ...prev, ...data.user } : prev));
-      }
-    })
-    .catch((err) => {
-      console.error("Erro ao atualizar dados do usuário:", err);
-    });
+  if (!user.id) return null;
+  try {
+    const profile = await fetchUserProfile(user.id);
+    if (!profile) return null;
+    if (profile.type) {
+      sessionStorage.setItem("user_type", profile.type);
+    }
+    setUser((prev) => (prev ? { ...prev, ...profile } : prev));
+    return profile;
+  } catch (err) {
+    console.error("Erro ao atualizar dados do usuário:", err);
+    return null;
+  }
 };
 
 export const login = async (
@@ -87,7 +97,15 @@ export const login = async (
       description: "Seja bem vindo!",
       variant: "default",
     });
-    if (payload) fetchAndMergeProfile(payload, setUser);
+    if (payload?.id) {
+      const freshProfile = await fetchUserProfile(payload.id);
+      if (freshProfile) {
+        if (freshProfile.type) {
+          sessionStorage.setItem("user_type", freshProfile.type);
+        }
+        setUser((prev) => (prev ? { ...prev, ...freshProfile } : prev));
+      }
+    }
     return true;
   } catch (error) {
     console.log(error);
@@ -175,7 +193,15 @@ export const loginWithGoogleRequest = async (
       description: body?.message || "Seja bem vindo!",
     });
     const sessionPayload = persistSession(body.data.token, setUser);
-    if (sessionPayload) fetchAndMergeProfile(sessionPayload, setUser);
+    if (sessionPayload?.id) {
+      const freshProfile = await fetchUserProfile(sessionPayload.id);
+      if (freshProfile) {
+        if (freshProfile.type) {
+          sessionStorage.setItem("user_type", freshProfile.type);
+        }
+        setUser((prev) => (prev ? { ...prev, ...freshProfile } : prev));
+      }
+    }
     return {
       status: needsOnboarding ? "logged_in_needs_onboarding" as const : "logged_in" as const,
     };
@@ -273,6 +299,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data.signature_password_set ? "true" : "false"
       );
     }
+    if (data.type) {
+      sessionStorage.setItem("user_type", data.type);
+    }
     setUser((prev) => (prev ? { ...prev, ...data } : prev));
   };
   useEffect(() => {
@@ -282,6 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedOnboarding = sessionStorage.getItem("needs_onboarding") === "true";
     const storedOptional = sessionStorage.getItem("onboarding_optional") === "true";
     const storedSignature = sessionStorage.getItem("signature_password_set");
+    const storedUserType = sessionStorage.getItem("user_type");
     if (token && expiry && Number(expiry) > Date.now()) {
       try {
         const payload = parseJwt<User>(token);
@@ -291,13 +321,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else if (storedSignature === "false") {
             payload.signature_password_set = false;
           }
+          if (storedUserType === "prestador" || storedUserType === "contratante") {
+            payload.type = storedUserType;
+          }
         }
         setUser(payload?.id ? payload : null);
         setNeedsOnboardingState(storedOnboarding);
         setOnboardingOptionalState(storedOptional);
 
-        // Profile data will be fetched on next login
-        // No need to fetch here - reduces duplicate API calls
+        // Evita estado stale (ex.: tipo alterado para prestador durante onboarding).
+        if (payload?.id) fetchAndMergeProfile(payload, setUser);
       } catch {
         sessionStorage.clear();
         setUser(null);

@@ -44,7 +44,7 @@ const normalizeStep = (s: any): Step & {
 };
 
 export function useContract(conversationId?: number) {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, updateUserLocal } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isVisible, setIsVisible] = useState<boolean>(!document.hidden);
@@ -487,7 +487,35 @@ export function useContract(conversationId?: number) {
     ) => {
       console.log("createProposal chamado. Pref:", paymentPreference, "Grupos:", paymentGroups); //debug
       if (!conversationId) return false;
-      if (!user || user.type !== "prestador") return false;
+      if (!user) return false;
+
+      let effectiveUserType = user.type;
+      if (effectiveUserType !== "prestador" && user.id) {
+        try {
+          const userRes = await apiRequest("GET", `/users/${user.id}`);
+          if (userRes.ok) {
+            const userBody = await userRes.json().catch(() => null);
+            const freshType = userBody?.user?.type;
+            if (freshType === "prestador" || freshType === "contratante") {
+              effectiveUserType = freshType;
+              if (freshType !== user.type) {
+                updateUserLocal({ type: freshType });
+              }
+            }
+          }
+        } catch (error) {
+          console.warn("Falha ao atualizar tipo do usuário antes de criar proposta:", error);
+        }
+      }
+
+      if (effectiveUserType !== "prestador") {
+        toast({
+          title: "Perfil não habilitado",
+          description: "Apenas prestadores podem criar propostas.",
+          variant: "warning",
+        });
+        return false;
+      }
       if (!contractFile) {
         toast({
           title: "Contrato obrigatório",
@@ -784,7 +812,7 @@ export function useContract(conversationId?: number) {
         return false;
       }
     },
-    [conversationId, user, queryClient, toast, sendSystemMessage, uploadPDF, preConfirmFirstStepFreelancer, deleteTicket] // Adicionei as dependências que faltavam
+    [conversationId, user, updateUserLocal, queryClient, toast, sendSystemMessage, uploadPDF, preConfirmFirstStepFreelancer, deleteTicket] // Adicionei as dependências que faltavam
   );
 
   /** =================== PDF/CONTRATO =================== */

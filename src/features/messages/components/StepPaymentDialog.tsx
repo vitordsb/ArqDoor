@@ -46,7 +46,11 @@ export function StepPaymentDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {dialog?.type === "deposit" ? "Depósito em garantia" : "Pagamento da etapa"}
+            {dialog?.type === "deposit" 
+              ? "Depósito em garantia" 
+              : dialog?.type === "additional"
+              ? "Pagamento adicional"
+              : "Pagamento da etapa"}
             {dialog?.step?.title ? ` - ${dialog.step.title}` : ""}
           </DialogTitle>
           <DialogDescription>

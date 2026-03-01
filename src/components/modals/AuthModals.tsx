@@ -177,9 +177,6 @@ export const AuthModals: React.FC<{
       },
     });
 
-    const [isPrestador, setIsPrestador] = useState(false);
-    const fieldClasses = "w-full";
-
   // Pre-fill email in login form when provided
   useEffect(() => {
     if (preFilledEmail && isLoginOpen) {
@@ -195,18 +192,19 @@ export const AuthModals: React.FC<{
     }
   }, [emailToPreFill, isLoginOpen, loginForm]);
 
-    const handlePrestadorChange = (checked: boolean) => {
-      registerForm.setValue("type", checked ? "prestador" : "contratante");
-      setIsPrestador(checked);
-    };
-
     const googleAuth = useGoogleLogin({
       flow: "implicit",
       scope: "openid email profile",
       onSuccess: async (tokenResponse) => {
         const mode = googleModeRef.current;
         const isRegisterMode = mode === "register";
-        const userType = isRegisterMode ? (isPrestador ? "prestador" : "contratante") : undefined;
+        const selectedType = registerForm.getValues("type");
+        const userType =
+          isRegisterMode && selectedType === "prestador"
+            ? "prestador"
+            : isRegisterMode
+            ? "contratante"
+            : undefined;
 
         if (!tokenResponse?.access_token) {
           toast({
@@ -346,6 +344,7 @@ export const AuthModals: React.FC<{
 
       try {
         setRegisterLoading(true);
+        const selectedType = data.type === "prestador" ? "prestador" : "contratante";
         const registerData: RegisterInterface = {
           name: data.name.trim(),
           email: data.email.trim(),
@@ -353,7 +352,7 @@ export const AuthModals: React.FC<{
           confirmPassword: data.confirmPassword,
           gender: data.gender,
           birth: data.birth,
-          type: isPrestador ? "prestador" : "contratante",
+          type: selectedType === "prestador" ? "prestador" : "contratante",
           termos_aceitos: data.termos_aceitos,
         };
 
@@ -517,7 +516,7 @@ export const AuthModals: React.FC<{
                               </option>
                               <option value="Masculino">Masculino</option>
                               <option value="Feminino">Feminino</option>
-                              <option value="notSay">Prefiro não informar</option>
+                              <option value="Prefiro não dizer">Prefiro não informar</option>
                             </select>
                           </FormControl>
                           <FormMessage />
@@ -542,16 +541,28 @@ export const AuthModals: React.FC<{
                     />
                   </div>
 
-                  <div className="flex items-center gap-3 rounded-xl border p-3">
-                    <Checkbox
-                      id="sou-prestador"
-                      checked={isPrestador}
-                      onCheckedChange={handlePrestadorChange}
-                    />
-                    <label htmlFor="sou-prestador" className="text-sm leading-none">
-                      Sou prestador
-                    </label>
-                  </div>
+                  <FormField
+                    control={registerForm.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-3 rounded-xl border p-3">
+                        <FormControl>
+                          <Checkbox
+                            id="sou-prestador"
+                            checked={field.value === "prestador"}
+                            onCheckedChange={(checked) =>
+                              field.onChange(
+                                checked === true ? "prestador" : "contratante"
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <label htmlFor="sou-prestador" className="text-sm leading-none">
+                          Sou prestador
+                        </label>
+                      </FormItem>
+                    )}
+                  />
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField

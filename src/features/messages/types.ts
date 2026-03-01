@@ -20,7 +20,7 @@ export type PaymentMethod = "PIX" | "BOLETO" | "CREDIT_CARD" | "DEBIT_CARD";
 
 export type PaymentDialogState = {
   step: Step;
-  type: "step" | "deposit" | "group";
+  type: "step" | "deposit" | "group" | "additional";
   data: any | null;
   method: PaymentMethod;
   loading: boolean;

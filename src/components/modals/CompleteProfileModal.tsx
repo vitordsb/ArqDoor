@@ -66,6 +66,24 @@ export default function CompleteProfileModal() {
   const signaturePasswordValue = signaturePassword.trim();
   const signaturePasswordConfirmValue = signaturePasswordConfirm.trim();
 
+  useEffect(() => {
+    if (!shouldOpen || !user) return;
+    setGender(user.gender || "");
+    setBirth(normalizeDate(user.birth));
+    setIsPrestador(user.type === "prestador");
+    setHasCnpj(!!user.cnpj);
+    setCpf(user.cpf || "");
+    setCnpj(user.cnpj || "");
+  }, [
+    shouldOpen,
+    user?.id,
+    user?.gender,
+    user?.birth,
+    user?.type,
+    user?.cpf,
+    user?.cnpj,
+  ]);
+
   const validate = () => {
     if (shouldAskIdentity) {
       if (!gender) return showError("Selecione o gênero.");
@@ -138,9 +156,9 @@ export default function CompleteProfileModal() {
 
     setIsSaving(true);
     try {
-      const finalType = onboardingOptional
-        ? user?.type || "contratante"
-        : (isPrestador ? "prestador" : "contratante");
+      // Sempre usar o checkbox isPrestador para determinar o tipo, não o tipo antigo do usuário
+      // Isso garante que se o usuário marcar prestador no formulário, será salvo como prestador
+      const finalType = isPrestador ? "prestador" : "contratante";
       const userPayload: Record<string, any> = {
         type: finalType,
         perfil_completo: true,

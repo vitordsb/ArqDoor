@@ -1,4 +1,4 @@
-﻿// src/components/modals/ProposalDetailsDialog.tsx
+// src/components/modals/ProposalDetailsDialog.tsx
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog"
@@ -36,6 +36,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Timer } from "@/components/ui/timer"
+import { AdditionalPaymentList } from "./AdditionalPaymentList"
 
 type ProposalDetailsDialogProps = {
   open: boolean
@@ -77,6 +78,12 @@ type ProposalDetailsDialogProps = {
   allowGroupedPayment?: boolean
   onToggleGroupedPayment?: (ticketId: number, enabled: boolean) => void
   canPayStep?: (step: Step, allSteps: Step[]) => boolean
+  // Pagamentos Adicionais
+  additionalPayments?: any[]
+  loadingAdditionalPayments?: boolean
+  onAcceptAdditionalPayment?: (id: number, method: string) => Promise<void>
+  onRefuseAdditionalPayment?: (id: number, reason: string) => Promise<void>
+  isProcessingAdditionalPayment?: boolean
 }
 
 const normalizeStatus = (status?: string) => {
@@ -136,6 +143,12 @@ export function ProposalDetailsDialog({
   allowGroupedPayment = false,
   onToggleGroupedPayment,
   canPayStep,
+  // Pagamentos Adicionais
+  additionalPayments = [],
+  loadingAdditionalPayments = false,
+  onAcceptAdditionalPayment,
+  onRefuseAdditionalPayment,
+  isProcessingAdditionalPayment = false,
 }: ProposalDetailsDialogProps) {
   const [feedbackModalStep, setFeedbackModalStep] = React.useState<Step | null>(null);
   const [feedbackModalType, setFeedbackModalType] = React.useState<'feedback' | 'problem'>('feedback');
@@ -910,6 +923,21 @@ export function ProposalDetailsDialog({
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Seção de Pagamentos Adicionais */}
+          {ticketId && currentTicketStatus?.toLowerCase() === "em andamento" && (
+            <div className="mt-6 pt-6 border-t">
+              <AdditionalPaymentList
+                payments={additionalPayments}
+                userType={userType}
+                ticketStatus={currentTicketStatus}
+                onAccept={onAcceptAdditionalPayment}
+                onRefuse={onRefuseAdditionalPayment}
+                isProcessing={isProcessingAdditionalPayment}
+                loading={loadingAdditionalPayments}
+              />
             </div>
           )}
           </div>
