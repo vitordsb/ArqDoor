@@ -38,6 +38,7 @@ import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { User as UserInterface } from "@/lib/Interfaces";
 import { getInitials } from "@/lib/utils";
+import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
 
 // Estados do Brasil para o filtro
 const BR_STATES = [
@@ -136,6 +137,7 @@ const UserAvatar = ({ user, className = '', size = 'md' }: { user: UserInterface
 
 export default function SocialFeed() {
   const PAGE_SIZE = 6;
+  const whatsappUrl = "https://wa.me/message/WYONYONWQG5XG1";
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState<"keyword" | "location">("keyword");
   const [selectedState, setSelectedState] = useState("");
@@ -574,6 +576,15 @@ export default function SocialFeed() {
           </div>
         </div>
       </div>
+      <a
+        href={whatsappUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-5 right-5 z-50 inline-flex items-center rounded-full bg-green-500 px-5 py-3 text-sm font-semibold text-white shadow-none transition hover:bg-green-600"
+      >
+        <WhatsAppIcon className="mr-2 h-5 w-5 text-white" />
+        Entrar em contato
+      </a>
     </ApplicationLayout>
   );
 }

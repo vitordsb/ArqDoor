@@ -29,7 +29,10 @@ type AdditionalPaymentsListDialogProps = {
   userType?: "prestador" | "contratante";
   onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
   onRefuse?: (id: number, reason: string) => Promise<void>;
+  onResume?: (payment: AdditionalPayment) => Promise<void>;
+  onRefreshStatus?: (id: number) => Promise<void>;
   isProcessing?: boolean;
+  processingPaymentId?: number | null;
   loading?: boolean;
 };
 
@@ -44,7 +47,10 @@ export function AdditionalPaymentsListDialog({
   userType,
   onAccept,
   onRefuse,
+  onResume,
+  onRefreshStatus,
   isProcessing = false,
+  processingPaymentId = null,
   loading = false,
 }: AdditionalPaymentsListDialogProps) {
   const hasTicketOptions = ticketOptions.length > 0;
@@ -94,7 +100,10 @@ export function AdditionalPaymentsListDialog({
               ticketStatus={ticketStatus}
               onAccept={onAccept}
               onRefuse={onRefuse}
+              onResume={onResume}
+              onRefreshStatus={onRefreshStatus}
               isProcessing={isProcessing}
+              processingPaymentId={processingPaymentId}
               loading={loading}
             />
           </div>

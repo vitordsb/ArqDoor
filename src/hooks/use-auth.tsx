@@ -22,9 +22,10 @@ const persistSession = (
   setUser: React.Dispatch<React.SetStateAction<User | null>>
 ) => {
   const payload = parseJwt<User>(token);
-  const expiresAt = Date.now() + 10000 * 60 * 60; // 10h
-  sessionStorage.setItem("token", token);
-  sessionStorage.setItem("tokenExpiry", expiresAt.toString());
+  // Guarda apenas metadados do usuário — o token fica no cookie HttpOnly
+  if (payload?.id) {
+    sessionStorage.setItem("user_id", String(payload.id));
+  }
   if (payload?.signature_password_set !== undefined && payload?.signature_password_set !== null) {
     sessionStorage.setItem(
       "signature_password_set",
@@ -108,7 +109,7 @@ export const login = async (
     }
     return true;
   } catch (error) {
-    console.log(error);
+    console.error(error);
     toast({
       title: "Erro no login",
       description: "Erro interno, por favor tente novamente mais tarde",
@@ -206,7 +207,7 @@ export const loginWithGoogleRequest = async (
       status: needsOnboarding ? "logged_in_needs_onboarding" as const : "logged_in" as const,
     };
   } catch (error) {
-    console.log(error);
+    console.error(error);
     toast({
       title: "Erro no login com Google",
       description: "Erro interno, por favor tente novamente mais tarde",
@@ -219,7 +220,6 @@ export const loginWithGoogleRequest = async (
 export const register = async (data: RegisterInterface) => {
   try {
     const userRes = await apiRequest("POST", "/users", data);
-    console.log(userRes)
     switch (userRes.status) {
       case 409:
         toast({
@@ -229,8 +229,7 @@ export const register = async (data: RegisterInterface) => {
         });
         return false;
     }
-    const userResponse = await userRes.json();
-    console.log(userResponse)
+    await userRes.json();
     const successMessage = data.type === "prestador"
       ? "Seu cadastro como prestador foi realizado com sucesso!"
       : "Seu cadastro como cliente foi realizado com sucesso!";
@@ -241,7 +240,7 @@ export const register = async (data: RegisterInterface) => {
     });
     return true;
   } catch (error) {
-    console.log(error);
+    console.error(error);
     toast({
       title: "Erro do servidor",
       description: "Erro interno, por favor tente novamente mais tarde",
@@ -256,14 +255,10 @@ export const logout = async (
   setNeedsOnboarding?: (value: boolean) => void,
   setOnboardingOptional?: (value: boolean) => void
 ) => {
-  // Muitos backends com JWT não precisam de rota de logout;
-  // limpar o token local já é suficiente.
   try {
-    // Se no futuro existir uma rota /auth/logout, você pode reativar:
-    // const res = await apiRequest("POST", "/auth/logout");
-    // ignorar 404 ou falhas não críticas
+    await apiRequest("POST", "/auth/logout");
   } catch {
-    // silenciosamente ignora erros de logout remoto
+    // ignora falha de rede — o sessionStorage é limpo de qualquer forma
   }
   sessionStorage.clear();
   setUser(null);
@@ -305,39 +300,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => (prev ? { ...prev, ...data } : prev));
   };
   useEffect(() => {
-    setIsLoading(true);
-    const token = sessionStorage.getItem("token");
-    const expiry = sessionStorage.getItem("tokenExpiry");
+    const userId = sessionStorage.getItem("user_id");
     const storedOnboarding = sessionStorage.getItem("needs_onboarding") === "true";
     const storedOptional = sessionStorage.getItem("onboarding_optional") === "true";
     const storedSignature = sessionStorage.getItem("signature_password_set");
     const storedUserType = sessionStorage.getItem("user_type");
-    if (token && expiry && Number(expiry) > Date.now()) {
-      try {
-        const payload = parseJwt<User>(token);
-        if (payload?.id) {
-          if (storedSignature === "true") {
-            payload.signature_password_set = true;
-          } else if (storedSignature === "false") {
-            payload.signature_password_set = false;
-          }
-          if (storedUserType === "prestador" || storedUserType === "contratante") {
-            payload.type = storedUserType;
-          }
+
+    if (!userId) {
+      setIsInitialized(true);
+      return;
+    }
+
+    setIsLoading(true);
+    fetchUserProfile(Number(userId))
+      .then((profile) => {
+        if (!profile) {
+          sessionStorage.clear();
+          setUser(null);
+          return;
         }
-        setUser(payload?.id ? payload : null);
+        if (storedSignature === "true") profile.signature_password_set = true;
+        else if (storedSignature === "false") profile.signature_password_set = false;
+        if (storedUserType === "prestador" || storedUserType === "contratante") {
+          profile.type = storedUserType;
+        }
+        if (profile.type) sessionStorage.setItem("user_type", profile.type);
+        setUser(profile);
         setNeedsOnboardingState(storedOnboarding);
         setOnboardingOptionalState(storedOptional);
-
-        // Evita estado stale (ex.: tipo alterado para prestador durante onboarding).
-        if (payload?.id) fetchAndMergeProfile(payload, setUser);
-      } catch {
+      })
+      .catch(() => {
         sessionStorage.clear();
         setUser(null);
-      }
-    }
-    setIsInitialized(true);
-    setIsLoading(false);
+      })
+      .finally(() => {
+        setIsInitialized(true);
+        setIsLoading(false);
+      });
   }, []);
 
   return (

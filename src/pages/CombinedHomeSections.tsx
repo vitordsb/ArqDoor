@@ -14,11 +14,12 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
+import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
 
 const keyMetrics = [
   {
     value: "Até 7 dias úteis",
-    label: "para receber seus honorários",
+    label: "para receber seus honorários.",
     icon: Clock3,
   },
   {
@@ -27,8 +28,8 @@ const keyMetrics = [
     icon: LineChart,
   },
   {
-    value: "Com validade jurídica",
-    label: "Assinatura eletrônica integrada",
+    value: "Assinatura eletrônica",
+    label: "com validade jurídica.",
     icon: FileStack,
   },
 ];
@@ -103,6 +104,7 @@ const successStories = [
 
 const CombinedHomeSections = () => {
   const [text, setText] = useState<string>("Comece a usar agora");
+  const whatsappUrl = "https://wa.me/message/WYONYONWQG5XG1";
 
   useEffect(() => {
     if (sessionStorage.getItem("token")) {
@@ -144,6 +146,17 @@ const CombinedHomeSections = () => {
                 {text}
               </Button>
             </Link>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex"
+            >
+              <Button className="rounded-full bg-green-500 px-8 py-6 text-base font-semibold text-white shadow-none hover:bg-green-600">
+                <WhatsAppIcon className="mr-2 h-5 w-5 text-white" />
+                Entrar em contato
+              </Button>
+            </a>
             <Link href="/home">
               <Button
                 variant="outline"

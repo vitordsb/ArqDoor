@@ -372,7 +372,7 @@ export default function DemandsManager() {
                           <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
                             R$ {demand.price}
                           </div>
-                          <Badge className={getStatusColor(demand.status)}>
+                          <Badge className={getStatusColor(demand.status || "")}>
                             {demand.status === 'pendente' ? 'Pendente' :
                               demand.status === 'em_andamento' ? 'Em Andamento' :
                                 demand.status === 'concluida' ? 'Concluída' :
@@ -381,7 +381,7 @@ export default function DemandsManager() {
                         </div>
 
                         <div className="text-xs text-slate-500">
-                          Criada em: {new Date(demand.createdAt).toLocaleDateString('pt-BR')}
+                          Criada em: {new Date(demand.createdAt || demand.created_at).toLocaleDateString('pt-BR')}
                         </div>
                       </div>
                     )}

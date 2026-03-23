@@ -1,7 +1,10 @@
 
 import { Link } from "wouter";
+import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
 
 const Footer = () => {
+  const whatsappUrl = "https://wa.me/message/WYONYONWQG5XG1";
+
   return (
     <footer className="bg-gray-900 text-white py-12">
       <div className="container mx-auto px-4">
@@ -9,6 +12,17 @@ const Footer = () => {
           <div>
             <h3 className="text-xl font-bold mb-4">ArqDoor</h3>
             <p className="text-gray-300">Conectando clientes aos arquitetos e projetistas ideais para cada tipo de projeto.</p>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-flex"
+            >
+              <span className="inline-flex items-center rounded-full bg-green-500 px-5 py-3 text-sm font-semibold text-white shadow-none transition hover:bg-green-600">
+                <WhatsAppIcon className="mr-2 h-4 w-4 text-white" />
+                Entrar em contato
+              </span>
+            </a>
           </div>
 
           <div>
@@ -57,8 +71,8 @@ const Footer = () => {
             <a href="https://www.youtube.com/@zameedapp" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="text-gray-400 hover:text-white transition-colors">
               <i className="fab fa-youtube text-xl" />
             </a>
-            <a href="https://wa.me/5500000000000" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="text-gray-400 hover:text-white transition-colors">
-              <i className="fab fa-whatsapp text-xl" />
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="text-gray-400 hover:text-white transition-colors">
+              <WhatsAppIcon className="h-5 w-5" />
             </a>
           </div>
         </div>

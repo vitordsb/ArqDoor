@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import MessagesLayout from '@/components/layouts/MessagesLayout';
 import { EmptyConversationState } from "@/features/messages/components/EmptyConversationState";
 import { apiRequest, API_BASE_URL } from '@/lib/queryClient';
-import type { Step } from '@/lib/Interfaces';
+import type { AdditionalPayment, Step } from '@/lib/Interfaces';
 import { ConversationsSidebar } from '@/features/messages/components/ConversationsSidebar';
 import { ConversationHeader } from '@/features/messages/components/ConversationHeader';
 import { ChatPanel } from '@/features/messages/components/ChatPanel';
@@ -222,15 +222,18 @@ export default function Messages() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   
   // Pagamentos Adicionais
-  const [additionalPayments, setAdditionalPayments] = useState<any[]>([]);
+  const [additionalPayments, setAdditionalPayments] = useState<AdditionalPayment[]>([]);
   const [loadingAdditionalPayments, setLoadingAdditionalPayments] = useState(false);
-  const [isProcessingAdditionalPayment, setIsProcessingAdditionalPayment] = useState(false);
+  const [isCreatingAdditionalPayment, setIsCreatingAdditionalPayment] = useState(false);
+  const [processingAdditionalPaymentId, setProcessingAdditionalPaymentId] = useState<number | null>(null);
   const [showCreateAdditionalPaymentDialog, setShowCreateAdditionalPaymentDialog] =
     useState(false);
   const [showAdditionalPaymentsListDialog, setShowAdditionalPaymentsListDialog] =
     useState(false);
   const [selectedAdditionalPaymentsTicketId, setSelectedAdditionalPaymentsTicketId] =
     useState<number | null>(null);
+  const isProcessingAdditionalPayment =
+    isCreatingAdditionalPayment || processingAdditionalPaymentId !== null;
 
   const paymentMethodLabels = useMemo<Record<PaymentMethod, string>>(
     () => ({
@@ -500,6 +503,88 @@ export default function Messages() {
 
   // ---------- handlers: detalhes / steps ----------
   // ---------- handlers: pagamentos adicionais ----------
+  const normalizeAdditionalPayment = useCallback((rawPayment: any): AdditionalPayment => {
+    const normalizedStatus = String(rawPayment?.status || "PENDING").toUpperCase();
+    const allowedStatuses: AdditionalPayment["status"][] = [
+      "PENDING",
+      "ACCEPTED",
+      "REFUSED",
+      "PAID",
+      "CANCELLED",
+    ];
+    const safeStatus = allowedStatuses.includes(
+      normalizedStatus as AdditionalPayment["status"]
+    )
+      ? (normalizedStatus as AdditionalPayment["status"])
+      : "PENDING";
+
+    const linkedPayment = rawPayment?.payment
+      ? {
+          ...rawPayment.payment,
+          id: Number(rawPayment.payment.id),
+          status: String(rawPayment.payment.status || "").toUpperCase(),
+        }
+      : null;
+
+    return {
+      ...rawPayment,
+      id: Number(rawPayment.id),
+      ticket_id: Number(rawPayment.ticket_id),
+      provider_id: Number(rawPayment.provider_id),
+      contractor_id: Number(rawPayment.contractor_id),
+      payment_id:
+        rawPayment.payment_id === null || rawPayment.payment_id === undefined
+          ? null
+          : Number(rawPayment.payment_id),
+      status: safeStatus,
+      payment: linkedPayment,
+    };
+  }, []);
+
+  const buildAdditionalDialogData = useCallback(
+    (
+      additionalPayment: AdditionalPayment,
+      backendPayment: any,
+      backendPix?: any,
+      fallbackMethod?: PaymentMethod
+    ) => {
+      if (!backendPayment) return null;
+      const method = ((backendPayment.method || fallbackMethod || "PIX") as string).toUpperCase() as PaymentMethod;
+      return {
+        payment_id: backendPayment.id,
+        asaas_payment_id: backendPayment.asaas_payment_id,
+        status: backendPayment.status,
+        amount: Number(backendPayment.amount ?? additionalPayment.amount ?? 0),
+        method,
+        invoice_url:
+          backendPayment.asaas_invoice_url || backendPayment.checkout_url,
+        checkout_url:
+          backendPayment.checkout_url || backendPayment.asaas_invoice_url,
+        pix:
+          method === "PIX"
+            ? {
+                copy_and_paste:
+                  backendPix?.payload || backendPayment.pix_payload || undefined,
+                qr_code_image:
+                  backendPix?.image || backendPayment.pix_image || undefined,
+                expires_at:
+                  backendPix?.expires_at || backendPayment.pix_expires_at || undefined,
+              }
+            : undefined,
+        boleto:
+          method === "BOLETO"
+            ? {
+                digitable_line: backendPayment.boleto_barcode,
+                pdf_url:
+                  backendPayment.boleto_url || backendPayment.asaas_invoice_url,
+                due_date: backendPayment.due_date,
+              }
+            : undefined,
+      };
+    },
+    []
+  );
+
   const loadAdditionalPayments = useCallback(async (ticketId: number) => {
     if (!ticketId) return;
     setLoadingAdditionalPayments(true);
@@ -507,7 +592,10 @@ export default function Messages() {
       const response = await apiRequest("GET", `/additional-payments/ticket/${ticketId}`);
       if (response.ok) {
         const data = await response.json();
-        setAdditionalPayments(data.data || []);
+        const normalizedPayments = Array.isArray(data?.data)
+          ? data.data.map((payment: any) => normalizeAdditionalPayment(payment))
+          : [];
+        setAdditionalPayments(normalizedPayments);
       } else {
         setAdditionalPayments([]);
       }
@@ -517,7 +605,7 @@ export default function Messages() {
     } finally {
       setLoadingAdditionalPayments(false);
     }
-  }, []);
+  }, [normalizeAdditionalPayment]);
 
   useEffect(() => {
     if (!showAdditionalPaymentsListDialog || !selectedAdditionalPaymentsTicketId) {
@@ -536,7 +624,7 @@ export default function Messages() {
     description: string;
     amount: number;
   }) => {
-    setIsProcessingAdditionalPayment(true);
+    setIsCreatingAdditionalPayment(true);
     try {
       const response = await apiRequest("POST", "/additional-payments", data);
       if (!response.ok) {
@@ -560,12 +648,13 @@ export default function Messages() {
       });
       throw error;
     } finally {
-      setIsProcessingAdditionalPayment(false);
+      setIsCreatingAdditionalPayment(false);
     }
   }, [loadAdditionalPayments, toast]);
 
   const handleAcceptAdditionalPayment = useCallback(async (id: number, method: string) => {
-    setIsProcessingAdditionalPayment(true);
+    const normalizedId = Number(id);
+    setProcessingAdditionalPaymentId(normalizedId);
     try {
       const normalizedMethod = (method || "PIX").toUpperCase() as PaymentMethod;
       const response = await apiRequest("PATCH", `/additional-payments/${id}/respond`, {
@@ -577,14 +666,46 @@ export default function Messages() {
         throw new Error(error.message || "Erro ao aceitar pagamento adicional");
       }
       const result = await response.json();
-      
-      // Captura o payload atual, mesmo quando a lista local ainda não foi atualizada
-      const currentPayment =
-        additionalPayments.find((p) => p.id === id) || result?.data?.additional_payment;
+      const refreshedAdditionalPayment = result?.data?.additional_payment
+        ? normalizeAdditionalPayment({
+            ...result.data.additional_payment,
+            payment: result?.data?.payment || null,
+          })
+        : null;
+      const backendPayment = result?.data?.payment;
 
-      // Recarregar pagamentos para refletir status atualizado
-      if (currentPayment) {
-        await loadAdditionalPayments(currentPayment.ticket_id);
+      setAdditionalPayments((prev) =>
+        prev.map((payment) =>
+          Number(payment.id) === normalizedId
+            ? {
+                ...payment,
+                status: "ACCEPTED",
+                payment_id: result?.data?.payment?.id ?? payment.payment_id,
+                payment: backendPayment
+                  ? {
+                      ...backendPayment,
+                      id: Number(backendPayment.id),
+                      status: String(backendPayment.status || "").toUpperCase(),
+                    }
+                  : payment.payment ?? null,
+              }
+            : payment
+        )
+      );
+
+      const resolvedTicketId = Number(
+        result?.data?.additional_payment?.ticket_id ??
+          result?.data?.ticket_id ??
+          additionalPayments.find((payment) => Number(payment.id) === normalizedId)?.ticket_id ??
+          selectedAdditionalPaymentsTicketId ??
+          0
+      );
+      const currentPayment =
+        refreshedAdditionalPayment ??
+        additionalPayments.find((payment) => Number(payment.id) === normalizedId);
+
+      if (resolvedTicketId) {
+        await loadAdditionalPayments(resolvedTicketId);
       }
       
       toast({
@@ -595,39 +716,12 @@ export default function Messages() {
       
       // O backend já retorna pagamento/pix no aceite da cobrança adicional.
       if (currentPayment) {
-        const backendPayment = result?.data?.payment;
-        const backendPix = result?.data?.pix;
-        const dialogData = backendPayment
-          ? {
-              payment_id: backendPayment.id,
-              asaas_payment_id: backendPayment.asaas_payment_id,
-              status: backendPayment.status,
-              amount: Number(backendPayment.amount ?? currentPayment.amount ?? 0),
-              method: normalizedMethod,
-              invoice_url:
-                backendPayment.asaas_invoice_url || backendPayment.checkout_url,
-              checkout_url:
-                backendPayment.checkout_url || backendPayment.asaas_invoice_url,
-              pix:
-                normalizedMethod === "PIX"
-                  ? {
-                      copy_and_paste: backendPix?.payload,
-                      qr_code_image: backendPix?.image,
-                      expires_at: backendPix?.expires_at,
-                    }
-                  : undefined,
-              boleto:
-                normalizedMethod === "BOLETO"
-                  ? {
-                      digitable_line: backendPayment.boleto_barcode,
-                      pdf_url:
-                        backendPayment.boleto_url ||
-                        backendPayment.asaas_invoice_url,
-                      due_date: backendPayment.due_date,
-                    }
-                  : undefined,
-            }
-          : null;
+        const dialogData = buildAdditionalDialogData(
+          currentPayment,
+          backendPayment,
+          result?.data?.pix,
+          normalizedMethod
+        );
 
         setPaymentDialog({
           type: "additional",
@@ -649,12 +743,133 @@ export default function Messages() {
         variant: "destructive",
       });
     } finally {
-      setIsProcessingAdditionalPayment(false);
+      setProcessingAdditionalPaymentId(null);
     }
-  }, [additionalPayments, loadAdditionalPayments, toast]);
+  }, [additionalPayments, buildAdditionalDialogData, loadAdditionalPayments, normalizeAdditionalPayment, selectedAdditionalPaymentsTicketId, toast]);
+
+  const handleRefreshAdditionalPaymentStatus = useCallback(async (id: number) => {
+    const normalizedId = Number(id);
+    setProcessingAdditionalPaymentId(normalizedId);
+    try {
+      const response = await apiRequest("GET", `/additional-payments/${normalizedId}/refresh`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Erro ao verificar pagamento adicional");
+      }
+      const result = await response.json();
+      const refreshedAdditionalPayment = result?.data?.additional_payment
+        ? normalizeAdditionalPayment({
+            ...result.data.additional_payment,
+            payment: result?.data?.payment || null,
+          })
+        : null;
+
+      if (refreshedAdditionalPayment) {
+        setAdditionalPayments((prev) =>
+          prev.map((payment) =>
+            Number(payment.id) === normalizedId ? refreshedAdditionalPayment : payment
+          )
+        );
+      }
+
+      const resolvedTicketId = Number(
+        refreshedAdditionalPayment?.ticket_id ??
+          additionalPayments.find((payment) => Number(payment.id) === normalizedId)?.ticket_id ??
+          selectedAdditionalPaymentsTicketId ??
+          0
+      );
+      if (resolvedTicketId) {
+        await loadAdditionalPayments(resolvedTicketId);
+      }
+
+      toast({
+        title: "Status atualizado",
+        description: result?.data?.paid
+          ? "Pagamento confirmado."
+          : "Pagamento ainda pendente.",
+      });
+      return result;
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível verificar o pagamento.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingAdditionalPaymentId(null);
+    }
+  }, [additionalPayments, loadAdditionalPayments, normalizeAdditionalPayment, selectedAdditionalPaymentsTicketId, toast]);
+
+  const handleResumeAdditionalPayment = useCallback(async (payment: AdditionalPayment) => {
+    const normalizedId = Number(payment.id);
+    setProcessingAdditionalPaymentId(normalizedId);
+    try {
+      let targetPayment = payment;
+      let refreshedBackendPayment = payment.payment || null;
+
+      try {
+        const response = await apiRequest("GET", `/additional-payments/${normalizedId}/refresh`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result?.data?.additional_payment) {
+            targetPayment = normalizeAdditionalPayment({
+              ...result.data.additional_payment,
+              payment: result?.data?.payment || null,
+            });
+            refreshedBackendPayment = result?.data?.payment || null;
+            setAdditionalPayments((prev) =>
+              prev.map((item) => (Number(item.id) === normalizedId ? targetPayment : item))
+            );
+          }
+        }
+      } catch (refreshError) {
+        console.warn("Não foi possível atualizar status antes de continuar pagamento:", refreshError);
+      }
+
+      if (targetPayment.status === "PAID") {
+        toast({
+          title: "Pagamento já confirmado",
+          description: "Esta cobrança adicional já foi paga.",
+        });
+        return;
+      }
+
+      const dialogData = buildAdditionalDialogData(
+        targetPayment,
+        refreshedBackendPayment,
+        undefined,
+        (refreshedBackendPayment?.method || "PIX") as PaymentMethod
+      );
+
+      if (!dialogData) {
+        toast({
+          title: "Cobrança sem dados de pagamento",
+          description: "Não foi possível recuperar os dados desta cobrança. Tente verificar novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setPaymentDialog({
+        type: "additional",
+        step: {
+          id: targetPayment.id,
+          ticket_id: targetPayment.ticket_id,
+          title: targetPayment.title,
+          price: Number(targetPayment.amount || 0),
+        } as any,
+        data: dialogData,
+        method: (dialogData.method as PaymentMethod),
+        loading: false,
+      });
+    } finally {
+      setProcessingAdditionalPaymentId(null);
+    }
+  }, [buildAdditionalDialogData, normalizeAdditionalPayment, toast]);
 
   const handleRefuseAdditionalPayment = useCallback(async (id: number, reason: string) => {
-    setIsProcessingAdditionalPayment(true);
+    const normalizedId = Number(id);
+    setProcessingAdditionalPaymentId(normalizedId);
     try {
       const response = await apiRequest("PATCH", `/additional-payments/${id}/respond`, {
         action: "refuse",
@@ -664,15 +879,32 @@ export default function Messages() {
         const error = await response.json();
         throw new Error(error.message || "Erro ao recusar pagamento adicional");
       }
+      const result = await response.json();
+      setAdditionalPayments((prev) =>
+        prev.map((payment) =>
+          Number(payment.id) === normalizedId
+            ? {
+                ...payment,
+                status: "REFUSED",
+                refusal_reason: reason,
+              }
+            : payment
+        )
+      );
       toast({
         title: "Sucesso",
         description: "Pagamento adicional recusado.",
         variant: "default",
       });
-      // Recarregar pagamentos
-      const currentPayment = additionalPayments.find((p) => p.id === id);
-      if (currentPayment) {
-        await loadAdditionalPayments(currentPayment.ticket_id);
+      const resolvedTicketId = Number(
+        result?.data?.additional_payment?.ticket_id ??
+          result?.data?.ticket_id ??
+          additionalPayments.find((payment) => Number(payment.id) === normalizedId)?.ticket_id ??
+          selectedAdditionalPaymentsTicketId ??
+          0
+      );
+      if (resolvedTicketId) {
+        await loadAdditionalPayments(resolvedTicketId);
       }
     } catch (error: any) {
       toast({
@@ -681,9 +913,9 @@ export default function Messages() {
         variant: "destructive",
       });
     } finally {
-      setIsProcessingAdditionalPayment(false);
+      setProcessingAdditionalPaymentId(null);
     }
-  }, [additionalPayments, loadAdditionalPayments, toast]);
+  }, [additionalPayments, loadAdditionalPayments, selectedAdditionalPaymentsTicketId, toast]);
 
   const handleViewProposalDetails = async (ticketId: number) => {
     setShowProposalDetails(true);
@@ -2184,7 +2416,10 @@ export default function Messages() {
         loadingAdditionalPayments={loadingAdditionalPayments}
         onAcceptAdditionalPayment={handleAcceptAdditionalPayment}
         onRefuseAdditionalPayment={handleRefuseAdditionalPayment}
+        onResumeAdditionalPayment={handleResumeAdditionalPayment}
+        onRefreshAdditionalPaymentStatus={handleRefreshAdditionalPaymentStatus}
         isProcessingAdditionalPayment={isProcessingAdditionalPayment}
+        processingAdditionalPaymentId={processingAdditionalPaymentId}
       />
 
       <CreateAdditionalPaymentDialog
@@ -2195,7 +2430,7 @@ export default function Messages() {
           await handleCreateAdditionalPayment(data);
           setShowCreateAdditionalPaymentDialog(false);
         }}
-        isCreating={isProcessingAdditionalPayment}
+        isCreating={isCreatingAdditionalPayment}
       />
 
       <AdditionalPaymentsListDialog
@@ -2214,7 +2449,10 @@ export default function Messages() {
         userType={user?.type as 'prestador' | 'contratante' | undefined}
         onAccept={handleAcceptAdditionalPayment}
         onRefuse={handleRefuseAdditionalPayment}
+        onResume={handleResumeAdditionalPayment}
+        onRefreshStatus={handleRefreshAdditionalPaymentStatus}
         isProcessing={isProcessingAdditionalPayment}
+        processingPaymentId={processingAdditionalPaymentId}
         loading={loadingAdditionalPayments}
       />
 

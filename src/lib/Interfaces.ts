@@ -149,17 +149,24 @@ export interface SignDocumentRequest {
   user_id: number;
 }
 
+export type StepStatus = string;
+
 export interface Step {
   id: number;
   ticket_id: number;
   title: string;
   price: number;
-  status?: string;
+  status?: StepStatus;
   sequence?: number;
   started_at?: string | null;
   completed_at?: string | null;
   provider_completed?: boolean;
   client_confirmed?: boolean;
+  confirm_freelancer?: boolean;
+  confirmFreelancer?: boolean;
+  confirm_contractor?: boolean;
+  confirmContractor?: boolean;
+  rejection_reason?: string | null;
   created_at?: string;
   updated_at?: string;
   group_id?: number;
@@ -186,6 +193,79 @@ export interface TicketService {
   updated_at: string;
 }
 
+export interface Ticket {
+  id: number;
+  conversation_id: number;
+  provider_id?: number;
+  status?: string;
+  payment_preference?: "per_step" | "at_end" | "custom";
+  paymentPreference?: "per_step" | "at_end" | "custom";
+  allow_grouped_payment?: boolean;
+  grouped_payment?: boolean;
+  grouped_payment_enabled?: boolean;
+  payment?: boolean;
+  contract_pdf_url?: string | null;
+  signed_at?: string | null;
+  signed_by?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Demand {
+  id_demand: number;
+  id_user: number;
+  title: string;
+  description: string;
+  price: number;
+  status: string;
+  created_at: string;
+  createdAt?: string;
+  updated_at?: string;
+  User?: Partial<User> & {
+    perfil?: string | null;
+  };
+}
+
+export interface EnrichedDemand extends Demand {
+  userName: string;
+  userEmail: string;
+  userPerfil?: string | null;
+  createdAt: string;
+}
+
+export interface ServiceProvider {
+  provider_id: number;
+  user_id: number;
+  profession: string;
+  views_profile?: number;
+  about?: string | null;
+}
+
+export interface ServiceFreelancer {
+  id_serviceFreelancer: number;
+  id_provider: number;
+  title: string;
+  description: string;
+  price: string;
+  createdAt: string;
+  updatedAt?: string;
+  ServiceProvider: ServiceProvider;
+}
+
+export interface ServicesResponse {
+  code?: number;
+  message?: string;
+  servicesFreelancer: ServiceFreelancer[];
+  success?: boolean;
+}
+
+export interface EnrichedService extends ServiceFreelancer {
+  userName: string;
+  userEmail: string;
+  userType: string;
+  userPerfil?: string | null;
+}
+
 // Pagamento Avulso (Additional Payment)
 export interface AdditionalPayment {
   id: number;
@@ -200,6 +280,23 @@ export interface AdditionalPayment {
   refusal_reason?: string | null;
   created_at: string;
   updated_at: string;
+  payment?: {
+    id: number;
+    status: string;
+    method?: string | null;
+    amount?: number | string | null;
+    asaas_payment_id?: string | null;
+    asaas_invoice_url?: string | null;
+    checkout_url?: string | null;
+    pix_payload?: string | null;
+    pix_image?: string | null;
+    pix_expires_at?: string | null;
+    boleto_url?: string | null;
+    boleto_barcode?: string | null;
+    due_date?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  } | null;
 }
 
 export interface CreateAdditionalPaymentRequest {

@@ -10,7 +10,10 @@ type AdditionalPaymentListProps = {
   ticketStatus?: string;
   onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
   onRefuse?: (id: number, reason: string) => Promise<void>;
+  onResume?: (payment: AdditionalPayment) => Promise<void>;
+  onRefreshStatus?: (id: number) => Promise<void>;
   isProcessing?: boolean;
+  processingPaymentId?: number | null;
   loading?: boolean;
 };
 
@@ -20,12 +23,22 @@ export function AdditionalPaymentList({
   ticketStatus,
   onAccept,
   onRefuse,
+  onResume,
+  onRefreshStatus,
   isProcessing = false,
+  processingPaymentId = null,
   loading = false,
 }: AdditionalPaymentListProps) {
   const isProvider = userType === "prestador";
   const isTicketActive =
     ticketStatus?.toLowerCase() === "em andamento";
+
+  const isPaymentProcessing = (paymentId: number) => {
+    if (processingPaymentId !== null) {
+      return Number(paymentId) === Number(processingPaymentId);
+    }
+    return isProcessing;
+  };
 
   // Separar por status
   const pendingPayments = payments.filter((p) => p.status === "PENDING");
@@ -88,7 +101,9 @@ export function AdditionalPaymentList({
                   userType={userType}
                   onAccept={onAccept}
                   onRefuse={onRefuse}
-                  isProcessing={isProcessing}
+                  onResume={onResume}
+                  onRefreshStatus={onRefreshStatus}
+                  isProcessing={isPaymentProcessing(payment.id)}
                 />
               ))}
             </div>
@@ -109,7 +124,9 @@ export function AdditionalPaymentList({
                   userType={userType}
                   onAccept={onAccept}
                   onRefuse={onRefuse}
-                  isProcessing={isProcessing}
+                  onResume={onResume}
+                  onRefreshStatus={onRefreshStatus}
+                  isProcessing={isPaymentProcessing(payment.id)}
                 />
               ))}
             </div>
@@ -130,7 +147,9 @@ export function AdditionalPaymentList({
                   userType={userType}
                   onAccept={onAccept}
                   onRefuse={onRefuse}
-                  isProcessing={isProcessing}
+                  onResume={onResume}
+                  onRefreshStatus={onRefreshStatus}
+                  isProcessing={isPaymentProcessing(payment.id)}
                 />
               ))}
             </div>
@@ -153,7 +172,9 @@ export function AdditionalPaymentList({
                   userType={userType}
                   onAccept={onAccept}
                   onRefuse={onRefuse}
-                  isProcessing={isProcessing}
+                  onResume={onResume}
+                  onRefreshStatus={onRefreshStatus}
+                  isProcessing={isPaymentProcessing(payment.id)}
                 />
               ))}
             </div>
@@ -172,7 +193,9 @@ export function AdditionalPaymentList({
                   userType={userType}
                   onAccept={onAccept}
                   onRefuse={onRefuse}
-                  isProcessing={isProcessing}
+                  onResume={onResume}
+                  onRefreshStatus={onRefreshStatus}
+                  isProcessing={isPaymentProcessing(payment.id)}
                 />
               ))}
             </div>

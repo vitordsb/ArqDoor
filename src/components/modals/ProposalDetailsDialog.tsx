@@ -37,6 +37,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Timer } from "@/components/ui/timer"
 import { AdditionalPaymentList } from "./AdditionalPaymentList"
+import type { AdditionalPayment } from "@/lib/Interfaces"
 
 type ProposalDetailsDialogProps = {
   open: boolean
@@ -83,7 +84,10 @@ type ProposalDetailsDialogProps = {
   loadingAdditionalPayments?: boolean
   onAcceptAdditionalPayment?: (id: number, method: string) => Promise<void>
   onRefuseAdditionalPayment?: (id: number, reason: string) => Promise<void>
+  onResumeAdditionalPayment?: (payment: AdditionalPayment) => Promise<void>
+  onRefreshAdditionalPaymentStatus?: (id: number) => Promise<void>
   isProcessingAdditionalPayment?: boolean
+  processingAdditionalPaymentId?: number | null
 }
 
 const normalizeStatus = (status?: string) => {
@@ -148,7 +152,10 @@ export function ProposalDetailsDialog({
   loadingAdditionalPayments = false,
   onAcceptAdditionalPayment,
   onRefuseAdditionalPayment,
+  onResumeAdditionalPayment,
+  onRefreshAdditionalPaymentStatus,
   isProcessingAdditionalPayment = false,
+  processingAdditionalPaymentId = null,
 }: ProposalDetailsDialogProps) {
   const [feedbackModalStep, setFeedbackModalStep] = React.useState<Step | null>(null);
   const [feedbackModalType, setFeedbackModalType] = React.useState<'feedback' | 'problem'>('feedback');
@@ -935,7 +942,10 @@ export function ProposalDetailsDialog({
                 ticketStatus={currentTicketStatus}
                 onAccept={onAcceptAdditionalPayment}
                 onRefuse={onRefuseAdditionalPayment}
+                onResume={onResumeAdditionalPayment}
+                onRefreshStatus={onRefreshAdditionalPaymentStatus}
                 isProcessing={isProcessingAdditionalPayment}
+                processingPaymentId={processingAdditionalPaymentId}
                 loading={loadingAdditionalPayments}
               />
             </div>

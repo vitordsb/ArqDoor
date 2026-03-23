@@ -11,17 +11,31 @@ concurrency:
 
 jobs:
   deploy:
-    # Skip automatically if required secrets are not configured.
-    if: ${{ secrets.VPS_HOST != '' && secrets.VPS_USER != '' && secrets.VPS_SSH_KEY != '' }}
     runs-on: ubuntu-latest
     env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
       # Public values (embedded into the frontend build). Prefer GitHub Variables; Secrets also work.
       VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID || vars.VITE_GOOGLE_CLIENT_ID }}
     steps:
+      - name: Valida secrets do deploy
+        id: deploy_guard
+        run: |
+          if [ -n "${VPS_HOST}" ] && [ -n "${VPS_USER}" ] && [ -n "${VPS_SSH_KEY}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::warning::Deploy ignorado: configure VPS_HOST, VPS_USER e VPS_SSH_KEY nas GitHub Secrets."
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
+        if: steps.deploy_guard.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node
+        if: steps.deploy_guard.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -29,28 +43,35 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install
+        if: steps.deploy_guard.outputs.enabled == 'true'
         run: npm ci
 
       - name: Build
+        if: steps.deploy_guard.outputs.enabled == 'true'
         run: npm run build
 
       - name: Package dist
+        if: steps.deploy_guard.outputs.enabled == 'true'
         run: tar -czf dist.tar.gz -C dist .
 
       - name: Setup SSH Agent
+        if: steps.deploy_guard.outputs.enabled == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
       - name: Trust VPS Host Key
+        if: steps.deploy_guard.outputs.enabled == 'true'
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Upload dist tarball
+        if: steps.deploy_guard.outputs.enabled == 'true'
         run: scp -o BatchMode=yes dist.tar.gz "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/arqdoor-dist.tar.gz"
 
       - name: Extract on VPS
+        if: steps.deploy_guard.outputs.enabled == 'true'
         run: |
           ssh -o BatchMode=yes "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" 'bash -s' <<'EOF'
           set -euo pipefail

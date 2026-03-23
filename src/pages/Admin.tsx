@@ -1,6 +1,38 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 
+type SectionPagination = {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+};
+
+type PaymentsPagination = {
+  page: number;
+  page_size: number;
+  pending_total: number;
+  pending_total_pages: number;
+  paid_total: number;
+  paid_total_pages: number;
+};
+
+type DashboardMeta = {
+  section: "all" | "usuarios" | "contratos" | "pagamentos" | "conversas";
+  page: number;
+  page_size: number;
+  pagination: {
+    tickets: SectionPagination;
+    users: SectionPagination;
+    conversations: SectionPagination;
+    payments: PaymentsPagination;
+  };
+  partial_failures: Array<{
+    section: string;
+    message: string;
+  }>;
+};
+
 type DashboardData = {
   tickets: any[];
   users: any[];
@@ -9,9 +41,17 @@ type DashboardData = {
     pending: any[];
     paid: any[];
   };
+  meta?: DashboardMeta;
 };
 
 type TabKey = "usuarios" | "contratos" | "pagamentos" | "conversas";
+
+const TAB_PAGE_SIZE: Record<TabKey, number> = {
+  usuarios: 20,
+  contratos: 18,
+  pagamentos: 20,
+  conversas: 12,
+};
 
 const badge = (text: string, variant: "green" | "red" | "amber" | "gray" = "gray") => {
   const map: Record<string, string> = {
@@ -42,6 +82,12 @@ export default function Admin() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [refreshFlag, setRefreshFlag] = useState(0);
   const [ticketSearch, setTicketSearch] = useState("");
+  const [pageByTab, setPageByTab] = useState<Record<TabKey, number>>({
+    usuarios: 1,
+    contratos: 1,
+    pagamentos: 1,
+    conversas: 1,
+  });
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,13 +136,33 @@ export default function Admin() {
     }
   };
 
+  const activePage = pageByTab[activeTab];
+
+  useEffect(() => {
+    setPageByTab((prev) => {
+      if (prev.contratos === 1) return prev;
+      return { ...prev, contratos: 1 };
+    });
+  }, [ticketSearch]);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!authHeader) return;
       setLoading(true);
       setError(null);
       try {
-        const res = await apiRequest("GET", "/admin/dashboard", undefined, {
+        const params = new URLSearchParams();
+        params.set("section", activeTab);
+        params.set("page", String(activePage));
+        params.set("pageSize", String(TAB_PAGE_SIZE[activeTab]));
+        if (activeTab === "contratos") {
+          const trimmedTicketId = ticketSearch.trim();
+          if (/^\d+$/.test(trimmedTicketId)) {
+            params.set("ticketId", trimmedTicketId);
+          }
+        }
+
+        const res = await apiRequest("GET", `/admin/dashboard?${params.toString()}`, undefined, {
           Authorization: `Basic ${authHeader}`,
         });
         if (!res.ok) throw new Error(await res.text());
@@ -110,7 +176,7 @@ export default function Admin() {
       }
     };
     fetchData();
-  }, [authHeader, refreshFlag]);
+  }, [authHeader, refreshFlag, activeTab, activePage, ticketSearch]);
 
   const handleDeleteTicket = async (ticketId: number) => {
     if (!authHeader) return;
@@ -140,8 +206,48 @@ export default function Admin() {
     const sorted = list.sort((a, b) => a.id - b.id);
     const term = ticketSearch.trim();
     if (!term) return sorted;
-    return sorted.filter((t) => String(t.id).includes(term));
+    if (/^\d+$/.test(term)) return sorted;
+    return sorted.filter((ticket) => String(ticket.id).includes(term));
   }, [data?.tickets, ticketSearch]);
+
+  const ticketsPagination = data?.meta?.pagination?.tickets;
+  const usersPagination = data?.meta?.pagination?.users;
+  const conversationsPagination = data?.meta?.pagination?.conversations;
+  const paymentsPagination = data?.meta?.pagination?.payments;
+  const partialFailures = data?.meta?.partial_failures || [];
+
+  const totalPagesByTab: Record<TabKey, number> = {
+    contratos: ticketsPagination?.total_pages || 1,
+    usuarios: usersPagination?.total_pages || 1,
+    conversas: conversationsPagination?.total_pages || 1,
+    pagamentos: Math.max(
+      paymentsPagination?.pending_total_pages || 1,
+      paymentsPagination?.paid_total_pages || 1
+    ),
+  };
+
+  const goToPreviousPage = () => {
+    setPageByTab((prev) => {
+      const currentPage = prev[activeTab];
+      if (currentPage <= 1) return prev;
+      return {
+        ...prev,
+        [activeTab]: currentPage - 1,
+      };
+    });
+  };
+
+  const goToNextPage = () => {
+    setPageByTab((prev) => {
+      const currentPage = prev[activeTab];
+      const maxPage = totalPagesByTab[activeTab];
+      if (currentPage >= maxPage) return prev;
+      return {
+        ...prev,
+        [activeTab]: currentPage + 1,
+      };
+    });
+  };
 
   if (!authHeader) {
     return (
@@ -151,8 +257,11 @@ export default function Admin() {
           <p className="text-sm text-slate-600 mb-4">Acesso restrito à equipe ArqDoor.</p>
           <form className="space-y-4" onSubmit={login}>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Email</label>
+              <label htmlFor="admin-email" className="text-sm font-medium text-slate-700">
+                Email
+              </label>
               <input
+                id="admin-email"
                 className="w-full border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 px-3 py-2 rounded-lg outline-none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -160,8 +269,11 @@ export default function Admin() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Senha</label>
+              <label htmlFor="admin-password" className="text-sm font-medium text-slate-700">
+                Senha
+              </label>
               <input
+                id="admin-password"
                 type="password"
                 className="w-full border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 px-3 py-2 rounded-lg outline-none"
                 value={password}
@@ -195,6 +307,12 @@ export default function Admin() {
             setData(null);
             setEmail("");
             setPassword("");
+            setPageByTab({
+              usuarios: 1,
+              contratos: 1,
+              pagamentos: 1,
+              conversas: 1,
+            });
           }}
         >
           Sair
@@ -204,6 +322,12 @@ export default function Admin() {
       <div className="px-6">
         {loading && <p className="text-slate-600">Carregando...</p>}
         {error && <p className="text-red-600 font-semibold">{error}</p>}
+        {!error && partialFailures.length > 0 && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Alguns blocos do dashboard falharam ao carregar:{" "}
+            {partialFailures.map((failure) => failure.section).join(", ")}.
+          </div>
+        )}
       </div>
 
       {data && (
@@ -231,7 +355,8 @@ export default function Admin() {
             <section className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <p className="text-sm text-slate-600">
-                  {sortedFilteredTickets.length} ticket(s) listado(s) · ordenados por ID
+                  {ticketsPagination?.total ?? sortedFilteredTickets.length} ticket(s) encontrado(s) · página{" "}
+                  {activePage} de {totalPagesByTab.contratos}
                 </p>
                 <div className="flex items-center gap-2">
                   <input
@@ -248,6 +373,20 @@ export default function Admin() {
                       Limpar
                     </button>
                   )}
+                  <button
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                    onClick={goToPreviousPage}
+                    disabled={activePage <= 1}
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                    onClick={goToNextPage}
+                    disabled={activePage >= totalPagesByTab.contratos}
+                  >
+                    Próxima
+                  </button>
                 </div>
               </div>
 
@@ -310,7 +449,27 @@ export default function Admin() {
           {activeTab === "usuarios" && (
             <div className="grid gap-3 lg:grid-cols-[320px,1fr]">
               <div className="border border-slate-200 rounded-xl bg-white shadow-sm">
-                <div className="p-3 border-b font-semibold text-slate-900">Usuários</div>
+                <div className="p-3 border-b flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-900">
+                    Usuários ({usersPagination?.total ?? data.users.length})
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                      onClick={goToPreviousPage}
+                      disabled={activePage <= 1}
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                      onClick={goToNextPage}
+                      disabled={activePage >= totalPagesByTab.usuarios}
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
                 <div className="max-h-[70vh] overflow-auto">
                   {data.users.map((u: any) => (
                     <button
@@ -378,60 +537,109 @@ export default function Admin() {
           )}
 
           {activeTab === "conversas" && (
-            <section className="grid gap-3 md:grid-cols-3">
-              {data.conversations.map((c: any) => (
-                <div key={c.conversation_id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">Conv #{c.conversation_id}</span>
-                    <span className="text-xs text-slate-600">{c.updatedAt}</span>
-                  </div>
-                  <div className="mt-2 space-y-2 text-xs text-slate-700">
-                    <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
-                      <p className="font-semibold text-slate-900">Usuário 1</p>
-                      <p>ID: {c.user1_id}</p>
-                      <p>Email: {c.user1_email || "-"}</p>
-                      {c.user1_provider_id ? <p>Prestador ID: {c.user1_provider_id}</p> : null}
-                      {c.user1_type ? <p>Tipo: {c.user1_type}</p> : null}
-                    </div>
-                    <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
-                      <p className="font-semibold text-slate-900">Usuário 2</p>
-                      <p>ID: {c.user2_id}</p>
-                      <p>Email: {c.user2_email || "-"}</p>
-                      {c.user2_provider_id ? <p>Prestador ID: {c.user2_provider_id}</p> : null}
-                      {c.user2_type ? <p>Tipo: {c.user2_type}</p> : null}
-                    </div>
-                  </div>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-slate-600">
+                  {conversationsPagination?.total ?? data.conversations.length} conversa(s) · página{" "}
+                  {activePage} de {totalPagesByTab.conversas}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                    onClick={goToPreviousPage}
+                    disabled={activePage <= 1}
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                    onClick={goToNextPage}
+                    disabled={activePage >= totalPagesByTab.conversas}
+                  >
+                    Próxima
+                  </button>
                 </div>
-              ))}
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {data.conversations.map((c: any) => (
+                  <div key={c.conversation_id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">Conv #{c.conversation_id}</span>
+                      <span className="text-xs text-slate-600">{c.updatedAt}</span>
+                    </div>
+                    <div className="mt-2 space-y-2 text-xs text-slate-700">
+                      <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
+                        <p className="font-semibold text-slate-900">Usuário 1</p>
+                        <p>ID: {c.user1_id}</p>
+                        <p>Email: {c.user1_email || "-"}</p>
+                        {c.user1_provider_id ? <p>Prestador ID: {c.user1_provider_id}</p> : null}
+                        {c.user1_type ? <p>Tipo: {c.user1_type}</p> : null}
+                      </div>
+                      <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
+                        <p className="font-semibold text-slate-900">Usuário 2</p>
+                        <p>ID: {c.user2_id}</p>
+                        <p>Email: {c.user2_email || "-"}</p>
+                        {c.user2_provider_id ? <p>Prestador ID: {c.user2_provider_id}</p> : null}
+                        {c.user2_type ? <p>Tipo: {c.user2_type}</p> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
           {activeTab === "pagamentos" && (
-            <section className="grid gap-4 md:grid-cols-2">
-              <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 shadow-sm">
-                <div className="flex justify-between items-center">
-                  <p className="font-semibold text-amber-800">Pendentes</p>
-                  {badge(String(data.payments.pending.length), "amber")}
-                </div>
-                <div className="space-y-1 max-h-56 overflow-auto">
-                  {data.payments.pending.map((p: any) => (
-                    <div key={`p-${p.id}`} className="border border-amber-100 rounded-lg p-2 text-xs bg-white">
-                      #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
-                    </div>
-                  ))}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-slate-600">
+                  Pendentes: {paymentsPagination?.pending_total ?? data.payments.pending.length} · Pagos:{" "}
+                  {paymentsPagination?.paid_total ?? data.payments.paid.length} · página {activePage} de{" "}
+                  {totalPagesByTab.pagamentos}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                    onClick={goToPreviousPage}
+                    disabled={activePage <= 1}
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
+                    onClick={goToNextPage}
+                    disabled={activePage >= totalPagesByTab.pagamentos}
+                  >
+                    Próxima
+                  </button>
                 </div>
               </div>
-              <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 shadow-sm">
-                <div className="flex justify-between items-center">
-                  <p className="font-semibold text-emerald-800">Pagos</p>
-                  {badge(String(data.payments.paid.length), "green")}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <p className="font-semibold text-amber-800">Pendentes</p>
+                    {badge(String(paymentsPagination?.pending_total ?? data.payments.pending.length), "amber")}
+                  </div>
+                  <div className="space-y-1 max-h-56 overflow-auto">
+                    {data.payments.pending.map((p: any) => (
+                      <div key={`p-${p.id}`} className="border border-amber-100 rounded-lg p-2 text-xs bg-white">
+                        #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-1 max-h-56 overflow-auto">
-                  {data.payments.paid.map((p: any) => (
-                    <div key={`paid-${p.id}`} className="border border-emerald-100 rounded-lg p-2 text-xs bg-white">
-                      #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
-                    </div>
-                  ))}
+                <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <p className="font-semibold text-emerald-800">Pagos</p>
+                    {badge(String(paymentsPagination?.paid_total ?? data.payments.paid.length), "green")}
+                  </div>
+                  <div className="space-y-1 max-h-56 overflow-auto">
+                    {data.payments.paid.map((p: any) => (
+                      <div key={`paid-${p.id}`} className="border border-emerald-100 rounded-lg p-2 text-xs bg-white">
+                        #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </section>

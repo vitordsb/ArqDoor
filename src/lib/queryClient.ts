@@ -16,14 +16,10 @@ export async function apiRequest(
   timeout: number = 30000 // 30 seconds default
 ): Promise<Response> {
   const url = API_BASE_URL + path;
-  const token = sessionStorage.getItem("token");
   const headers: Record<string, string> = { ...(extraHeaders || {}) };
 
   let bodyContent: BodyInit | undefined;
 
-  if (token && !headers["Authorization"]) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
   if (data) {
     if (data instanceof FormData) {
       bodyContent = data;
@@ -42,6 +38,7 @@ export async function apiRequest(
       method,
       headers,
       body: bodyContent,
+      credentials: "include", // envia o cookie HttpOnly automaticamente
       signal: controller.signal,
     });
     clearTimeout(timeoutId);

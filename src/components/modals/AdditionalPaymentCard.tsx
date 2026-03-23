@@ -11,15 +11,30 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { formatPrice, formatDate } from "@/lib/utils";
-import { CheckCircle, XCircle, Clock, DollarSign, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, DollarSign, Loader2, RefreshCcw } from "lucide-react";
 import type { AdditionalPayment } from "@/lib/Interfaces";
 import type { PaymentMethod } from "@/features/messages/types";
+
+const PAID_PAYMENT_STATUSES = [
+  "PAID",
+  "RECEIVED",
+  "RECEIVED_IN_CASH",
+  "RECEIVED_MANUALLY",
+  "CONFIRMED",
+  "DUNNING_RECEIVED",
+  "COMPENSATED",
+];
+
+const isPaidPaymentStatus = (status?: string) =>
+  !!status && PAID_PAYMENT_STATUSES.includes(status.toUpperCase());
 
 type AdditionalPaymentCardProps = {
   payment: AdditionalPayment;
   userType?: "prestador" | "contratante";
   onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
   onRefuse?: (id: number, reason: string) => Promise<void>;
+  onResume?: (payment: AdditionalPayment) => Promise<void>;
+  onRefreshStatus?: (id: number) => Promise<void>;
   isProcessing?: boolean;
 };
 
@@ -33,7 +48,7 @@ const STATUS_CONFIG: Record<
     icon: Clock,
   },
   ACCEPTED: {
-    label: "Aceita",
+    label: "Aguardando pagamento",
     variant: "default",
     icon: CheckCircle,
   },
@@ -59,17 +74,29 @@ export function AdditionalPaymentCard({
   userType,
   onAccept,
   onRefuse,
+  onResume,
+  onRefreshStatus,
   isProcessing = false,
 }: AdditionalPaymentCardProps) {
   const [showRefuseModal, setShowRefuseModal] = useState(false);
   const [refuseReason, setRefuseReason] = useState("");
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("PIX");
+  const refuseReasonId = `refuse-reason-${payment.id}`;
+  const paymentMethodGroupName = `payment-method-${payment.id}`;
 
-  const statusConfig = STATUS_CONFIG[payment.status];
+  const normalizedStatus = (payment.status || "PENDING") as AdditionalPayment["status"];
+  const statusConfig = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.PENDING;
   const StatusIcon = statusConfig.icon;
   const isClient = userType === "contratante";
-  const canRespond = isClient && payment.status === "PENDING" && !isProcessing;
+  const canRespond = isClient && normalizedStatus === "PENDING" && !isProcessing;
+  const paymentStatus = (payment.payment?.status || "").toUpperCase();
+  const canResumePayment =
+    isClient &&
+    normalizedStatus === "ACCEPTED" &&
+    !!payment.payment &&
+    !isPaidPaymentStatus(paymentStatus) &&
+    !isProcessing;
 
   const handleRefuse = async () => {
     if (!refuseReason.trim()) return;
@@ -107,7 +134,7 @@ export function AdditionalPaymentCard({
           </div>
         </div>
 
-        {payment.refusal_reason && payment.status === "REFUSED" && (
+        {payment.refusal_reason && normalizedStatus === "REFUSED" && (
           <div className="rounded-md bg-red-50 border border-red-200 p-2">
             <p className="text-xs font-medium text-red-800">Motivo da recusa:</p>
             <p className="text-xs text-red-700">{payment.refusal_reason}</p>
@@ -137,6 +164,29 @@ export function AdditionalPaymentCard({
             </Button>
           </div>
         )}
+
+        {canResumePayment && (
+          <div className="flex gap-2 pt-2 border-t">
+            <Button
+              size="sm"
+              className="flex-1 bg-orange-600 hover:bg-orange-700"
+              onClick={() => onResume?.(payment)}
+              disabled={isProcessing}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Continuar pagamento
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onRefreshStatus?.(payment.id)}
+              disabled={isProcessing}
+            >
+              <RefreshCcw className="h-4 w-4 mr-1" />
+              Verificar
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Modal de Recusar */}
@@ -150,11 +200,11 @@ export function AdditionalPaymentCard({
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="refuse-reason">
+              <Label htmlFor={refuseReasonId}>
                 Motivo da recusa <span className="text-red-500">*</span>
               </Label>
               <Textarea
-                id="refuse-reason"
+                id={refuseReasonId}
                 placeholder="Explique o motivo da recusa..."
                 value={refuseReason}
                 onChange={(e) => setRefuseReason(e.target.value)}
@@ -223,7 +273,7 @@ export function AdditionalPaymentCard({
                   >
                     <input
                       type="radio"
-                      name="payment-method"
+                      name={paymentMethodGroupName}
                       value={method.value}
                       checked={selectedMethod === method.value}
                       onChange={(e) =>

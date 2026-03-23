@@ -41,9 +41,22 @@ export function StepPaymentDialog({
   onGeneratePayment,
   onCopyPaymentCode,
 }: StepPaymentDialogProps) {
+  const isAdditionalPaymentDialog = dialog?.type === "additional";
+
   return (
     <Dialog open={!!dialog} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onInteractOutside={(event) => {
+          if (isAdditionalPaymentDialog) {
+            event.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(event) => {
+          if (isAdditionalPaymentDialog) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {dialog?.type === "deposit" 
