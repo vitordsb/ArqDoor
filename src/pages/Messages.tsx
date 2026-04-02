@@ -5,7 +5,12 @@ import { useContract } from '@/hooks/use-contract';
 import { useSignature } from '@/hooks/use-signature';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
+import {
+  SIGNATURE_STEP_TITLE,
+  PROPOSAL_STEP_MIN_PRICE,
+  findSignatureContractStep,
+  isSignatureContractStep,
+} from "@/constants/contracts";
 import { Button } from '@/components/ui/button';
 import MessagesLayout from '@/components/layouts/MessagesLayout';
 import { EmptyConversationState } from "@/features/messages/components/EmptyConversationState";
@@ -44,6 +49,8 @@ import type {
   PaymentMethod,
   ProposalStep,
   ProposalStepPayload,
+  ProviderReceivingAccount,
+  ProviderReceivingMethod,
 } from "@/features/messages/types";
 
 type SignatureDialogOverrides = {
@@ -58,11 +65,7 @@ type SignatureDialogOverrides = {
 type SignatureFlow =
   | ({ type: 'contract'; ticket: any } & SignatureDialogOverrides)
   | ({ type: 'step-complete'; stepId: number; ticketId: number } & SignatureDialogOverrides)
-  | ({
-      type: 'step-accept';
-      step: any;
-      paymentPreference?: 'per_step' | 'at_end' | 'custom' | null;
-    } & SignatureDialogOverrides)
+  | ({ type: 'step-accept'; step: any } & SignatureDialogOverrides)
   | ({ type: 'proposal-first-step' } & SignatureDialogOverrides);
 
 const buildImageUrl = (path?: string | null) => {
@@ -154,8 +157,10 @@ export default function Messages() {
   const {
     proposalSteps,
     setProposalSteps,
-    proposalPaymentPreference,
-    setProposalPaymentPreference,
+    providerReceivingMethod,
+    setProviderReceivingMethod,
+    selectedReceivingAccountId,
+    setSelectedReceivingAccountId,
     contractFile,
     setContractFile,
     addProposalStep,
@@ -166,10 +171,16 @@ export default function Messages() {
   const [pendingProposalData, setPendingProposalData] = useState<{
     steps: ProposalStepPayload[];
     contractFile?: File | null;
-    paymentPreference?: 'per_step' | 'at_end' | 'custom';
+    receivingMethod: ProviderReceivingMethod;
+    selectedReceivingAccountId: number | null;
     paymentGroups?: { id: number; name: string }[];
   } | null>(null);
   const [sendingProposal, setSendingProposal] = useState(false);
+  const [receivingAccounts, setReceivingAccounts] = useState<
+    ProviderReceivingAccount[]
+  >([]);
+  const [loadingReceivingAccounts, setLoadingReceivingAccounts] =
+    useState(false);
 
   const [showProposalDetails, setShowProposalDetails] = useState(false);
   const [selectedTicketSteps, setSelectedTicketSteps] = useState<any[]>([]);
@@ -196,9 +207,6 @@ export default function Messages() {
 
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [selectedTicketForSignature, setSelectedTicketForSignature] = useState<any>(null);
-  const [signatureTicketPaymentPref, setSignatureTicketPaymentPref] = useState<
-    "per_step" | "at_end" | "custom" | null
-  >(null);
   const [signaturePassword, setSignaturePassword] = useState('');
   const [ackChecked, setAckChecked] = useState(false);
   const [signingDocument, setSigningDocument] = useState(false);
@@ -211,12 +219,6 @@ export default function Messages() {
   const [groupedPaymentEnabledByTicket, setGroupedPaymentEnabledByTicket] = useState<Record<number, boolean>>({});
   const [payingStepId, setPayingStepId] = useState<number | null>(null);
   const [lastPaymentMethod, setLastPaymentMethod] = useState<PaymentMethod>("PIX");
-  const [providerPaymentPreference, setProviderPaymentPreference] = useState<
-    "per_step" | "at_end" | "custom"
-  >("at_end");
-  const [providerPreferenceCache, setProviderPreferenceCache] = useState<
-    Record<number, "per_step" | "at_end" | "custom">
-  >({});
   const [confirmingStepPaymentIds, setConfirmingStepPaymentIds] = useState<Record<number, boolean>>({});
   const confirmingStepPaymentRef = useRef<Record<number, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -244,6 +246,53 @@ export default function Messages() {
     }),
     []
   );
+
+  const loadReceivingAccounts = useCallback(async () => {
+    if (!showProposalModal || user?.type !== "prestador" || !user?.id) {
+      setReceivingAccounts([]);
+      setLoadingReceivingAccounts(false);
+      return;
+    }
+
+    try {
+      setLoadingReceivingAccounts(true);
+      const res = await apiRequest("GET", `/providers/me/accounts`);
+      const body = await res.json().catch(() => ({}));
+
+      if (res.status === 403 || res.status === 404) {
+        setReceivingAccounts([]);
+        return;
+      }
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Erro ao carregar carteira.");
+      }
+
+      setReceivingAccounts(Array.isArray(body.accounts) ? body.accounts : []);
+    } catch (error: any) {
+      setReceivingAccounts([]);
+    } finally {
+      setLoadingReceivingAccounts(false);
+    }
+  }, [showProposalModal, user?.id, user?.type]);
+
+  useEffect(() => {
+    loadReceivingAccounts();
+  }, [loadReceivingAccounts]);
+
+  useEffect(() => {
+    if (
+      providerReceivingMethod === "standard" &&
+      !selectedReceivingAccountId &&
+      receivingAccounts.length === 1
+    ) {
+      setSelectedReceivingAccountId(receivingAccounts[0].id);
+    }
+  }, [
+    providerReceivingMethod,
+    receivingAccounts,
+    selectedReceivingAccountId,
+    setSelectedReceivingAccountId,
+  ]);
 
   const getGroupedPaymentEnabled = (ticket: any) => {
     if (!ticket) return undefined;
@@ -329,28 +378,6 @@ export default function Messages() {
   );
 
   // ---------- efeitos ----------
-  useEffect(() => {
-    const loadPaymentPreference = async () => {
-      if (user?.type !== "prestador") return;
-      try {
-        const res = await apiRequest("GET", `/providers/user/${user.id}`);
-        if (res.ok) {
-          const body = await res.json();
-          const preference = body.provider?.payment_preference || "at_end";
-          setProviderPaymentPreference(preference);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar preferência de pagamento:", error);
-      }
-    };
-    loadPaymentPreference();
-  }, [user?.id, user?.type]);
-
-  useEffect(() => {
-    if (!showProposalModal) return;
-    setProposalPaymentPreference(providerPaymentPreference);
-  }, [providerPaymentPreference, showProposalModal]);
-
   useEffect(() => {
     const loadAllTicketSteps = async () => {
       if (tickets.length === 0) return;
@@ -451,30 +478,73 @@ export default function Messages() {
       return;
     }
 
-    let valid: ProposalStep[] = [];
-    if (proposalPaymentPreference !== "at_end") {
-      valid = proposalSteps.filter(s => s.title.trim() && s.price > 0);
-    } else {
-      valid = proposalSteps.filter(s => s.title.trim());
-      const hasPrice = proposalSteps.some(s => s.price > 0);
-      if (!hasPrice) {
-        toast({
-          title: 'Erro',
-          description: 'Informe o valor total para depósito em garantia.',
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
+    const filledSteps = proposalSteps
+      .map((step, index) => ({ ...step, originalIndex: index }))
+      .filter((step) => {
+        const title = step.title.trim();
+        return Boolean(
+          title ||
+            Number(step.price || 0) > 0 ||
+            step.startDate?.trim() ||
+            step.endDate?.trim()
+        );
+      });
 
-    if (valid.length < 1) {
+    const invalidStep = filledSteps.find((step) => {
+      const title = step.title.trim();
+      const price = Number(step.price || 0);
+      return !title || price < PROPOSAL_STEP_MIN_PRICE;
+    });
+
+    if (invalidStep) {
       toast({
-        title: 'Erro',
-        description: 'Adicione pelo menos 1 etapa com título.',
+        title: 'Etapa inválida',
+        description: `A etapa ${invalidStep.originalIndex + 1} precisa ter título e valor mínimo de R$ ${PROPOSAL_STEP_MIN_PRICE.toFixed(2)}.`,
         variant: 'destructive',
       });
       return;
     }
+
+    const valid: ProposalStep[] = filledSteps.map(({ originalIndex, ...step }) => step);
+
+    if (valid.length < 1) {
+      toast({
+        title: 'Erro',
+        description: `Adicione pelo menos 1 etapa com título e valor mínimo de R$ ${PROPOSAL_STEP_MIN_PRICE.toFixed(2)}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (providerReceivingMethod === "standard" && loadingReceivingAccounts) {
+      toast({
+        title: "Carteira em carregamento",
+        description: "Aguarde as contas cadastradas carregarem antes de enviar a proposta.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (providerReceivingMethod === "standard" && !selectedReceivingAccountId) {
+      if (receivingAccounts.length === 0) {
+        toast({
+          title: "Conta obrigatória",
+          description:
+            "Você não tem bancos cadastrado para selecionar esse método, cadastre um no seu perfil.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Conta obrigatória",
+        description:
+          "Selecione uma conta cadastrada na sua carteira para usar o recebimento padrão.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const toIso = (value?: string) => {
       if (!value) return undefined;
       const parts = value.split('/');
@@ -495,7 +565,8 @@ export default function Messages() {
     setPendingProposalData({
       steps: payloadSteps,
       contractFile,
-      paymentPreference: proposalPaymentPreference,
+      receivingMethod: providerReceivingMethod,
+      selectedReceivingAccountId,
       paymentGroups: groups,
     });
     openProposalSignatureDialog();
@@ -966,9 +1037,7 @@ export default function Messages() {
 
   const handleEditStep = (step: any) => {
     if (!step) return;
-    const isSignatureStep =
-      step.title === SIGNATURE_STEP_TITLE ||
-      (selectedTicketSteps[0] && selectedTicketSteps[0].id === step.id);
+    const isSignatureStep = isSignatureContractStep(step);
     if (isSignatureStep) {
       toast({
         title: "Etapa protegida",
@@ -994,9 +1063,7 @@ export default function Messages() {
   };
   const handleDeleteStep = async (stepId: number) => {
     const target = selectedTicketSteps.find((s) => s.id === stepId);
-    const isSignatureStep =
-      target?.title === SIGNATURE_STEP_TITLE ||
-      (selectedTicketSteps[0] && selectedTicketSteps[0].id === stepId);
+    const isSignatureStep = isSignatureContractStep(target);
     if (isSignatureStep) {
       toast({
         title: "Etapa protegida",
@@ -1020,15 +1087,7 @@ export default function Messages() {
 
   const handleStartPhase = async (stepId: number) => {
     const step = selectedTicketSteps.find((s: any) => s.id === stepId);
-    const ticket = tickets.find(
-      (t: any) => t.id === (step as any)?.ticket_id
-    );
-    const pref =
-      ticket?.payment_preference ||
-      ticket?.paymentPreference ||
-      providerPaymentPreference;
     if (
-      pref === "custom" &&
       step &&
       !step.is_financially_cleared &&
       !step.paid &&
@@ -1359,46 +1418,14 @@ export default function Messages() {
         return;
       }
 
-      const ticket = tickets.find((t: any) => t.id === (step as any)?.ticket_id);
-      const pref =
-        ticket?.payment_preference ||
-        ticket?.paymentPreference ||
-        providerPaymentPreference;
-      const isCustomPayment = pref === "custom";
-      if (pref === "at_end") {
+      const status = (step.status || "").toLowerCase();
+      if (status === "recusado") {
         toast({
-          title: "Pagamento j  em garantia",
-          description: "Vocˆ j  depositou o total na assinatura. NÆo ‚ necess rio pagar por etapa.",
-        });
-        return;
-      }
-
-      if (!isCustomPayment && !step.confirm_freelancer) {
-        toast({
-          title: 'Aguardando prestador',
-          description: 'O prestador precisa marcar a etapa como conclu¡da antes do pagamento.',
-          variant: 'warning',
-        });
-        return;
-      }
-      if (!isCustomPayment && !step.confirm_contractor) {
-        toast({
-          title: "Aceite necessário",
-          description: "Aceite a etapa antes de gerar o pagamento.",
+          title: "Etapa recusada",
+          description: "Esta etapa não pode receber pagamento.",
           variant: "warning",
         });
         return;
-      }
-      if (isCustomPayment) {
-        const status = (step.status || "").toLowerCase();
-        if (status === "recusado") {
-          toast({
-            title: "Etapa recusada",
-            description: "Esta etapa não pode receber pagamento.",
-            variant: "warning",
-          });
-          return;
-        }
       }
 
       let freshUser: any = user;
@@ -1432,7 +1459,7 @@ export default function Messages() {
         description: "Escolha PIX, boleto ou cartão para finalizar o pagamento.",
       });
     },
-    [openPaymentModal, providerPaymentPreference, tickets, toast, user]
+    [openPaymentModal, toast, user]
   );
 
   const handlePaySteps = useCallback(
@@ -1440,39 +1467,21 @@ export default function Messages() {
       const cleaned = Array.isArray(steps) ? steps.filter(Boolean) : [];
       if (!cleaned.length) return;
 
-      const ticketIdForPref = (cleaned[0] as any)?.ticket_id;
-      const ticketForPref = tickets.find((t: any) => t.id === ticketIdForPref);
-      const pref =
-        ticketForPref?.payment_preference ||
-        ticketForPref?.paymentPreference ||
-        providerPaymentPreference;
-      const isCustomPayment = pref === "custom";
-
       const payableSteps = cleaned.filter((step: any) => {
         const isSignature = step?.title === SIGNATURE_STEP_TITLE;
         const paid = Boolean(step?.paid) || Boolean(step?.is_financially_cleared);
-        const concluded =
-          (step?.status || "").toLowerCase() === "concluido" ||
-          (step?.confirm_freelancer && step?.confirm_contractor);
         const price = Number(step?.price) || 0;
         const rejected = (step?.status || "").toLowerCase() === "recusado";
         if (isSignature || paid || price <= 0 || rejected) return false;
-        return isCustomPayment ? true : concluded;
+        return true;
       });
 
       if (payableSteps.length !== cleaned.length) {
         toast({
           title: "Etapas inválidas",
-          description: isCustomPayment
-            ? "Selecione apenas etapas pendentes e ainda não pagas."
-            : "Selecione apenas etapas concluídas e ainda não pagas.",
+          description: "Selecione apenas etapas pendentes e ainda não pagas.",
           variant: "warning",
         });
-        return;
-      }
-
-      if (cleaned.length === 1 && !isCustomPayment) {
-        await handleClientPayStep(cleaned[0]);
         return;
       }
 
@@ -1499,13 +1508,6 @@ export default function Messages() {
       }
 
       const ticket = tickets.find((t: any) => t.id === ticketId);
-      if (pref === "at_end") {
-        toast({
-          title: "Pagamento ja em garantia",
-          description: "Este projeto usa deposito em garantia.",
-        });
-        return;
-      }
 
       let freshUser: any = user;
       try {
@@ -1538,7 +1540,7 @@ export default function Messages() {
         description: "Escolha PIX, boleto ou cartao para finalizar o pagamento.",
       });
     },
-    [handleClientPayStep, openGroupedPaymentModal, providerPaymentPreference, tickets, toast, user]
+    [openGroupedPaymentModal, tickets, toast, user]
   );
 
   const handleRefreshStepPayment = useCallback(
@@ -1735,127 +1737,11 @@ export default function Messages() {
     return () => clearInterval(interval); // Cleanup to prevent memory leaks
   }, [showProposalDetails, selectedTicketSteps, getStepsWithPayment, refetchTickets]);
 
-  const getProviderPaymentPreference = useCallback(
-    async (providerId?: number | null) => {
-      if (!providerId) return null;
-      if (providerPreferenceCache[providerId]) return providerPreferenceCache[providerId];
-      try {
-        const res = await apiRequest("GET", `/providers/${providerId}`);
-        if (!res.ok) return null;
-        const body = await res.json();
-        const pref =
-          body?.provider?.payment_preference ||
-          body?.payment_preference ||
-          null;
-        if (pref) {
-          setProviderPreferenceCache((prev) => ({ ...prev, [providerId]: pref }));
-        }
-        return pref;
-      } catch (error) {
-        console.error("Erro ao carregar preferência do prestador:", error);
-        return null;
-      }
-    },
-    [providerPreferenceCache]
-  );
-
-  const generateTicketDepositPayment = useCallback(
-    async (ticketId: number) => {
-      if (user?.type !== "contratante") return;
-
-      const ticket = tickets.find((t: any) => t.id === ticketId);
-      const ticketPref =
-        ticket?.payment_preference || ticket?.paymentPreference || null;
-      let pref = ticketPref;
-
-      if (!pref) {
-        pref = await getProviderPaymentPreference(ticket?.provider_id);
-      }
-
-      if (!pref && currentConversation?.otherUser?.type === "prestador") {
-        try {
-          const res = await apiRequest(
-            "GET",
-            `/providers/user/${currentConversation.otherUser.id}`
-          );
-          if (res.ok) {
-            const body = await res.json();
-            pref =
-              body?.provider?.payment_preference ||
-              body?.payment_preference ||
-              null;
-            if (body?.provider?.provider_id) {
-              setProviderPreferenceCache((prev) => ({
-                ...prev,
-                [body.provider.provider_id]: pref as any,
-              }));
-            }
-          }
-        } catch (error) {
-          console.error("Erro ao buscar preferência (user/provider):", error);
-        }
-      }
-
-      const effectivePref = pref || providerPaymentPreference;
-
-      if (effectivePref !== "at_end") return;
-      if (ticket?.payment === true) {
-        return;
-      }
-
-      let stepsForTicket = ticketStepsMap[ticketId] || [];
-      if (!stepsForTicket.length) {
-        try {
-          stepsForTicket = await getStepsForTicket(ticketId);
-        } catch {
-          stepsForTicket = [];
-        }
-      }
-      if (!stepsForTicket.length) {
-        toast({
-          title: "Etapas indisponíveis",
-          description: "Não foi possível calcular o valor do contrato.",
-          variant: "destructive",
-        });
-        return;
-      }
-      const amount = stepsForTicket.reduce(
-        (total, s) => total + (Number((s as any)?.price) || 0),
-        0
-      );
-
-      const depositStep: Step = {
-        id: -Math.abs(ticketId || 1),
-        ticket_id: ticketId,
-        title: "Depósito em garantia do contrato",
-        price: amount,
-        status: "Pendente",
-      };
-
-      openPaymentModal(depositStep, "deposit");
-      toast({
-        title: "Depósito em garantia",
-        description: "Escolha PIX, boleto ou cartão para pagar o depósito.",
-      });
-    },
-    [
-      currentConversation,
-      getProviderPaymentPreference,
-      getStepsForTicket,
-      openPaymentModal,
-      providerPaymentPreference,
-      ticketStepsMap,
-      tickets,
-      toast,
-      user?.type,
-    ]
-  );
-
   // ---------- handlers: recusar contrato ----------
   const handleRejectContract = async (ticketId: number) => {
     try {
       const steps = await getStepsForTicket(ticketId);
-      const signatureStep = steps[0];
+      const signatureStep = findSignatureContractStep(steps);
       const alreadySigned =
         signatureStep?.confirm_contractor ||
         (signatureStep?.status || '').toLowerCase() === 'concluido';
@@ -1898,7 +1784,6 @@ export default function Messages() {
     setShowPasswordField(false);
     setSignatureFlow(null);
     setSelectedTicketForSignature(null);
-    setSignatureTicketPaymentPref(null);
   };
 
   const openContractSignatureDialog = (ticket: any) => {
@@ -1906,16 +1791,6 @@ export default function Messages() {
     if (!ticket) return;
     resetSignatureDialogState();
     setSelectedTicketForSignature(ticket);
-    setSignatureTicketPaymentPref(null);
-    const directPref = ticket?.payment_preference || ticket?.paymentPreference;
-    if (directPref) {
-      setSignatureTicketPaymentPref(directPref as any);
-    } else {
-      (async () => {
-        const pref = await getProviderPaymentPreference(ticket?.provider_id);
-        if (pref) setSignatureTicketPaymentPref(pref as any);
-      })();
-    }
     setSignatureFlow({
       type: 'contract',
       ticket,
@@ -1953,14 +1828,12 @@ export default function Messages() {
 
   const openClientStepSignature = (
     step: any,
-    paymentPreference?: 'per_step' | 'at_end' | 'custom' | null
   ) => {
     if (!ensureSignaturePasswordConfigured()) return;
     resetSignatureDialogState();
     setSignatureFlow({
       type: 'step-accept',
       step,
-      paymentPreference,
       title: 'Aceitar etapa',
       description: `Informe sua senha para aceitar esta etapa. ${signaturePasswordHint}`,
       confirmLabel: 'Aceitar etapa',
@@ -2078,7 +1951,8 @@ export default function Messages() {
             pendingProposalData.steps,
             pendingProposalData.contractFile || undefined,
             password,
-            pendingProposalData.paymentPreference || proposalPaymentPreference,
+            pendingProposalData.receivingMethod,
+            pendingProposalData.selectedReceivingAccountId,
             pendingProposalData.paymentGroups,
           );
           if (!ok) return;
@@ -2087,6 +1961,8 @@ export default function Messages() {
           setPendingProposalData(null);
           setShowProposalModal(false);
           setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0, paymentGroupId: 1 }]);
+          setProviderReceivingMethod("escrow");
+          setSelectedReceivingAccountId(null);
           setContractFile(null);
           return;
         } finally {
@@ -2096,19 +1972,8 @@ export default function Messages() {
 
       if (signatureFlow.type === 'contract') {
         const ticketId = selectedTicketForSignature!.id as number;
-        const paymentPref =
-          signatureTicketPaymentPref ||
-          selectedTicketForSignature?.payment_preference ||
-          selectedTicketForSignature?.paymentPreference ||
-          null;
-        const effectivePref =
-          paymentPref === "per_step" ||
-          paymentPref === "at_end" ||
-          paymentPref === "custom"
-            ? paymentPref
-            : providerPaymentPreference;
         const ok = await signContract(ticketId, password, {
-          setStatus: effectivePref !== "at_end",
+          setStatus: true,
         });
         if (!ok) return;
 
@@ -2118,10 +1983,6 @@ export default function Messages() {
         });
         setShowSignatureModal(false);
         resetSignatureDialogState();
-
-        if (effectivePref === "at_end") {
-          await generateTicketDepositPayment(ticketId);
-        }
         await handleViewPdf(ticketId);
         return;
       }
@@ -2141,10 +2002,6 @@ export default function Messages() {
       if (signatureFlow.type === 'step-accept') {
         const ok = await handleAcceptStep(signatureFlow.step, password);
         if (ok === false) return;
-        const isPaid = (signatureFlow.step as any).paid || (signatureFlow.step as any).is_financially_cleared;
-        if (signatureFlow.paymentPreference === 'per_step' && !isPaid) {
-          await handleClientPayStep(signatureFlow.step as any);
-        }
         setShowSignatureModal(false);
         resetSignatureDialogState();
       }
@@ -2158,26 +2015,19 @@ export default function Messages() {
   };
 
   const inviteTicketRef = useRef<number | null>(null);
-  const inviteDepositRef = useRef<number | null>(null);
   useEffect(() => {
     const [, queryString] = location.split("?");
     if (!queryString) return;
     const params = new URLSearchParams(queryString);
     const view = params.get("view");
     const ticketParam = params.get("ticket");
-    const shouldDeposit =
-      params.get("deposit") === "1" || params.get("pay") === "deposit";
     if (view !== "contract" || !ticketParam) return;
     const ticketId = Number(ticketParam);
     if (!Number.isFinite(ticketId) || ticketId <= 0) return;
     if (inviteTicketRef.current === ticketId) return;
     inviteTicketRef.current = ticketId;
     handleViewPdf(ticketId);
-    if (shouldDeposit && inviteDepositRef.current !== ticketId) {
-      inviteDepositRef.current = ticketId;
-      void generateTicketDepositPayment(ticketId);
-    }
-  }, [location, handleViewPdf, generateTicketDepositPayment]);
+  }, [location, handleViewPdf]);
 
   const signatureRequiresAck = signatureFlow
     ? signatureFlow.requireAck ?? (signatureFlow.type === 'contract')
@@ -2308,7 +2158,6 @@ export default function Messages() {
                   onViewPdf={handleViewPdf}
                   onStartSignature={handleStartSignature}
                   onRejectProposal={handleRejectContract}
-                  onResumePayment={generateTicketDepositPayment}
                   currentUserType={user?.type}
                 />
               </div>
@@ -2331,8 +2180,12 @@ export default function Messages() {
         onContractFileChange={handleContractFileChange}
         onSendProposal={handleSendProposal}
         sendingProposal={sendingProposal}
-        paymentPreference={proposalPaymentPreference}
-        onPaymentPreferenceChange={setProposalPaymentPreference}
+        receivingMethod={providerReceivingMethod}
+        onReceivingMethodChange={setProviderReceivingMethod}
+        receivingAccounts={receivingAccounts}
+        loadingReceivingAccounts={loadingReceivingAccounts}
+        selectedReceivingAccountId={selectedReceivingAccountId}
+        onSelectedReceivingAccountIdChange={setSelectedReceivingAccountId}
         showToast={({ title, description, variant }) =>
           toast({ title, description, variant: variant ?? 'default' })
         }
@@ -2356,24 +2209,17 @@ export default function Messages() {
             ? tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)?.status
             : undefined
         }
-        paymentPreference={
-          (() => {
-            const currentTicket = selectedTicketSteps[0]
-              ? tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)
-              : null;
-            const pref =
-              (currentTicket?.payment_preference as any) ||
-              (currentTicket as any)?.paymentPreference ||
-              providerPaymentPreference ||
-              null;
-            return pref;
-          })()
+        paymentPreference="custom"
+        providerReceivingMethod={
+          selectedTicketSteps[0]
+            ? tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)
+                ?.provider_receiving_method || null
+            : null
         }
         ticketId={selectedTicketSteps[0]?.ticket_id}
         onDeleteTicket={handleDeleteTicket}
         deletingTicket={deletingTicket}
         onRefreshPayment={handleRefreshTicketPayment}
-        onPayDeposit={generateTicketDepositPayment}
         onEditStep={step => handleEditStep(step)}
         onDeleteStep={id => handleDeleteStep(id)}
         editingStepId={editingStep}
@@ -2385,8 +2231,8 @@ export default function Messages() {
           openFreelancerStepSignature(id, ticketId)
         }
         onStartPhase={handleStartPhase}
-        onClientAccept={async (step, paymentPref) => {
-          openClientStepSignature(step, paymentPref);
+        onClientAccept={async (step) => {
+          openClientStepSignature(step);
         }}
 
         onClientRejectStep={(step) => handleRejectStep(step)}
@@ -2472,7 +2318,6 @@ export default function Messages() {
               onViewDetails={handleViewProposalDetails}
               onViewPdf={handleViewPdf}
               onStartSignature={handleStartSignature}
-              onResumePayment={generateTicketDepositPayment}
             />
           ))}
       />

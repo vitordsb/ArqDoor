@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   frontend:
     build:
@@ -12,5 +10,5 @@ services:
       - ./src:/app/src
       - ./public:/app/public
     env_file:
-      - .env
+      - .env.docker.local
     restart: unless-stopped

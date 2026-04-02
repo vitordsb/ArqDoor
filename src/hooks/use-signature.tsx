@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { stampPdfWithName } from '@/lib/stampPdfWithName';
 import { API_BASE_URL } from '@/lib/queryClient';
+import { findSignatureContractStep } from '@/constants/contracts';
 
 export function useSignature(conversationId?: number) {
   const { user } = useAuth();
@@ -93,18 +94,16 @@ export function useSignature(conversationId?: number) {
         new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
     )[0];
 
-    const pdfUrlAbs = chosen.pdf_path.startsWith('https')
-      ? chosen.pdf_path
-      : `${API_BASE_URL}/${chosen.pdf_path.replace(/^\/+/, '')}`;
+    const downloadPath =
+      chosen.download_url || `/attchment/file/${chosen.id}`;
 
-    const token = sessionStorage.getItem('token');
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    const pdfUrlAbs = downloadPath.startsWith('http')
+      ? downloadPath
+      : `${API_BASE_URL}/${downloadPath.replace(/^\/+/, '')}`;
+
     const fileRes = await fetch(pdfUrlAbs, {
       method: 'GET',
-      headers,
+      credentials: 'include',
     });
     if (!fileRes.ok) throw new Error(await fileRes.text());
     const blob = await fileRes.blob();
@@ -143,10 +142,10 @@ export function useSignature(conversationId?: number) {
         if (!Array.isArray(steps)) steps = [];
 
         if (steps.length > 0) {
-          const step0 = steps[0];
-          const status = (step0.status || '').toLowerCase();
-          if (status !== 'concluido' || !step0.confirm_contractor) {
-            await updateStep(step0.id, {
+          const signatureStep = findSignatureContractStep<any>(steps);
+          const status = (signatureStep?.status || '').toLowerCase();
+          if (signatureStep && (status !== 'concluido' || !signatureStep.confirm_contractor)) {
+            await updateStep(signatureStep.id, {
               status: 'Concluido',
               confirm_contractor: true,
             });

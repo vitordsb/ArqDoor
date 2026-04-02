@@ -87,10 +87,10 @@ export function PaymentPreferenceCard({
                     <RadioGroupItem value="custom" id="custom" />
                     <div className="flex-1">
                       <Label htmlFor="custom" className="cursor-pointer font-medium">
-                        Pagamento personalizado
+                        Pagamento em garantia
                       </Label>
                       <p className="text-sm text-gray-500 mt-1">
-                        O cliente escolhe quais fases deseja pagar e pode agrupar pagamentos.
+                        O cliente paga os grupos definidos no contrato e o valor fica protegido no fluxo da plataforma.
                       </p>
                       <p className="text-xs text-emerald-700 mt-2 font-medium">
                         ✓ Liberação de datas por pagamento confirmado

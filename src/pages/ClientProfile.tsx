@@ -51,15 +51,15 @@ export default function ClientProfile() {
   const [location, setLocation] = useLocation();
   const { user: currentUser } = useAuth();
 
-  const { data: usersEnv, isLoading: loadingUsers } = useQuery<{ users: UserApi[] }>({
-    queryKey: ["users"],
+  const { data: userEnv, isLoading: loadingUsers } = useQuery<{ user: UserApi }>({
+    queryKey: ["user", user_id],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/users");
+      const res = await apiRequest("GET", `/users/${user_id}`);
       return res.json();
     },
   });
 
-  const user = usersEnv?.users.find((u) => String(u.id) === user_id);
+  const user = userEnv?.user;
 
   const [demands, setDemands] = useState<Demand[]>([]);
   const [loadingDm, setLoadingDm] = useState(true);

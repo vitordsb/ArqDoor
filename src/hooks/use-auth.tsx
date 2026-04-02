@@ -5,7 +5,6 @@ import React, {
   useState,
   useEffect,
 } from "react";
-import { parseJwt } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -18,25 +17,41 @@ import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 
 const persistSession = (
-  token: string,
+  sessionUser: User,
+  csrfToken: string | null,
   setUser: React.Dispatch<React.SetStateAction<User | null>>
 ) => {
-  const payload = parseJwt<User>(token);
   // Guarda apenas metadados do usuário — o token fica no cookie HttpOnly
-  if (payload?.id) {
-    sessionStorage.setItem("user_id", String(payload.id));
+  if (sessionUser?.id) {
+    sessionStorage.setItem("user_id", String(sessionUser.id));
   }
-  if (payload?.signature_password_set !== undefined && payload?.signature_password_set !== null) {
+  if (
+    sessionUser?.signature_password_set !== undefined &&
+    sessionUser?.signature_password_set !== null
+  ) {
     sessionStorage.setItem(
       "signature_password_set",
-      payload.signature_password_set ? "true" : "false"
+      sessionUser.signature_password_set ? "true" : "false"
     );
   }
-  if (payload?.type) {
-    sessionStorage.setItem("user_type", payload.type);
+  if (sessionUser?.type) {
+    sessionStorage.setItem("user_type", sessionUser.type);
   }
-  setUser(payload);
-  return payload;
+  if (csrfToken) {
+    sessionStorage.setItem("csrf_token", csrfToken);
+  }
+  setUser(sessionUser);
+  return sessionUser;
+};
+
+const fetchSession = async () => {
+  const res = await apiRequest("GET", "/auth/session");
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return {
+    user: data?.data?.user || null,
+    csrfToken: data?.data?.csrfToken || null,
+  };
 };
 
 const fetchUserProfile = async (userId?: number) => {
@@ -75,7 +90,7 @@ export const login = async (
   try {
     const sanitized = {
       email: data.email?.trim().toLowerCase() || "",
-      password: data.password?.trim() || "",
+      password: data.password || "",
     };
     const validate = await apiRequest("POST", "/auth/login", sanitized);
     if (validate.status === 401) {
@@ -87,10 +102,12 @@ export const login = async (
       return false;
     }
     if (!validate.ok) return false;
-    const body = (await validate.json()) as { data: { token: string } };
-    const token = body.data.token;
-    const payload = persistSession(token, setUser);
-    const needsOnboarding = !payload?.perfil_completo;
+    const sessionData = await fetchSession();
+    if (!sessionData?.user) {
+      throw new Error("Sessão não pôde ser carregada após o login.");
+    }
+    const payload = persistSession(sessionData.user, sessionData.csrfToken, setUser);
+    const needsOnboarding = !payload.perfil_completo;
     setNeedsOnboarding(needsOnboarding);
     setOnboardingOptional(needsOnboarding);
     toast({
@@ -182,18 +199,26 @@ export const loginWithGoogleRequest = async (
     }
 
     const body = (await res.json()) as {
-      data: { token: string; needs_onboarding?: boolean };
+      data: { needs_onboarding?: boolean };
       message?: string;
     };
 
-    const needsOnboarding = !!body?.data?.needs_onboarding;
+    const sessionData = await fetchSession();
+    if (!sessionData?.user) {
+      throw new Error("Sessão não pôde ser carregada após o login com Google.");
+    }
+
+    const needsOnboarding =
+      body?.data?.needs_onboarding !== undefined
+        ? !!body.data.needs_onboarding
+        : !sessionData.user.perfil_completo;
     setNeedsOnboarding(needsOnboarding);
     setOnboardingOptional(false);
     toast({
       title: "Login via Google realizado",
       description: body?.message || "Seja bem vindo!",
     });
-    const sessionPayload = persistSession(body.data.token, setUser);
+    const sessionPayload = persistSession(sessionData.user, sessionData.csrfToken, setUser);
     if (sessionPayload?.id) {
       const freshProfile = await fetchUserProfile(sessionPayload.id);
       if (freshProfile) {
@@ -219,25 +244,41 @@ export const loginWithGoogleRequest = async (
 
 export const register = async (data: RegisterInterface) => {
   try {
-    const userRes = await apiRequest("POST", "/users", data);
-    switch (userRes.status) {
-      case 409:
-        toast({
-          title: "Usuário já cadastrado",
-          description: "Email ou CPF ja cadastrado",
-          variant: "destructive",
-        });
-        return false;
+    const sanitized = {
+      ...data,
+      name: data.name?.trim() || "",
+      email: data.email?.trim().toLowerCase() || "",
+      password: data.password || "",
+      confirmPassword: data.confirmPassword || "",
+    };
+
+    const userRes = await apiRequest("POST", "/users", sanitized);
+    const body = await userRes.json().catch(() => null);
+
+    if (userRes.status === 409) {
+      toast({
+        title: "Usuário já cadastrado",
+        description:
+          body?.error?.details?.[0]?.message ||
+          body?.message ||
+          "Email ou CPF já cadastrado.",
+        variant: "destructive",
+      });
+      return false;
     }
-    await userRes.json();
-    const successMessage = data.type === "prestador"
-      ? "Seu cadastro como prestador foi realizado com sucesso!"
-      : "Seu cadastro como cliente foi realizado com sucesso!";
-    toast({
-      title: "Cadastro realizado",
-      description: successMessage,
-      variant: "default",
-    });
+
+    if (!userRes.ok || body?.success === false) {
+      toast({
+        title: "Não foi possível concluir o cadastro",
+        description:
+          body?.error?.details?.[0]?.message ||
+          body?.message ||
+          "Revise os dados informados e tente novamente.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     return true;
   } catch (error) {
     console.error(error);
@@ -300,24 +341,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => (prev ? { ...prev, ...data } : prev));
   };
   useEffect(() => {
-    const userId = sessionStorage.getItem("user_id");
     const storedOnboarding = sessionStorage.getItem("needs_onboarding") === "true";
     const storedOptional = sessionStorage.getItem("onboarding_optional") === "true";
     const storedSignature = sessionStorage.getItem("signature_password_set");
     const storedUserType = sessionStorage.getItem("user_type");
 
-    if (!userId) {
-      setIsInitialized(true);
-      return;
-    }
-
     setIsLoading(true);
-    fetchUserProfile(Number(userId))
-      .then((profile) => {
-        if (!profile) {
+    fetchSession()
+      .then(async (sessionData) => {
+        if (!sessionData?.user) {
           sessionStorage.clear();
           setUser(null);
           return;
+        }
+        sessionStorage.setItem("csrf_token", sessionData.csrfToken || "");
+        let profile = sessionData.user;
+        if (sessionData.user.id) {
+          const freshProfile = await fetchUserProfile(sessionData.user.id);
+          if (freshProfile) {
+            profile = { ...sessionData.user, ...freshProfile };
+          }
         }
         if (storedSignature === "true") profile.signature_password_set = true;
         else if (storedSignature === "false") profile.signature_password_set = false;
@@ -325,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profile.type = storedUserType;
         }
         if (profile.type) sessionStorage.setItem("user_type", profile.type);
+        sessionStorage.setItem("user_id", String(profile.id));
         setUser(profile);
         setNeedsOnboardingState(storedOnboarding);
         setOnboardingOptionalState(storedOptional);

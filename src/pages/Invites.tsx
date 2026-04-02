@@ -7,12 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { NewProposalDialog, formatIsoToBr, parseBrToIso } from "@/components/modals/NewProposalDialog";
 import { formatDate, formatPrice } from "@/lib/utils";
 import { Copy, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
+import type {
+  ProviderReceivingAccount,
+  ProviderReceivingMethod,
+} from "@/features/messages/types";
 
 type InviteStep = {
   title: string;
   price: number;
   start_date?: string | null;
   end_date?: string | null;
+  payment_group_id?: number | null;
+  group_id?: number | null;
 };
 
 type Invite = {
@@ -21,7 +27,15 @@ type Invite = {
   status: "draft" | "active" | "accepted" | "cancelled";
   steps: InviteStep[];
   contract_pdf_path?: string | null;
-  payment_preference?: "per_step" | "at_end";
+  payment_preference?: "custom";
+  provider_receiving_method?: ProviderReceivingMethod;
+  provider_receiving_account_id?: number | null;
+  provider_receiving_account_label?: string | null;
+  provider_bank_name?: string | null;
+  provider_bank_agency?: string | null;
+  provider_bank_account?: string | null;
+  provider_bank_document?: string | null;
+  provider_pix_key?: string | null;
   created_at?: string;
 };
 
@@ -83,8 +97,17 @@ export default function Invites() {
   const [editingInvite, setEditingInvite] = useState<Invite | null>(null);
   const [steps, setSteps] = useState<ProposalStep[]>([createEmptyStep()]);
   const [contractFile, setContractFile] = useState<File | null>(null);
-  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | "custom">("at_end");
   const [paymentGroups, setPaymentGroups] = useState<{ id: number; name: string }[]>([{ id: 1, name: "Grupo 1" }]);
+  const [receivingMethod, setReceivingMethod] =
+    useState<ProviderReceivingMethod>("escrow");
+  const [receivingAccounts, setReceivingAccounts] = useState<
+    ProviderReceivingAccount[]
+  >([]);
+  const [loadingReceivingAccounts, setLoadingReceivingAccounts] =
+    useState(false);
+  const [selectedReceivingAccountId, setSelectedReceivingAccountId] = useState<
+    number | null
+  >(null);
   const [saving, setSaving] = useState(false);
 
   const isProvider = user?.type === "prestador";
@@ -128,11 +151,52 @@ export default function Invites() {
     }
   }, [isProvider]);
 
+  const loadReceivingAccounts = async () => {
+    if (!dialogOpen || !isProvider || !user?.id) {
+      setReceivingAccounts([]);
+      setLoadingReceivingAccounts(false);
+      return;
+    }
+
+    try {
+      setLoadingReceivingAccounts(true);
+      const res = await apiRequest("GET", `/providers/me/accounts`);
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 403 || res.status === 404) {
+        setReceivingAccounts([]);
+        return;
+      }
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Erro ao carregar carteira.");
+      }
+      setReceivingAccounts(Array.isArray(body.accounts) ? body.accounts : []);
+    } catch {
+      setReceivingAccounts([]);
+    } finally {
+      setLoadingReceivingAccounts(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReceivingAccounts();
+  }, [dialogOpen, isProvider, user?.id]);
+
+  useEffect(() => {
+    if (
+      receivingMethod === "standard" &&
+      !selectedReceivingAccountId &&
+      receivingAccounts.length === 1
+    ) {
+      setSelectedReceivingAccountId(receivingAccounts[0].id);
+    }
+  }, [receivingAccounts, receivingMethod, selectedReceivingAccountId]);
+
   const resetForm = () => {
     setSteps([createEmptyStep()]);
     setContractFile(null);
-    setPaymentPreference("at_end");
     setPaymentGroups([{ id: 1, name: "Grupo 1" }]);
+    setReceivingMethod("escrow");
+    setSelectedReceivingAccountId(null);
     setEditingInvite(null);
   };
 
@@ -149,11 +213,13 @@ export default function Invites() {
       price: Number(step.price) || 0,
       startDate: step.start_date ? formatIsoToBr(toIsoDate(step.start_date)) : "",
       endDate: step.end_date ? formatIsoToBr(toIsoDate(step.end_date)) : "",
+      paymentGroupId: step.payment_group_id || step.group_id || 1,
     }));
     setEditingInvite(invite);
     setSteps(mappedSteps.length ? mappedSteps : [createEmptyStep()]);
     setContractFile(null);
-    setPaymentPreference(invite.payment_preference || "at_end");
+    setReceivingMethod(invite.provider_receiving_method || "escrow");
+    setSelectedReceivingAccountId(invite.provider_receiving_account_id || null);
     setDialogOpen(true);
   };
 
@@ -226,6 +292,29 @@ export default function Invites() {
       return;
     }
 
+    if (receivingMethod === "standard") {
+      if (loadingReceivingAccounts) {
+        toast({
+          title: "Carteira em carregamento",
+          description: "Aguarde as contas cadastradas carregarem antes de salvar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!selectedReceivingAccountId) {
+        toast({
+          title: "Conta obrigatória",
+          description:
+            receivingAccounts.length === 0
+              ? "Você não tem bancos cadastrado para selecionar esse método, cadastre um no seu perfil."
+              : "Selecione uma conta cadastrada na sua carteira para usar o recebimento padrão.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       const payloadSteps = steps.map((step) => ({
@@ -241,8 +330,11 @@ export default function Invites() {
       if (editingInvite) {
         const res = await apiRequest("PUT", `/invites/${editingInvite.id}`, {
           steps: payloadSteps,
-          payment_preference: paymentPreference,
-          payment_groups: paymentPreference === "custom" ? paymentGroups : undefined,
+          payment_preference: "custom",
+          payment_groups: paymentGroups,
+          provider_receiving_method: receivingMethod,
+          provider_receiving_account_id:
+            receivingMethod === "standard" ? selectedReceivingAccountId : null,
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body?.success === false) {
@@ -252,8 +344,11 @@ export default function Invites() {
       } else {
         const res = await apiRequest("POST", "/invites", {
           steps: payloadSteps,
-          payment_preference: paymentPreference,
-          payment_groups: paymentPreference === "custom" ? paymentGroups : undefined,
+          payment_preference: "custom",
+          payment_groups: paymentGroups,
+          provider_receiving_method: receivingMethod,
+          provider_receiving_account_id:
+            receivingMethod === "standard" ? selectedReceivingAccountId : null,
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body?.success === false) {
@@ -353,6 +448,19 @@ export default function Invites() {
                       Total: <span className="font-medium">{formatPrice(total)}</span> ·{" "}
                       {safeSteps.length} etapa(s)
                     </div>
+                    <div className="text-sm text-gray-700">
+                      Cobrança: <span className="font-medium">Em garantia por grupos</span> ·{" "}
+                      Recebimento:{" "}
+                      <span className="font-medium">
+                        {invite.provider_receiving_method === "standard"
+                          ? "Padrão"
+                          : "Escrow"}
+                      </span>
+                      {invite.provider_receiving_method === "standard" &&
+                      invite.provider_receiving_account_label
+                        ? ` · ${invite.provider_receiving_account_label}`
+                        : ""}
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {invite.status !== "cancelled" && (
@@ -406,10 +514,20 @@ export default function Invites() {
         onContractFileChange={(e) => setContractFile(e.target.files?.[0] || null)}
         onSendProposal={handleSaveInvite}
         sendingProposal={saving}
-        paymentPreference={paymentPreference}
-        onPaymentPreferenceChange={setPaymentPreference}
         paymentGroups={paymentGroups}
         onPaymentGroupsChange={setPaymentGroups}
+        receivingMethod={receivingMethod}
+        onReceivingMethodChange={setReceivingMethod}
+        receivingAccounts={receivingAccounts}
+        loadingReceivingAccounts={loadingReceivingAccounts}
+        selectedReceivingAccountId={selectedReceivingAccountId}
+        onSelectedReceivingAccountIdChange={setSelectedReceivingAccountId}
+        hasExistingContractFile={Boolean(editingInvite?.contract_pdf_path)}
+        existingContractLabel={
+          editingInvite?.contract_pdf_path
+            ? "Este convite já possui um PDF anexado. Se quiser, você pode substituir por outro."
+            : null
+        }
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import {
   ArrowRight,
   BadgeCheck,
@@ -105,12 +106,15 @@ const successStories = [
 const CombinedHomeSections = () => {
   const [text, setText] = useState<string>("Comece a usar agora");
   const whatsappUrl = "https://wa.me/message/WYONYONWQG5XG1";
+  const { isLoggedIn } = useAuth();
 
   useEffect(() => {
-    if (sessionStorage.getItem("token")) {
+    if (isLoggedIn) {
       setText("Continuar usando, você está online!");
+      return;
     }
-  }, []);
+    setText("Comece a usar agora");
+  }, [isLoggedIn]);
 
   return (
     <main className="bg-white text-slate-900">

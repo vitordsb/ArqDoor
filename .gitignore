@@ -34,6 +34,7 @@ coverage/
 .env
 .env.test
 .env.production
+.env.docker.local
 .env.local
 .env.development.local
 .env.test.local

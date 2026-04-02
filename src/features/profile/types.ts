@@ -7,7 +7,20 @@ export interface ProviderApi {
   about: string | null;
   rating_mid?: string;
   created_at: string;
-  payment_preference?: "per_step" | "at_end" | "custom";
+}
+
+export interface ProviderReceivingAccountApi {
+  id: number;
+  provider_id: number;
+  nickname: string;
+  bank_name: string;
+  bank_agency: string;
+  bank_account: string;
+  bank_document: string;
+  pix_key: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UserApi {

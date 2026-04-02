@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,7 +8,8 @@ import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
 import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const LANDING_ROUTES = ["/", "/auth", "/admin"];
+const LANDING_ROUTES = ["/", "/auth"];
+const ADMIN_ROUTES = ["/admin"];
 
 // Route-level code splitting: reduces the initial JS payload in production.
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -32,6 +33,10 @@ function RouteLoading() {
       Carregando...
     </div>
   );
+}
+
+function PlainLayout({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
 function Router() {
@@ -62,9 +67,12 @@ function AppContent() {
   const { isLoggedIn, isInitialized } = useAuth();
 
   const isInvitePublic = location.startsWith("/convite/");
-  const isPublic = LANDING_ROUTES.includes(location) || isInvitePublic;
+  const isAdminRoute = ADMIN_ROUTES.includes(location);
+  const isPublic = LANDING_ROUTES.includes(location) || isInvitePublic || isAdminRoute;
   const Layout = isInvitePublic
     ? (ApplicationLayout as any)
+    : isAdminRoute
+      ? (PlainLayout as any)
     : isPublic
       ? (LandingLayout as any)
       : (ApplicationLayout as any);

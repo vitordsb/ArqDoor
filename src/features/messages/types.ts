@@ -1,5 +1,18 @@
 import type { CreateStepRequest, Step } from "@/lib/Interfaces";
 
+export type ProviderReceivingMethod = "escrow" | "standard";
+
+export type ProviderReceivingAccount = {
+  id: number;
+  nickname: string;
+  bank_name: string;
+  bank_agency: string;
+  bank_account: string;
+  bank_document: string;
+  pix_key: string;
+  is_active?: boolean;
+};
+
 export type ProposalStep = {
   id: string;
   title: string;

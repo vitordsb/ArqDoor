@@ -14,10 +14,10 @@ Guia curto dos principais blocos do projeto, onde ficam e para que servem. Ajust
 - Modais: `src/components/modals/AuthModals.tsx` (login/registro).
 - Email/senha: `use-auth.tsx` chama `/auth/login` e `/users`.
 - Google: `loginWithGoogleRequest` envia `mode` (`login`/`register`) para `/auth/google`. Se já existir conta, mostra aviso e abre modal de login; se criar, pede login.
-- Sessão: JWT em `sessionStorage` (`token`, `tokenExpiry`), decodificado com `parseJwt`.
+- Sessão: cookie HttpOnly + carregamento de `/auth/session`. O frontend guarda apenas metadados locais e token CSRF quando necessario.
 
 ## Cliente HTTP e dados
-- `src/lib/queryClient.ts`: `apiRequest` compõe URL com `VITE_API_BASE_URL`, injeta Authorization, envia JSON ou FormData. Base para `@tanstack/react-query`.
+- `src/lib/queryClient.ts`: `apiRequest` compõe URL com `VITE_API_BASE_URL`, envia cookies de sessao e inclui `X-CSRF-Token` em mutacoes autenticadas. Base para `@tanstack/react-query`.
 - Cache e revalidação configurados em `queryClient` (retry desativado por padrão).
 
 ## Registro e perfil
@@ -41,6 +41,6 @@ Guia curto dos principais blocos do projeto, onde ficam e para que servem. Ajust
 - `VITE_API_BASE_URL` — base da API (ex.: `http://localhost:8080` em dev, `https://api.arqdoor.com` em prod).
 
 ## Como rodar em dev
-1) Crie `ArqDoor/.env` com as variáveis acima.
+1) Ajuste `ArqDoor/.env.docker.local` com as variáveis do seu ambiente.
 2) `npm install` e `npm run dev`.
 3) Mantenha o backend ativo na URL configurada em `VITE_API_BASE_URL`.

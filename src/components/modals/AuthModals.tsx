@@ -329,6 +329,8 @@ export const AuthModals: React.FC<{
       // validações rápidas
       if (!data.name?.trim())
         return toast({ title: "Nome inválido", description: "Preencha o nome.", variant: "destructive" });
+      if (data.name.trim().length < 3)
+        return toast({ title: "Nome inválido", description: "Informe pelo menos 3 caracteres no nome.", variant: "destructive" });
       if (!data.email?.trim())
         return toast({ title: "Email inválido", description: "Preencha um email válido.", variant: "destructive" });
       if (!data.gender)
@@ -337,6 +339,8 @@ export const AuthModals: React.FC<{
         return toast({ title: "Nascimento não preenchido", description: "Informe a data de nascimento.", variant: "destructive" });
       if (!data.password)
         return toast({ title: "Senha obrigatória", description: "Informe sua senha.", variant: "destructive" });
+      if (data.password.length < 6)
+        return toast({ title: "Senha inválida", description: "A senha precisa ter pelo menos 6 caracteres.", variant: "destructive" });
       if (data.password !== data.confirmPassword)
         return toast({ title: "Senhas não coincidem", description: "As senhas devem ser iguais.", variant: "destructive" });
       if (!data.termos_aceitos)

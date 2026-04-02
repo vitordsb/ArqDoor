@@ -3,7 +3,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
+import {
+  PROPOSAL_STEP_MIN_PRICE,
+  SIGNATURE_STEP_TITLE,
+} from "@/constants/contracts";
 import {
   Ticket,
   Step,
@@ -11,6 +14,9 @@ import {
   UpdateStepRequest,
   Message,
 } from "@/lib/Interfaces";
+import type {
+  ProviderReceivingMethod,
+} from "@/features/messages/types";
 
 const norm = (v?: string) => (v || "").toLowerCase();
 const truthy = (v: any) => v === true || v === 1 || v === "1" || v === "true";
@@ -482,10 +488,16 @@ export function useContract(conversationId?: number) {
       steps: Omit<CreateStepRequest, "ticket_id">[],
       contractFile?: File | Blob,
       signaturePassword?: string,
-      paymentPreference?: "per_step" | "at_end" | "custom",
+      receivingMethod: ProviderReceivingMethod = "escrow",
+      selectedReceivingAccountId?: number | null,
       paymentGroups?: { id: number; name: string }[]
     ) => {
-      console.log("createProposal chamado. Pref:", paymentPreference, "Grupos:", paymentGroups); //debug
+      console.log(
+        "createProposal chamado. Método:",
+        receivingMethod,
+        "Grupos:",
+        paymentGroups
+      );
       if (!conversationId) return false;
       if (!user) return false;
 
@@ -533,12 +545,51 @@ export function useContract(conversationId?: number) {
         });
         return false;
       }
-      const minPrice = 5;
-      const validSteps = steps.filter((s) => s.title?.trim() && s.price >= minPrice);
+      const filledSteps = steps
+        .map((step, index) => ({
+          ...step,
+          title: step.title?.trim() || "",
+          price: Number(step.price || 0),
+          originalIndex: index,
+        }))
+        .filter((step) =>
+          Boolean(
+            step.title ||
+              step.price > 0 ||
+              (step as any).startDate ||
+              (step as any).start_date ||
+              (step as any).endDate ||
+              (step as any).end_date
+          )
+        );
+      const invalidStep = filledSteps.find(
+        (step) => !step.title || step.price < PROPOSAL_STEP_MIN_PRICE
+      );
+      if (invalidStep) {
+        toast({
+          title: "Etapa inválida",
+          description: `A etapa ${invalidStep.originalIndex + 1} precisa ter título e valor mínimo de R$ ${PROPOSAL_STEP_MIN_PRICE.toFixed(2)}.`,
+          variant: "warning",
+        });
+        return false;
+      }
+      const validSteps = filledSteps.map(({ originalIndex, ...step }) => step);
       if (validSteps.length < 1) {
         toast({
           title: "Erro na Proposta",
-          description: `Adicione pelo menos uma etapa com título e preço mínimo de R$ ${minPrice.toFixed(2)}.`,
+          description: `Adicione pelo menos uma etapa com título e preço mínimo de R$ ${PROPOSAL_STEP_MIN_PRICE.toFixed(2)}.`,
+          variant: "warning",
+        });
+        return false;
+      }
+      if (
+        receivingMethod === "standard" &&
+        (!selectedReceivingAccountId || selectedReceivingAccountId <= 0)
+      ) {
+        toast({
+          title: "Conta obrigatória",
+          description:
+            "Selecione uma conta cadastrada na sua carteira para usar o recebimento padrão.",
           variant: "warning",
         });
         return false;
@@ -617,9 +668,12 @@ export function useContract(conversationId?: number) {
       try {
         const ticketPayload: Record<string, any> = {
           conversation_id: conversationId,
+          payment_preference: "custom",
+          provider_receiving_method: receivingMethod,
         };
-        if (paymentPreference) {
-          ticketPayload.payment_preference = paymentPreference;
+        if (receivingMethod === "standard") {
+          ticketPayload.provider_receiving_account_id =
+            selectedReceivingAccountId;
         }
         const tRes = await apiRequest("POST", "/ticket", ticketPayload);
         if (!tRes.ok) throw new Error(await tRes.text());
@@ -628,9 +682,9 @@ export function useContract(conversationId?: number) {
         createdTicketId = ticketId;
         if (!ticketId) throw new Error("ID do ticket não retornado pela API");
 
-        // criar grupos de pagamento para o pagamento personalizado
+        // criar grupos de pagamento do fluxo em garantia
         const groupIdMap = new Map<number, number>();
-        if (paymentPreference === 'custom' && paymentGroups && paymentGroups.length > 0) {
+        if (paymentGroups && paymentGroups.length > 0) {
           console.log("Processando grupos de pagamento:", paymentGroups);
           for (const group of paymentGroups) {
             try {
@@ -740,7 +794,7 @@ export function useContract(conversationId?: number) {
           const safeEndDate = endDateAtNoon;
 
           const localGroupId = (s as any).payment_group_id;
-          const realGroupId = (paymentPreference === 'custom' && localGroupId) ? groupIdMap.get(localGroupId) : null;
+          const realGroupId = localGroupId ? groupIdMap.get(localGroupId) : null;
 
           const stepPayload: any = {
             ticket_id: ticketId,

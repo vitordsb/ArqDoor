@@ -31,7 +31,10 @@ import {
 import { formatDate } from "@/lib/utils"
 import { useStepFeedbackActions } from "@/hooks/use-actions"
 import { Textarea } from "@/components/ui/textarea"
-import { SIGNATURE_STEP_TITLE } from "@/constants/contracts"
+import {
+  SIGNATURE_STEP_TITLE,
+  isSignatureContractStep,
+} from "@/constants/contracts"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -58,10 +61,7 @@ type ProposalDetailsDialogProps = {
   onStartSignature: (ticket: any) => void
   onOpenSignature: (ticket: any) => void
   onRejectContract: (ticketId: number) => void
-  onClientAccept: (
-    step: Step,
-    paymentPreference?: "per_step" | "at_end" | "custom" | null
-  ) => Promise<void>
+  onClientAccept: (step: Step) => Promise<void>
   onClientRejectStep: (step: Step) => Promise<boolean>
   onFeedbackCreated?: (step: Step, comment: string, isProblem: boolean) => void
   onPaySteps?: (steps: Step[]) => void
@@ -74,8 +74,8 @@ type ProposalDetailsDialogProps = {
   onDeleteTicket?: (ticketId: number) => void
   deletingTicket?: boolean
   onRefreshPayment?: (ticketId: number) => void
-  onPayDeposit?: (ticketId: number) => void
-  paymentPreference?: "per_step" | "at_end" | "custom" | null
+  paymentPreference?: "custom" | null
+  providerReceivingMethod?: "escrow" | "standard" | null
   allowGroupedPayment?: boolean
   onToggleGroupedPayment?: (ticketId: number, enabled: boolean) => void
   canPayStep?: (step: Step, allSteps: Step[]) => boolean
@@ -96,18 +96,14 @@ const normalizeStatus = (status?: string) => {
 };
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  awaiting_deposit: "Aguardando depósito",
-  deposit_pending: "Depósito pendente",
-  deposit_paid: "Depósito confirmado",
   awaiting_steps: "Aguardando pagamento",
   partial_steps: "Pagamento parcial",
   steps_paid: "Pagamento finalizado",
 };
 
-const PAYMENT_MODE_LABELS: Record<string, string> = {
-  per_step: "Pagamento por etapa",
-  at_end: "Depósito em garantia",
-  custom: "Personalizado",
+const RECEIVING_METHOD_LABELS: Record<string, string> = {
+  escrow: "Recebimento via Escrow",
+  standard: "Recebimento padrão",
 };
 
 export function ProposalDetailsDialog({
@@ -141,9 +137,9 @@ export function ProposalDetailsDialog({
   onDeleteTicket,
   deletingTicket,
   onRefreshPayment,
-  onPayDeposit,
   currentIndex: _currentIndex,
-  paymentPreference = null,
+  paymentPreference = "custom",
+  providerReceivingMethod = null,
   allowGroupedPayment = false,
   onToggleGroupedPayment,
   canPayStep,
@@ -187,14 +183,18 @@ export function ProposalDetailsDialog({
     .toString()
     .toLowerCase();
   const paymentStatusLabel = PAYMENT_STATUS_LABELS[paymentStatusKey];
-  const paymentModeLabel = displayPaymentPreference
-    ? PAYMENT_MODE_LABELS[displayPaymentPreference]
+  const paymentModeLabel = "Pagamento em garantia";
+  const displayReceivingMethod =
+    providerReceivingMethod ||
+    (activeTicket as any)?.provider_receiving_method ||
+    null;
+  const receivingMethodLabel = displayReceivingMethod
+    ? RECEIVING_METHOD_LABELS[displayReceivingMethod] || "Recebimento configurado"
     : null;
 
-  const isCustomPayment = displayPaymentPreference === "custom";
-  const isStepPayment =
-    displayPaymentPreference === "per_step" || displayPaymentPreference === "custom";
-  const requiresSequentialPayment = displayPaymentPreference === "per_step";
+  const isCustomPayment = true;
+  const isStepPayment = true;
+  const requiresSequentialPayment = false;
   const isProvider = userType === "prestador";
 
   const groupedSteps = React.useMemo(() => {
@@ -317,10 +317,13 @@ export function ProposalDetailsDialog({
                   </Button>
                 )}
             </div>
-            {(paymentModeLabel || paymentStatusLabel) && (
+            {(paymentModeLabel || paymentStatusLabel || receivingMethodLabel) && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {paymentModeLabel && (
                   <Badge variant="outline">{paymentModeLabel}</Badge>
+                )}
+                {receivingMethodLabel && (
+                  <Badge variant="outline">{receivingMethodLabel}</Badge>
                 )}
                 {paymentStatusLabel && (
                   <Badge variant="outline">{paymentStatusLabel}</Badge>
@@ -330,34 +333,6 @@ export function ProposalDetailsDialog({
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto pr-2">
-
-          {displayPaymentPreference === "at_end" && currentTicketStatus && (currentTicketStatus as string).toLowerCase() !== "em andamento" && (currentTicketStatus as string).toLowerCase() !== "concluida" && (currentTicketStatus as string).toLowerCase() !== "concluída" && (
-            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <div className="flex items-center justify-between gap-3">
-                <span>Aguardando pagamento do depósito em garantia para liberar as ações do projeto.</span>
-                <div className="flex flex-wrap gap-2">
-                  {userType === "contratante" && onPayDeposit && ticketId && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onPayDeposit(ticketId)}
-                    >
-                      Gerar pagamento
-                    </Button>
-                  )}
-                  {onRefreshPayment && ticketId && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onRefreshPayment(ticketId)}
-                    >
-                      Verificar pagamento
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {loading ? (
             <div className="text-center py-8">Carregando…</div>
@@ -419,7 +394,7 @@ export function ProposalDetailsDialog({
                   )}
                   {group.steps.map((step) => {
                 const index = steps.findIndex(s => s.id === step.id);
-                const isSignatureStep = step.title === SIGNATURE_STEP_TITLE || index === 0
+                const isSignatureStep = isSignatureContractStep(step)
                 const signatureSigned =
                   isSignatureStep &&
                   ((step as any)?.confirm_contractor ||
@@ -432,7 +407,7 @@ export function ProposalDetailsDialog({
                   Boolean((step as any).paid);
                
               const prev = steps[index - 1];
-                const prevIsSignature = !!(prev && (prev.title === SIGNATURE_STEP_TITLE || (index - 1) === 0));
+                const prevIsSignature = !!(prev && isSignatureContractStep(prev));
                 const prevDone = prev && ((prev.status || '').toLowerCase() === 'concluido' || ((prev as any).confirm_freelancer && (prev as any).confirm_contractor));
                 const prevPaid = prevIsSignature
                   ? true
@@ -780,7 +755,7 @@ export function ProposalDetailsDialog({
                                 <Button
                                   size="sm"
                                   className="bg-green-600 hover:bg-green-700 text-white"
-                                  onClick={() => onClientAccept(step, displayPaymentPreference)}
+                                  onClick={() => onClientAccept(step)}
                                   disabled={!ticketIsActive}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />

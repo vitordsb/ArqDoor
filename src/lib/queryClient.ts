@@ -1,4 +1,17 @@
 import { QueryClient } from "@tanstack/react-query";
+
+const getCookieValue = (name: string) => {
+  if (typeof document === "undefined") return null;
+  const cookies = document.cookie ? document.cookie.split("; ") : [];
+  const match = cookies.find((entry) => entry.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=").slice(1).join("=")) : null;
+};
+
+const getStoredCsrfToken = () => {
+  if (typeof sessionStorage === "undefined") return null;
+  return sessionStorage.getItem("csrf_token");
+};
+
 const getBaseUrl = () => {
   const v1 = import.meta.env.VITE_API_URL;
   const v2 = import.meta.env.VITE_API_BASE_URL;
@@ -16,6 +29,7 @@ export async function apiRequest(
   timeout: number = 30000 // 30 seconds default
 ): Promise<Response> {
   const url = API_BASE_URL + path;
+  const normalizedMethod = method.toUpperCase();
   const headers: Record<string, string> = { ...(extraHeaders || {}) };
 
   let bodyContent: BodyInit | undefined;
@@ -29,13 +43,20 @@ export async function apiRequest(
     }
   }
 
+  if (!["GET", "HEAD", "OPTIONS"].includes(normalizedMethod) && !headers["X-CSRF-Token"]) {
+    const csrfToken = getStoredCsrfToken() || getCookieValue("csrf_token");
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
+  }
+
   // Implement timeout with AbortController
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch(url, {
-      method,
+      method: normalizedMethod,
       headers,
       body: bodyContent,
       credentials: "include", // envia o cookie HttpOnly automaticamente

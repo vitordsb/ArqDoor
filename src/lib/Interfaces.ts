@@ -121,6 +121,14 @@ export interface CreateMessageRequest {
 export interface CreateTicketRequest {
   conversation_id: number;
   payment_preference?: "per_step" | "at_end" | "custom";
+  provider_receiving_method?: "escrow" | "standard";
+  provider_receiving_account_id?: number | null;
+  provider_receiving_account_label?: string | null;
+  provider_bank_name?: string | null;
+  provider_bank_agency?: string | null;
+  provider_bank_account?: string | null;
+  provider_bank_document?: string | null;
+  provider_pix_key?: string | null;
   allow_grouped_payment?: boolean;
   allowGroupedPayment?: boolean;
   grouped_payment?: boolean;
@@ -188,6 +196,14 @@ export interface TicketService {
   provider_id: number;
   status: string;
   payment_preference?: "per_step" | "at_end" | "custom";
+  provider_receiving_method?: "escrow" | "standard";
+  provider_receiving_account_id?: number | null;
+  provider_receiving_account_label?: string | null;
+  provider_bank_name?: string | null;
+  provider_bank_agency?: string | null;
+  provider_bank_account?: string | null;
+  provider_bank_document?: string | null;
+  provider_pix_key?: string | null;
   allow_grouped_payment?: boolean;
   created_at: string;
   updated_at: string;
@@ -200,6 +216,14 @@ export interface Ticket {
   status?: string;
   payment_preference?: "per_step" | "at_end" | "custom";
   paymentPreference?: "per_step" | "at_end" | "custom";
+  provider_receiving_method?: "escrow" | "standard";
+  provider_receiving_account_id?: number | null;
+  provider_receiving_account_label?: string | null;
+  provider_bank_name?: string | null;
+  provider_bank_agency?: string | null;
+  provider_bank_account?: string | null;
+  provider_bank_document?: string | null;
+  provider_pix_key?: string | null;
   allow_grouped_payment?: boolean;
   grouped_payment?: boolean;
   grouped_payment_enabled?: boolean;

@@ -30,10 +30,17 @@ type InviteData = {
   token: string;
   status: "draft" | "active" | "accepted" | "cancelled";
   steps: InviteStep[];
-  contract_pdf_path?: string | null;
-  payment_preference?: "per_step" | "at_end" | "custom";
+  contract_pdf_url?: string | null;
+  has_contract_pdf?: boolean;
+  payment_preference?: "custom";
+  provider_receiving_method?: "escrow" | "standard";
   payment_groups?: PaymentGroup[];
   created_at?: string;
+};
+
+const RECEIVING_METHOD_LABELS: Record<string, string> = {
+  escrow: "Escrow",
+  standard: "Padrão",
 };
 
 const normalizeInviteSteps = (raw: unknown): InviteStep[] => {
@@ -104,9 +111,9 @@ export default function InvitePublic() {
   }, [token, toast]);
 
   const pdfUrl = useMemo(() => {
-    if (!invite?.contract_pdf_path) return "";
-    if (invite.contract_pdf_path.startsWith("http")) return invite.contract_pdf_path;
-    return `${API_BASE_URL}/${invite.contract_pdf_path.replace(/^\/+/, "")}`;
+    if (!invite?.contract_pdf_url) return "";
+    if (invite.contract_pdf_url.startsWith("http")) return invite.contract_pdf_url;
+    return `${API_BASE_URL}/${invite.contract_pdf_url.replace(/^\/+/, "")}`;
   }, [invite]);
 
   const safeSteps = useMemo(() => normalizeInviteSteps(invite?.steps), [invite]);
@@ -116,10 +123,8 @@ export default function InvitePublic() {
 
   // Derive groups from steps (New Logic)
   const paymentGroups = useMemo(() => {
-    if (invite?.payment_preference !== 'custom') return [];
-    
     // Check if groups are already provided (unlikely given backend)
-    if (invite.payment_groups && invite.payment_groups.length > 0) return invite.payment_groups;
+    if (invite?.payment_groups && invite.payment_groups.length > 0) return invite.payment_groups;
 
     // Derive groups
     const groupsMap = new Map<number, PaymentGroup>();
@@ -199,11 +204,7 @@ export default function InvitePublic() {
         description: "Você já pode conversar com o prestador.",
       });
       if (body?.data?.provider_user_id) {
-        const depositParam =
-          invite?.payment_preference === "at_end" ? "&deposit=1" : "";
-        navigate(
-          `/messages/${body.data.provider_user_id}?ticket=${body.data.ticket_id}&view=contract${depositParam}`
-        );
+        navigate(`/messages/${body.data.provider_user_id}?ticket=${body.data.ticket_id}&view=contract`);
       }
     } catch (error: any) {
       toast({
@@ -256,11 +257,7 @@ export default function InvitePublic() {
               </p>
             </div>
             <Badge variant="outline">
-              {invite.payment_preference === "at_end"
-                ? "Depósito em garantia"
-                : invite.payment_preference === "custom"
-                  ? "Pagamento Personalizado"
-                  : "Pagamento por etapa"}
+              Pagamento em garantia
             </Badge>
           </div>
 
@@ -274,9 +271,16 @@ export default function InvitePublic() {
           <div className="flex flex-wrap items-center gap-3 text-sm text-gray-700">
             <span>Total: <strong>{formatPrice(total)}</strong></span>
             <span>Etapas: <strong>{safeSteps.length}</strong></span>
+            <span>
+              Recebimento:{" "}
+              <strong>
+                {RECEIVING_METHOD_LABELS[invite.provider_receiving_method || "escrow"] ||
+                  "Escrow"}
+              </strong>
+            </span>
           </div>
 
-          {invite.contract_pdf_path ? (
+          {pdfUrl ? (
             <Button variant="outline" onClick={() => window.open(pdfUrl, "_blank")}>
               <FileText className="h-4 w-4 mr-2" /> Ver contrato em PDF
             </Button>
@@ -287,12 +291,11 @@ export default function InvitePublic() {
           )}
         </div>
 
-        {/* Group-based view for custom payment */}
-        {invite.payment_preference === "custom" && paymentGroups.length > 0 ? (
+        {paymentGroups.length > 0 ? (
           <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Grupos de Pagamento</h2>
             <p className="text-sm text-muted-foreground">
-              Este contrato está organizado em {paymentGroups.length} grupo(s) de pagamento. 
+              Este contrato está organizado em {paymentGroups.length} grupo(s) de pagamento em garantia.
               Você pagará cada grupo completo em sequência.
             </p>
             <div className="space-y-4">
@@ -400,7 +403,7 @@ export default function InvitePublic() {
                 ? "Este convite já foi utilizado."
                 : "Este convite não está mais disponível."}
             </p>
-          ) : !invite.contract_pdf_path ? (
+          ) : !pdfUrl ? (
             <p className="text-sm text-muted-foreground">
               O contrato ainda não foi anexado pelo prestador.
             </p>

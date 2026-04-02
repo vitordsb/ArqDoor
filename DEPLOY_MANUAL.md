@@ -1,49 +1,97 @@
-# 🚀 Deploy Manual para Hostinger
+# Deploy Manual do Frontend na VPS
 
-Infelizmente, a Hostinger bloqueia conexões FTP/SFTP vindas do GitHub Actions por questões de segurança.
+Este guia serve para publicar apenas o frontend do ArqDoor na VPS atual.
 
-## Solução: Deploy Local Automatizado
+## Quando usar
 
-### Pré-requisitos
+- Quando voce quiser publicar o frontend sem esperar pipeline
+- Quando precisar validar rapidamente um build em producao
+- Quando a alteracao for apenas no projeto `ArqDoor`
 
-Instale o `lftp` (cliente FTP avançado):
+Se houver mudancas no backend, faca o deploy separado no projeto `arqdoor-backend`.
 
-```bash
-# Ubuntu/Debian
-sudo apt-get install lftp
+## Estrutura atual da VPS
 
-# Arch Linux
-sudo pacman -S lftp
+- Frontend vivo: `/var/www/arqdoor`
+- Releases do frontend: `/var/www/arqdoor/.releases`
+- Upload temporario: `/var/www/arqdoor/.deploy`
+- Backend separado: `/var/www/arqdoor-backend`
 
-# macOS
-brew install lftp
-```
+## Passo a passo
 
-### Como fazer deploy
-
-Sempre que quiser atualizar o site:
+### 1. Gerar o build
 
 ```bash
-./deploy.sh
+cd ArqDoor
+npm ci
+npm run build
 ```
 
-Isso vai:
-1. ✅ Fazer o build do projeto
-2. ✅ Enviar automaticamente para a Hostinger via FTP
-3. ✅ Remover arquivos antigos
-4. ✅ Atualizar o site
+Confirme que a pasta `dist/` foi gerada.
 
-## Alternativas para Deploy Automático
+### 2. Criar um identificador de release
 
-Se você quiser deploy 100% automático, considere migrar para:
+```bash
+export RELEASE_ID="$(date -u +%Y%m%d-%H%M%S)"
+```
 
-- **Vercel** (recomendado para React/Vite) - Deploy automático grátis
-- **Netlify** - Deploy automático grátis
-- **GitHub Pages** - Deploy automático grátis
-- **Cloudflare Pages** - Deploy automático grátis
+### 3. Empacotar o frontend
 
-Todas essas plataformas têm integração nativa com GitHub e fazem deploy automático a cada push!
+```bash
+tar -czf "frontend-deploy-${RELEASE_ID}.tar.gz" -C dist .
+```
 
-## Manter o workflow do GitHub
+### 4. Enviar para a VPS
 
-O workflow ainda está configurado, caso a Hostinger libere as portas no futuro ou você migre para VPS.
+```bash
+scp "frontend-deploy-${RELEASE_ID}.tar.gz" root@SEU_HOST:/var/www/arqdoor/.deploy/
+```
+
+### 5. Publicar a release na VPS
+
+```bash
+ssh root@SEU_HOST
+export RELEASE_ID=20260330-120000
+
+mkdir -p /var/www/arqdoor/.releases/"$RELEASE_ID"
+tar -xzf /var/www/arqdoor/.deploy/frontend-deploy-"$RELEASE_ID".tar.gz -C /var/www/arqdoor/.releases/"$RELEASE_ID"
+rm -f /var/www/arqdoor/.deploy/frontend-deploy-"$RELEASE_ID".tar.gz
+test -f /var/www/arqdoor/.releases/"$RELEASE_ID"/index.html
+
+cd /var/www/arqdoor
+find . -mindepth 1 -maxdepth 1 ! -name '.releases' ! -name '.deploy' ! -name '.well-known' -exec rm -rf {} +
+cp -a /var/www/arqdoor/.releases/"$RELEASE_ID"/. /var/www/arqdoor/
+ln -sfn /var/www/arqdoor/.releases/"$RELEASE_ID" /var/www/arqdoor/.current-release
+chmod -R a+rX /var/www/arqdoor
+```
+
+## Verificacao
+
+Depois da publicacao:
+
+```bash
+curl -I https://arqdoor.com
+```
+
+Se quiser confirmar os arquivos da release:
+
+```bash
+ls -lah /var/www/arqdoor/.releases
+readlink -f /var/www/arqdoor/.current-release
+```
+
+## Limpeza de releases antigas
+
+Mantenha algumas releases recentes para rollback rapido:
+
+```bash
+cd /var/www/arqdoor/.releases
+ls -1dt */ | tail -n +6 | xargs -r rm -rf
+```
+
+## Observacoes importantes
+
+- Preserve `.well-known` se o dominio usar verificacoes ou certificados.
+- Esse processo nao reinicia `nginx`; como o frontend e estatico, basta atualizar os arquivos.
+- Esse processo nao atualiza o backend.
+- Se a mudanca depender de nova API, publique tambem o projeto `arqdoor-backend`.

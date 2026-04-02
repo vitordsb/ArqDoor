@@ -2,7 +2,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Eye, FileText, Shield, CheckCircle, XCircle } from 'lucide-react';
 import { formatTotalDurationFromDays } from '@/lib/utils';
-import { SIGNATURE_STEP_TITLE } from '@/constants/contracts';
+import {
+  findSignatureContractStep,
+  isSignatureContractStep,
+} from '@/constants/contracts';
 import { useMemo } from 'react';
 
 interface ProposalCardProps {
@@ -14,7 +17,6 @@ interface ProposalCardProps {
   onViewPdf: (ticket: any) => void;
   onStartSignature: (ticket: any) => void;
   onRejectProposal?: (ticketId: number) => void;
-  onResumePayment?: (ticketId: number) => void;
 }
 
 const formatCurrency = (value: number) =>
@@ -58,39 +60,37 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-const PAYMENT_MODE_LABELS: Record<string, string> = {
-  per_step: "Pagamento por etapa",
-  at_end: "Depósito em garantia",
-  custom: "Personalizado",
+const RECEIVING_METHOD_LABELS: Record<string, string> = {
+  escrow: "Escrow",
+  standard: "Padrão",
 };
 
 const PAYMENT_STATUS_CONFIG: Record<
   string,
-  { label: string; badgeClass: string }
+  {
+    label: string;
+    containerClass: string;
+    labelClass: string;
+    dotClass: string;
+  }
 > = {
-  awaiting_deposit: {
-    label: "Aguardando depósito",
-    badgeClass: "bg-amber-100 text-amber-800 border-amber-200",
-  },
-  deposit_pending: {
-    label: "Depósito pendente",
-    badgeClass: "bg-amber-100 text-amber-800 border-amber-200",
-  },
-  deposit_paid: {
-    label: "Depósito confirmado",
-    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  },
   awaiting_steps: {
     label: "Aguardando pagamento",
-    badgeClass: "bg-sky-100 text-sky-800 border-sky-200",
+    containerClass: "border-sky-200 bg-sky-50",
+    labelClass: "text-sky-800",
+    dotClass: "bg-sky-500",
   },
   partial_steps: {
     label: "Pagamento parcial",
-    badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-200",
+    containerClass: "border-indigo-200 bg-indigo-50",
+    labelClass: "text-indigo-800",
+    dotClass: "bg-indigo-500",
   },
   steps_paid: {
     label: "Pagamento finalizado",
-    badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    containerClass: "border-emerald-200 bg-emerald-50",
+    labelClass: "text-emerald-800",
+    dotClass: "bg-emerald-500",
   },
 };
 
@@ -111,17 +111,9 @@ const getPaymentStatus = (ticket: any, steps: any[]) => {
     (ticket.payment_status || ticket.paymentStatus || "").toString().toLowerCase();
   if (raw && PAYMENT_STATUS_CONFIG[raw]) return raw;
 
-  const preference =
-    (ticket.payment_preference || ticket.paymentPreference || "at_end")
-      .toString()
-      .toLowerCase();
-  if (preference === "at_end") {
-    return ticket.payment ? "deposit_paid" : "awaiting_deposit";
-  }
-
-  const payableSteps = (steps || []).filter((step, index) => {
+  const payableSteps = (steps || []).filter((step) => {
     const price = Number(step?.price || 0);
-    return index !== 0 && price > 0;
+    return !isSignatureContractStep(step) && price > 0;
   });
   if (payableSteps.length === 0) return "steps_paid";
 
@@ -142,21 +134,20 @@ export function ProposalCard({
   onViewPdf,
   onStartSignature,
   onRejectProposal,
-  onResumePayment,
 }: ProposalCardProps) {
   const total = useMemo(() => calculateProposalTotal(steps), [steps]);
   const cfg = getStatusConfig(ticket.status);
   const paymentStatusKey = getPaymentStatus(ticket, steps);
   const paymentCfg = PAYMENT_STATUS_CONFIG[paymentStatusKey];
-  const paymentModeKey = (ticket.payment_preference || ticket.paymentPreference || "at_end")
+  const receivingMethodKey = (ticket.provider_receiving_method || "escrow")
     .toString()
     .toLowerCase();
-  const paymentModeLabel =
-    PAYMENT_MODE_LABELS[paymentModeKey] || "Pagamento por etapa";
+  const receivingMethodLabel =
+    RECEIVING_METHOD_LABELS[receivingMethodKey] || "Escrow";
   const normalizedTicketStatus = normalizeStatus(ticket.status);
   const signatureStep = useMemo(() => {
     if (!steps?.length) return null;
-    return steps.find((step) => step?.title === SIGNATURE_STEP_TITLE) || steps[0];
+    return findSignatureContractStep(steps);
   }, [steps]);
   const signatureStepSigned = Boolean(
     signatureStep?.confirm_contractor ||
@@ -172,13 +163,6 @@ export function ProposalCard({
     normalizedTicketStatus === 'pendente' &&
     !signatureStepSigned &&
     !isTicketClosed;
-  const canResumePayment =
-    currentUserType === 'contratante' &&
-    paymentModeKey === 'at_end' &&
-    signatureStepSigned &&
-    paymentStatusKey !== 'deposit_paid' &&
-    !isTicketClosed &&
-    typeof onResumePayment === 'function';
 
   const formattedDuration = formatTotalDurationFromDays(ticket.total_date);
 
@@ -186,22 +170,33 @@ export function ProposalCard({
     <div
       className={`flex flex-col justify-between p-3 shadow-sm border transition-all duration-200 hover:shadow-md ${cfg.bg} ${cfg.border}`}
     >
-      <div className="flex items-start justify-between mb-4">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-1 rounded-lg bg-white shadow-sm">
             <cfg.icon className={`h-5 w-5 ${cfg.color}`} />
           </div>
           <h3 className="font-semibold text-gray-900">Proposta #{ticket.id}</h3>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex shrink-0 items-start">
           <Badge className={cfg.badgeClass}>{cfg.label}</Badge>
-          {paymentCfg && (
-            <Badge className={paymentCfg.badgeClass}>{paymentCfg.label}</Badge>
-          )}
         </div>
       </div>
 
       <div className="space-y-2">
+        {paymentCfg && (
+          <div className={`rounded-xl border px-3 py-2 ${paymentCfg.containerClass}`}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Pagamento
+            </div>
+            <div className={`mt-1 flex items-center gap-2 ${paymentCfg.labelClass}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${paymentCfg.dotClass}`} />
+              <span className="text-sm font-semibold leading-tight">
+                {paymentCfg.label}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">{steps.length} etapas</span>
           <span className="text-lg font-bold text-gray-900">
@@ -216,7 +211,10 @@ export function ProposalCard({
           </div>
         )}
         <div className="text-xs text-gray-600">
-          Pagamento: <span className="font-medium">{paymentModeLabel}</span>
+          Cobrança: <span className="font-medium">Em garantia por grupos</span>
+        </div>
+        <div className="text-xs text-gray-600">
+          Recebimento: <span className="font-medium">{receivingMethodLabel}</span>
         </div>
 
         <div className="flex flex-wrap gap-2 pt-2">
@@ -254,15 +252,6 @@ export function ProposalCard({
                 <XCircle className="h-4 w-4 mr-2" /> Recusar proposta
               </Button>
             </>
-          )}
-          {!canSign && canResumePayment && (
-            <Button
-              size="sm"
-              onClick={() => onResumePayment?.(ticket.id)}
-              className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[160px]"
-            >
-              <Shield className="h-4 w-4 mr-2" /> Voltar para pagamento
-            </Button>
           )}
         </div>
       </div>

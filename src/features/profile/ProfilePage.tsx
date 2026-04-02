@@ -38,9 +38,10 @@ import { DocumentsCard } from "./components/DocumentsCard";
 import { AboutCard } from "./components/AboutCard";
 import { ServicesSection } from "./components/ServicesSection";
 import { RatingsModal } from "./components/RatingsModal";
-import { PaymentPreferenceCard } from "./components/PaymentPreferenceCard";
+import { ReceivingAccountsCard } from "./components/ReceivingAccountsCard";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import type { ProviderReceivingAccountApi } from "./types";
 
 export default function ProfilePage() {
   const { user, logout, updateUserLocal } = useAuth();
@@ -94,6 +95,10 @@ export default function ProfilePage() {
   const [providerProfile, setProviderProfile] = useState<any | null>(null);
   const [loadingProviderInfo, setLoadingProviderInfo] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
+  const [receivingAccounts, setReceivingAccounts] = useState<
+    ProviderReceivingAccountApi[]
+  >([]);
+  const [loadingReceivingAccounts, setLoadingReceivingAccounts] = useState(false);
 
   const [profession, setProfession] = useState<string>("");
   const [isEditingProfession, setIsEditingProfession] = useState(false);
@@ -110,10 +115,6 @@ export default function ProfilePage() {
   const [ratingsModalOpen, setRatingsModalOpen] = useState(false);
   const [ratingsModalLoading, setRatingsModalLoading] = useState(false);
   const [ratingsModalData, setRatingsModalData] = useState<{ average: number; count: number; list: any[] } | null>(null);
-
-  // payment preference
-  const [paymentPreference, setPaymentPreference] = useState<"per_step" | "at_end" | "custom" | null>(null);
-  const [savingPaymentPreference, setSavingPaymentPreference] = useState(false);
 
   const [locationInfo, setLocationInfo] = useState<any | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -165,7 +166,6 @@ export default function ProfilePage() {
     if (!user || user.type !== "prestador") {
       setProviderProfile(null);
       setAbout("");
-      setPaymentPreference(null);
       return;
     }
     try {
@@ -179,13 +179,11 @@ export default function ProfilePage() {
       setProviderProfile(body.provider);
       setAbout(body.provider?.about || "");
       setProfession(body.provider?.profession || "");
-      setPaymentPreference(body.provider?.payment_preference || "at_end");
     } catch (error: any) {
       setProviderError(error?.message || "Falha ao carregar dados do prestador");
       setProviderProfile(null);
       setAbout("");
       setProfession("");
-      setPaymentPreference(null);
     } finally {
       setLoadingProviderInfo(false);
     }
@@ -194,6 +192,146 @@ export default function ProfilePage() {
   useEffect(() => {
     loadProviderInfo();
   }, [loadProviderInfo]);
+
+  const loadReceivingAccounts = useCallback(async () => {
+    if (user?.type !== "prestador" || !providerProfile?.provider_id) {
+      setReceivingAccounts([]);
+      return;
+    }
+
+    try {
+      setLoadingReceivingAccounts(true);
+      const res = await apiRequest(
+        "GET",
+        `/providers/${providerProfile.provider_id}/accounts`
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.message || "Erro ao carregar carteira.");
+      }
+      setReceivingAccounts(Array.isArray(body.accounts) ? body.accounts : []);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar carteira",
+        description: error?.message || "Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+      setReceivingAccounts([]);
+    } finally {
+      setLoadingReceivingAccounts(false);
+    }
+  }, [providerProfile?.provider_id, toast, user?.type]);
+
+  useEffect(() => {
+    loadReceivingAccounts();
+  }, [loadReceivingAccounts]);
+
+  const saveReceivingAccount = useCallback(
+    async (
+      draft: {
+        nickname: string;
+        bank_name: string;
+        bank_agency: string;
+        bank_account: string;
+        bank_document: string;
+        pix_key: string;
+      },
+      accountId?: number
+    ) => {
+      if (!providerProfile?.provider_id) return false;
+      try {
+        const endpoint = accountId
+          ? `/providers/${providerProfile.provider_id}/accounts/${accountId}`
+          : `/providers/${providerProfile.provider_id}/accounts`;
+        const method = accountId ? "PUT" : "POST";
+        const payload = {
+          ...draft,
+          nickname: draft.nickname.trim(),
+          bank_name: draft.bank_name.trim(),
+          bank_agency: draft.bank_agency.trim(),
+          bank_account: draft.bank_account.trim(),
+          bank_document: draft.bank_document.replace(/\D/g, ""),
+          pix_key: draft.pix_key.trim(),
+        };
+        const res = await apiRequest(method, endpoint, payload);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || body?.success === false) {
+          throw new Error(body?.message || "Erro ao salvar conta.");
+        }
+        toast({
+          title: accountId ? "Conta atualizada" : "Conta cadastrada",
+          description: "A carteira de recebimento foi atualizada com sucesso.",
+        });
+        await loadReceivingAccounts();
+        return true;
+      } catch (error: any) {
+        toast({
+          title: "Erro ao salvar conta",
+          description: error?.message || "Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [loadReceivingAccounts, providerProfile?.provider_id, toast]
+  );
+
+  const handleCreateReceivingAccount = useCallback(
+    async (draft: {
+      nickname: string;
+      bank_name: string;
+      bank_agency: string;
+      bank_account: string;
+      bank_document: string;
+      pix_key: string;
+    }) => saveReceivingAccount(draft),
+    [saveReceivingAccount]
+  );
+
+  const handleUpdateReceivingAccount = useCallback(
+    async (
+      accountId: number,
+      draft: {
+        nickname: string;
+        bank_name: string;
+        bank_agency: string;
+        bank_account: string;
+        bank_document: string;
+        pix_key: string;
+      }
+    ) => saveReceivingAccount(draft, accountId),
+    [saveReceivingAccount]
+  );
+
+  const handleDeleteReceivingAccount = useCallback(
+    async (accountId: number) => {
+      if (!providerProfile?.provider_id) return false;
+      try {
+        const res = await apiRequest(
+          "DELETE",
+          `/providers/${providerProfile.provider_id}/accounts/${accountId}`
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || body?.success === false) {
+          throw new Error(body?.message || "Erro ao remover conta.");
+        }
+        toast({
+          title: "Conta removida",
+          description: "A conta saiu da carteira de recebimento.",
+        });
+        await loadReceivingAccounts();
+        return true;
+      } catch (error: any) {
+        toast({
+          title: "Erro ao remover conta",
+          description: error?.message || "Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [loadReceivingAccounts, providerProfile?.provider_id, toast]
+  );
 
   const loadLocationInfo = useCallback(async () => {
     if (!user?.id) return;
@@ -327,70 +465,6 @@ export default function ProfilePage() {
       });
     } finally {
       setSavingProfession(false);
-    }
-  };
-
-  const handleSavePaymentPreference = async () => {
-    if (!user || user.type !== "prestador" || !providerProfile) return;
-    if (!paymentPreference) {
-      toast({
-        title: "Erro",
-        description: "Selecione uma preferência de pagamento",
-        variant: "destructive",
-      });
-      return;
-    }
-    setSavingPaymentPreference(true);
-    try {
-      const activeRes = await apiRequest("GET", "/ticket/provider/active");
-      const activeBody = await activeRes.json().catch(() => ({}));
-      if (!activeRes.ok) {
-        throw new Error(activeBody?.message || `Erro ao verificar contratos: ${activeRes.status}`);
-      }
-
-      const hasActiveContract =
-        activeBody?.hasActive ||
-        (Array.isArray(activeBody?.activeTickets) && activeBody.activeTickets.length > 0);
-
-      if (hasActiveContract) {
-        setPaymentPreference(providerProfile.payment_preference || "at_end");
-        toast({
-          title: "Ação bloqueada",
-          description:
-            "Você tem um contrato em aberto pendente, por favor finalize o último projeto para trocar a preferência de pagamento.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const payload = { payment_preference: paymentPreference };
-      const endpoint = `/providers/${providerProfile.provider_id}`;
-      const res = await apiRequest("PUT", endpoint, payload);
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || body?.success === false) {
-        throw new Error(body?.message || "Não foi possível atualizar a preferência de pagamento");
-      }
-      setProviderProfile((prev: any) =>
-        prev ? { ...prev, payment_preference: paymentPreference } : prev
-      );
-      const paymentLabel =
-        paymentPreference === "per_step"
-          ? "Pagamento por fase"
-          : paymentPreference === "custom"
-            ? "Pagamento personalizado"
-            : "Depósito em garantia";
-      toast({ 
-        title: "Sucesso",
-        description: `Preferência de pagamento alterada para: ${paymentLabel}`
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error?.message || "Falha ao salvar a preferência de pagamento",
-        variant: "destructive",
-      });
-    } finally {
-      setSavingPaymentPreference(false);
     }
   };
 
@@ -851,13 +925,6 @@ export default function ProfilePage() {
                     providerProfile={providerProfile}
                     onSave={handleSaveProfession}
                   />
-                  <PaymentPreferenceCard
-                    paymentPreference={paymentPreference}
-                    onChange={setPaymentPreference}
-                    loading={loadingProviderInfo}
-                    saving={savingPaymentPreference}
-                    onSave={handleSavePaymentPreference}
-                  />
                 </>
               )}
             </div>
@@ -995,6 +1062,16 @@ export default function ProfilePage() {
                     </div>
                   </CardContent>
                 </Card>
+              )}
+
+              {user.type === "prestador" && (
+                <ReceivingAccountsCard
+                  accounts={receivingAccounts}
+                  loading={loadingReceivingAccounts}
+                  onCreate={handleCreateReceivingAccount}
+                  onUpdate={handleUpdateReceivingAccount}
+                  onDelete={handleDeleteReceivingAccount}
+                />
               )}
 
               <DocumentsCard

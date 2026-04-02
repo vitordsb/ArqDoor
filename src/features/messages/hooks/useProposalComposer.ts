@@ -1,5 +1,8 @@
 import { useState } from "react";
-import type { ProposalStep } from "@/features/messages/types";
+import type {
+  ProposalStep,
+  ProviderReceivingMethod,
+} from "@/features/messages/types";
 
 type ToastFn = (props: {
   title?: string;
@@ -15,11 +18,17 @@ export const useProposalComposer = ({
   toast,
 }: UseProposalComposerParams) => {
   const [proposalSteps, setProposalSteps] = useState<ProposalStep[]>([
-    { id: crypto.randomUUID(), title: "", price: 0 },
+    {
+      id: crypto.randomUUID(),
+      title: "",
+      price: 0,
+      paymentGroupId: 1,
+    },
   ]);
-  const [proposalPaymentPreference, setProposalPaymentPreference] = useState<
-    "per_step" | "at_end" | "custom"
-  >("at_end");
+  const [providerReceivingMethod, setProviderReceivingMethod] =
+    useState<ProviderReceivingMethod>("escrow");
+  const [selectedReceivingAccountId, setSelectedReceivingAccountId] =
+    useState<number | null>(null);
   const [contractFile, setContractFile] = useState<File | null>(null);
 
   const addProposalStep = () =>
@@ -54,8 +63,10 @@ export const useProposalComposer = ({
   return {
     proposalSteps,
     setProposalSteps,
-    proposalPaymentPreference,
-    setProposalPaymentPreference,
+    providerReceivingMethod,
+    setProviderReceivingMethod,
+    selectedReceivingAccountId,
+    setSelectedReceivingAccountId,
     contractFile,
     setContractFile,
     addProposalStep,

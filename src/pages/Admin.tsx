@@ -1,651 +1,341 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
-
-type SectionPagination = {
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-};
-
-type PaymentsPagination = {
-  page: number;
-  page_size: number;
-  pending_total: number;
-  pending_total_pages: number;
-  paid_total: number;
-  paid_total_pages: number;
-};
-
-type DashboardMeta = {
-  section: "all" | "usuarios" | "contratos" | "pagamentos" | "conversas";
-  page: number;
-  page_size: number;
-  pagination: {
-    tickets: SectionPagination;
-    users: SectionPagination;
-    conversations: SectionPagination;
-    payments: PaymentsPagination;
-  };
-  partial_failures: Array<{
-    section: string;
-    message: string;
-  }>;
-};
-
-type DashboardData = {
-  tickets: any[];
-  users: any[];
-  conversations: any[];
-  payments: {
-    pending: any[];
-    paid: any[];
-  };
-  meta?: DashboardMeta;
-};
-
-type TabKey = "usuarios" | "contratos" | "pagamentos" | "conversas";
-
-const TAB_PAGE_SIZE: Record<TabKey, number> = {
-  usuarios: 20,
-  contratos: 18,
-  pagamentos: 20,
-  conversas: 12,
-};
-
-const badge = (text: string, variant: "green" | "red" | "amber" | "gray" = "gray") => {
-  const map: Record<string, string> = {
-    green: "bg-emerald-100 text-emerald-800",
-    red: "bg-rose-100 text-rose-700",
-    amber: "bg-amber-100 text-amber-800",
-    gray: "bg-slate-100 text-slate-700",
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${map[variant]}`}>
-      {text}
-    </span>
-  );
-};
+import { Filter, LogOut, RefreshCcw, ShieldCheck } from "lucide-react";
+import { TABS } from "@/features/admin/constants";
+import { AdminConversationsSection } from "@/features/admin/components/AdminConversationsSection";
+import { AdminContractsSection } from "@/features/admin/components/AdminContractsSection";
+import { AdminDashboardView } from "@/features/admin/components/AdminOverviewSection";
+import { AdminDocumentsSection } from "@/features/admin/components/AdminDocumentsSection";
+import { AdminFiltersModal } from "@/features/admin/components/AdminFiltersModal";
+import { AdminLoginView } from "@/features/admin/components/AdminLoginView";
+import { AdminPaymentsSection } from "@/features/admin/components/AdminPaymentsSection";
+import { EmptyState, PaginationControls } from "@/features/admin/components/AdminPrimitives";
+import { AdminUsersSection } from "@/features/admin/components/AdminUsersSection";
+import { useAdminDashboard } from "@/features/admin/hooks/useAdminDashboard";
+import { useAdminPageMeta } from "@/features/admin/hooks/useAdminPageMeta";
+import { useAdminSession } from "@/features/admin/hooks/useAdminSession";
+import { cn, formatDateTime, openSecureFile } from "@/features/admin/utils";
 
 export default function Admin() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authHeader, setAuthHeader] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("usuarios");
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [adminId, setAdminId] = useState<number | null>(null);
-  const [msgInput, setMsgInput] = useState("");
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [refreshFlag, setRefreshFlag] = useState(0);
-  const [ticketSearch, setTicketSearch] = useState("");
-  const [pageByTab, setPageByTab] = useState<Record<TabKey, number>>({
-    usuarios: 1,
-    contratos: 1,
-    pagamentos: 1,
-    conversas: 1,
+  useAdminPageMeta();
+
+  const {
+    email,
+    password,
+    isAuthenticated,
+    authChecked,
+    authSubmitting,
+    authError,
+    setEmail,
+    setPassword,
+    login,
+    logout,
+    expireSession,
+  } = useAdminSession();
+
+  const {
+    dashboard,
+    loading,
+    error,
+    activeTab,
+    setActiveTab,
+    showFilters,
+    setShowFilters,
+    draftFilters,
+    appliedFilterCount,
+    activePagination,
+    refreshDashboard,
+    applyFilters,
+    resetFilters,
+    updateDraftFilter,
+    goToPreviousPage,
+    goToNextPage,
+    openConversationFromOverview,
+    selectedUserId,
+    selectedUser,
+    userDetailTab,
+    setUserDetailTab,
+    selectUser,
+    operationsOverview,
+    loadingOperationsOverview,
+    operationsOverviewError,
+    selectedOperationsConversationId,
+    selectOperationsConversation,
+    selectedOperationsTicketId,
+    selectOperationsTicket,
+    paginatedUserConversations,
+    paginatedUserContracts,
+    paginatedUserSteps,
+    prevUserConversationsPage,
+    nextUserConversationsPage,
+    prevUserContractsPage,
+    nextUserContractsPage,
+    prevUserStepsPage,
+    nextUserStepsPage,
+    directConversation,
+    loadingDirectConversation,
+    directConversationError,
+    paginatedAdminMessages,
+    prevAdminMessagesPage,
+    nextAdminMessagesPage,
+    messageDraft,
+    setMessageDraft,
+    sendingMessage,
+    adminMessageError,
+    sendAdminMessage,
+    selectedConversationId,
+    selectedConversationRow,
+    conversationViewer,
+    loadingConversationViewer,
+    conversationViewerError,
+    paginatedConversationMessages,
+    loadConversationViewer,
+    prevConversationMessagesPage,
+    nextConversationMessagesPage,
+  } = useAdminDashboard({
+    isAuthenticated,
+    onUnauthorized: expireSession,
   });
 
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const basic = btoa(`${email}:${password}`);
-    setAuthHeader(basic);
-  };
-
-  const loadConversation = async (userId: number) => {
-    if (!authHeader) return;
-    setLoadingMessages(true);
-    try {
-      const res = await apiRequest("GET", `/admin/messages/${userId}`, undefined, {
-        Authorization: `Basic ${authHeader}`,
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      setMessages(json.data.messages || []);
-      setAdminId(json.data.admin_id || null);
-      setSelectedUserId(userId);
-    } catch (err: any) {
-      alert(err?.message || "Erro ao carregar mensagens");
-      setMessages([]);
-      setSelectedUserId(null);
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
-
-  const contactUser = async (userId: number) => {
-    if (!authHeader) return;
-    const content = msgInput || prompt("Mensagem para o usuário:") || "";
-    if (!content || !content.trim()) return;
-    try {
-      const res = await apiRequest(
-        "POST",
-        "/admin/message",
-        { userId, content },
-        { Authorization: `Basic ${authHeader}`, "Content-Type": "application/json" }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      setMsgInput("");
-      await loadConversation(userId);
-      alert("Mensagem enviada como ArqDoor-ADM.");
-    } catch (err: any) {
-      alert(err?.message || "Falha ao enviar mensagem.");
-    }
-  };
-
-  const activePage = pageByTab[activeTab];
-
-  useEffect(() => {
-    setPageByTab((prev) => {
-      if (prev.contratos === 1) return prev;
-      return { ...prev, contratos: 1 };
-    });
-  }, [ticketSearch]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!authHeader) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams();
-        params.set("section", activeTab);
-        params.set("page", String(activePage));
-        params.set("pageSize", String(TAB_PAGE_SIZE[activeTab]));
-        if (activeTab === "contratos") {
-          const trimmedTicketId = ticketSearch.trim();
-          if (/^\d+$/.test(trimmedTicketId)) {
-            params.set("ticketId", trimmedTicketId);
-          }
-        }
-
-        const res = await apiRequest("GET", `/admin/dashboard?${params.toString()}`, undefined, {
-          Authorization: `Basic ${authHeader}`,
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        setData(json.data);
-      } catch (err: any) {
-        setError(err?.message || "Erro ao carregar dashboard");
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [authHeader, refreshFlag, activeTab, activePage, ticketSearch]);
-
-  const handleDeleteTicket = async (ticketId: number) => {
-    if (!authHeader) return;
-    const confirmPwd = prompt("Confirme a senha de administrador para excluir o ticket:");
-    if (!confirmPwd || !confirmPwd.trim()) return;
-    const basicHeader = btoa(`${email}:${confirmPwd}`);
-    try {
-      const res = await apiRequest(
-        "DELETE",
-        `/admin/contracts/${ticketId}`,
-        undefined,
-        { Authorization: `Basic ${basicHeader}` }
-      );
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || body?.success === false) {
-        throw new Error(body?.message || "Falha ao excluir o ticket");
-      }
-      alert("Ticket excluído com sucesso.");
-      setRefreshFlag((prev) => prev + 1);
-    } catch (err: any) {
-      alert(err?.message || "Erro ao excluir ticket.");
-    }
-  };
-
-  const sortedFilteredTickets = useMemo(() => {
-    const list = Array.isArray(data?.tickets) ? [...data.tickets] : [];
-    const sorted = list.sort((a, b) => a.id - b.id);
-    const term = ticketSearch.trim();
-    if (!term) return sorted;
-    if (/^\d+$/.test(term)) return sorted;
-    return sorted.filter((ticket) => String(ticket.id).includes(term));
-  }, [data?.tickets, ticketSearch]);
-
-  const ticketsPagination = data?.meta?.pagination?.tickets;
-  const usersPagination = data?.meta?.pagination?.users;
-  const conversationsPagination = data?.meta?.pagination?.conversations;
-  const paymentsPagination = data?.meta?.pagination?.payments;
-  const partialFailures = data?.meta?.partial_failures || [];
-
-  const totalPagesByTab: Record<TabKey, number> = {
-    contratos: ticketsPagination?.total_pages || 1,
-    usuarios: usersPagination?.total_pages || 1,
-    conversas: conversationsPagination?.total_pages || 1,
-    pagamentos: Math.max(
-      paymentsPagination?.pending_total_pages || 1,
-      paymentsPagination?.paid_total_pages || 1
-    ),
-  };
-
-  const goToPreviousPage = () => {
-    setPageByTab((prev) => {
-      const currentPage = prev[activeTab];
-      if (currentPage <= 1) return prev;
-      return {
-        ...prev,
-        [activeTab]: currentPage - 1,
-      };
-    });
-  };
-
-  const goToNextPage = () => {
-    setPageByTab((prev) => {
-      const currentPage = prev[activeTab];
-      const maxPage = totalPagesByTab[activeTab];
-      if (currentPage >= maxPage) return prev;
-      return {
-        ...prev,
-        [activeTab]: currentPage + 1,
-      };
-    });
-  };
-
-  if (!authHeader) {
+  if (!authChecked) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-6 border border-slate-200">
-          <h1 className="text-2xl font-bold mb-4 text-slate-900">Admin Login</h1>
-          <p className="text-sm text-slate-600 mb-4">Acesso restrito à equipe ArqDoor.</p>
-          <form className="space-y-4" onSubmit={login}>
-            <div className="space-y-1">
-              <label htmlFor="admin-email" className="text-sm font-medium text-slate-700">
-                Email
-              </label>
-              <input
-                id="admin-email"
-                className="w-full border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 px-3 py-2 rounded-lg outline-none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="arqdoor@admin.com.br"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="admin-password" className="text-sm font-medium text-slate-700">
-                Senha
-              </label>
-              <input
-                id="admin-password"
-                type="password"
-                className="w-full border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 px-3 py-2 rounded-lg outline-none"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="********"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-slate-900 text-white py-2 rounded-lg font-semibold hover:bg-slate-800 transition"
-            >
-              Entrar
-            </button>
-          </form>
+      <div className="min-h-screen bg-slate-100">
+        <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-6 py-10">
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-sm text-slate-600">
+            Validando sessão administrativa...
+          </div>
         </div>
       </div>
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <AdminLoginView
+        email={email}
+        password={password}
+        authSubmitting={authSubmitting}
+        authError={authError}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onSubmit={login}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="p-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">Painel de monitoramento</p>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard Admin</h1>
-        </div>
-        <button
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-white shadow-sm"
-          onClick={() => {
-            setAuthHeader(null);
-            setData(null);
-            setEmail("");
-            setPassword("");
-            setPageByTab({
-              usuarios: 1,
-              contratos: 1,
-              pagamentos: 1,
-              conversas: 1,
-            });
-          }}
-        >
-          Sair
-        </button>
-      </div>
+    <div className="min-h-screen bg-slate-100">
+      <div className="mx-auto w-full px-1 py-1">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-1">
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Painel interno
+                </div>
+                <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">
+                  Administração da operação
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  Visualize contratos, pagamentos, documentos e conversas sem expor dados
+                  sensíveis.
+                </p>
+              </div>
 
-      <div className="px-6">
-        {loading && <p className="text-slate-600">Carregando...</p>}
-        {error && <p className="text-red-600 font-semibold">{error}</p>}
-        {!error && partialFailures.length > 0 && (
-          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Alguns blocos do dashboard falharam ao carregar:{" "}
-            {partialFailures.map((failure) => failure.section).join(", ")}.
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={logout}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sair
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {data && (
-        <div className="p-6">
-          <div className="flex gap-2 mb-4">
-            {(["usuarios", "contratos", "pagamentos", "conversas"] as const).map((tab) => (
+          <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-1">
+            {TABS.map(({ key, label, icon: Icon }) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
-                  activeTab === tab
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-700 border-slate-200"
-                }`}
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition",
+                  activeTab === key
+                    ? "bg-slate-950 text-white"
+                    : "text-slate-600 hover:bg-white hover:text-slate-900"
+                )}
               >
-                {tab === "usuarios" && "Usuários"}
-                {tab === "contratos" && "Contratos"}
-                {tab === "pagamentos" && "Pagamentos"}
-                {tab === "conversas" && "Conversas"}
+                <Icon className="h-4 w-4" />
+                {label}
               </button>
             ))}
           </div>
 
-          {activeTab === "contratos" && (
-            <section className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  {ticketsPagination?.total ?? sortedFilteredTickets.length} ticket(s) encontrado(s) · página{" "}
-                  {activePage} de {totalPagesByTab.contratos}
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    value={ticketSearch}
-                    onChange={(e) => setTicketSearch(e.target.value)}
-                    placeholder="Pesquisar pelo ID do ticket"
-                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
-                  />
-                  {ticketSearch && (
-                    <button
-                      className="text-sm text-slate-500 hover:text-slate-700"
-                      onClick={() => setTicketSearch("")}
-                    >
-                      Limpar
-                    </button>
-                  )}
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToPreviousPage}
-                    disabled={activePage <= 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToNextPage}
-                    disabled={activePage >= totalPagesByTab.contratos}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                {sortedFilteredTickets.map((t: any) => (
-                  <div key={t.id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Ticket #{t.id}</span>
-                      {badge(t.status || "—", (t.status || "").toLowerCase() === "concluída" ? "green" : "amber")}
-                    </div>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Conv {t.conversation_id} · Provider {t.provider_id} · Etapas: {t.steps_count}
-                  </p>
-                  {t.has_pending_payment && (
-                    <div className="mt-1">{badge("Pagamento pendente", "red")}</div>
-                  )}
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      className="px-3 py-1 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
-                      onClick={async () => {
-                        if (!authHeader) return;
-                        try {
-                          const res = await apiRequest(
-                            "GET",
-                            `/admin/contracts/${t.id}/attachments`,
-                            undefined,
-                            { Authorization: `Basic ${authHeader}` }
-                          );
-                          if (!res.ok) throw new Error(await res.text());
-                          const json = await res.json();
-                          const att = (json.data || [])[0];
-                          if (!att?.pdf_path) {
-                            alert("Nenhum PDF anexado.");
-                            return;
-                          }
-                          const url = att.pdf_path.startsWith("http")
-                            ? att.pdf_path
-                            : `${API_BASE_URL}/${att.pdf_path.replace(/^\/+/, "")}`;
-                          window.open(url, "_blank");
-                        } catch (e: any) {
-                          alert(e?.message || "Erro ao abrir PDF.");
-                        }
-                      }}
-                    >
-                      Ver PDF do contrato
-                    </button>
-                    <button
-                      className="px-3 py-1 text-xs border border-rose-200 text-rose-700 rounded-lg hover:bg-rose-50"
-                      onClick={() => handleDeleteTicket(t.id)}
-                    >
-                      Excluir ticket
-                    </button>
-                  </div>
-                </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {activeTab === "usuarios" && (
-            <div className="grid gap-3 lg:grid-cols-[320px,1fr]">
-              <div className="border border-slate-200 rounded-xl bg-white shadow-sm">
-                <div className="p-3 border-b flex items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-900">
-                    Usuários ({usersPagination?.total ?? data.users.length})
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                      onClick={goToPreviousPage}
-                      disabled={activePage <= 1}
-                    >
-                      Anterior
-                    </button>
-                    <button
-                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                      onClick={goToNextPage}
-                      disabled={activePage >= totalPagesByTab.usuarios}
-                    >
-                      Próxima
-                    </button>
-                  </div>
-                </div>
-                <div className="max-h-[70vh] overflow-auto">
-                  {data.users.map((u: any) => (
-                    <button
-                      key={u.id}
-                      onClick={() => loadConversation(u.id)}
-                      className={`w-full text-left px-3 py-2 border-b border-slate-100 hover:bg-slate-50 ${
-                        selectedUserId === u.id ? "bg-slate-100" : ""
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold">{u.name}</span>
-                        {badge(u.type, u.type === "prestador" ? "green" : "gray")}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        Perfil completo: {u.perfil_completo ? "Sim" : "Não"} · ID: {u.id}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col">
-                <div className="p-3 border-b font-semibold text-slate-900">
-                  {selectedUserId ? `Conversa com usuário #${selectedUserId}` : "Selecione um usuário"}
-                </div>
-                <div className="flex-1 overflow-auto p-3 space-y-2 bg-slate-50">
-                  {loadingMessages && <p className="text-sm text-slate-600">Carregando mensagens...</p>}
-                  {!loadingMessages && messages.map((m) => (
-                    <div
-                      key={m.message_id}
-                      className={`max-w-[80%] p-2 rounded-lg text-sm ${
-                        m.sender_id === adminId
-                          ? "bg-slate-900 text-white ml-auto"
-                          : "bg-white border border-slate-200"
-                      }`}
-                    >
-                      {m.content}
-                      <div className="text-[10px] opacity-70 mt-1">{m.createdAt}</div>
-                    </div>
-                  ))}
-                </div>
-                {selectedUserId && (
-                  <form
-                    className="p-3 border-t flex gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      contactUser(selectedUserId);
-                    }}
-                  >
-                    <input
-                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                      placeholder="Digite sua mensagem como ArqDoor-ADM"
-                      value={msgInput}
-                      onChange={(e) => setMsgInput(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold"
-                    >
-                      Enviar
-                    </button>
-                  </form>
-                )}
-              </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                Atualizado em {formatDateTime(dashboard?.meta.generated_at)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                LGPD: CPF e senhas ocultos
+              </span>
             </div>
-          )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowFilters(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <Filter className="h-4 w-4" />
+                Filtros
+                {appliedFilterCount ? (
+                  <span className="rounded-full bg-slate-950 px-2 py-0.5 text-[11px] text-white">
+                    {appliedFilterCount}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                onClick={refreshDashboard}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Atualizar
+              </button>
+            </div>
+          </div>
 
-          {activeTab === "conversas" && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  {conversationsPagination?.total ?? data.conversations.length} conversa(s) · página{" "}
-                  {activePage} de {totalPagesByTab.conversas}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToPreviousPage}
-                    disabled={activePage <= 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToNextPage}
-                    disabled={activePage >= totalPagesByTab.conversas}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                {data.conversations.map((c: any) => (
-                  <div key={c.conversation_id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Conv #{c.conversation_id}</span>
-                      <span className="text-xs text-slate-600">{c.updatedAt}</span>
-                    </div>
-                    <div className="mt-2 space-y-2 text-xs text-slate-700">
-                      <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
-                        <p className="font-semibold text-slate-900">Usuário 1</p>
-                        <p>ID: {c.user1_id}</p>
-                        <p>Email: {c.user1_email || "-"}</p>
-                        {c.user1_provider_id ? <p>Prestador ID: {c.user1_provider_id}</p> : null}
-                        {c.user1_type ? <p>Tipo: {c.user1_type}</p> : null}
-                      </div>
-                      <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
-                        <p className="font-semibold text-slate-900">Usuário 2</p>
-                        <p>ID: {c.user2_id}</p>
-                        <p>Email: {c.user2_email || "-"}</p>
-                        {c.user2_provider_id ? <p>Prestador ID: {c.user2_provider_id}</p> : null}
-                        {c.user2_type ? <p>Tipo: {c.user2_type}</p> : null}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          <AdminFiltersModal
+            open={showFilters}
+            activeTab={activeTab}
+            dashboard={dashboard}
+            draftFilters={draftFilters}
+            onClose={() => setShowFilters(false)}
+            onReset={resetFilters}
+            onApply={applyFilters}
+            onChange={updateDraftFilter}
+          />
 
-          {activeTab === "pagamentos" && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  Pendentes: {paymentsPagination?.pending_total ?? data.payments.pending.length} · Pagos:{" "}
-                  {paymentsPagination?.paid_total ?? data.payments.paid.length} · página {activePage} de{" "}
-                  {totalPagesByTab.pagamentos}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToPreviousPage}
-                    disabled={activePage <= 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToNextPage}
-                    disabled={activePage >= totalPagesByTab.pagamentos}
-                  >
-                    Próxima
-                  </button>
+          {error ? (
+            <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          ) : null}
+
+          {dashboard?.meta.partial_failures.length ? (
+            <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Alguns blocos retornaram aviso:{" "}
+              {dashboard.meta.partial_failures.map((failure) => failure.section).join(", ")}.
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div className="mt-6 rounded-[30px] border border-slate-200/80 bg-white/90 px-6 py-16 text-center shadow-[0_18px_60px_-36px_rgba(15,23,42,0.28)]">
+              <p className="text-base font-semibold text-slate-900">
+                Atualizando visão administrativa...
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Carregando métricas, listas e contexto operacional.
+              </p>
+            </div>
+          ) : null}
+
+          {!loading && dashboard ? (
+            <>
+              {activeTab !== "all" && activePagination ? (
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-slate-500">{activePagination.total} registro(s)</div>
+                  <PaginationControls
+                    page={activePagination.page}
+                    totalPages={activePagination.total_pages}
+                    onPrevious={goToPreviousPage}
+                    onNext={goToNextPage}
+                  />
                 </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <p className="font-semibold text-amber-800">Pendentes</p>
-                    {badge(String(paymentsPagination?.pending_total ?? data.payments.pending.length), "amber")}
-                  </div>
-                  <div className="space-y-1 max-h-56 overflow-auto">
-                    {data.payments.pending.map((p: any) => (
-                      <div key={`p-${p.id}`} className="border border-amber-100 rounded-lg p-2 text-xs bg-white">
-                        #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <p className="font-semibold text-emerald-800">Pagos</p>
-                    {badge(String(paymentsPagination?.paid_total ?? data.payments.paid.length), "green")}
-                  </div>
-                  <div className="space-y-1 max-h-56 overflow-auto">
-                    {data.payments.paid.map((p: any) => (
-                      <div key={`paid-${p.id}`} className="border border-emerald-100 rounded-lg p-2 text-xs bg-white">
-                        #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
+              ) : null}
+
+              <AdminDashboardView
+                activeTab={activeTab}
+                dashboard={dashboard}
+                onOpenDocument={openSecureFile}
+                onOpenConversation={openConversationFromOverview}
+              />
+
+              {activeTab === "usuarios" ? (
+                <AdminUsersSection
+                  users={dashboard.users}
+                  selectedUserId={selectedUserId}
+                  selectedUser={selectedUser}
+                  onSelectUser={selectUser}
+                  detailTab={userDetailTab}
+                  onDetailTabChange={setUserDetailTab}
+                  operationsOverview={operationsOverview}
+                  loadingOperationsOverview={loadingOperationsOverview}
+                  operationsOverviewError={operationsOverviewError}
+                  selectedOperationsConversationId={selectedOperationsConversationId}
+                  onSelectOperationsConversation={selectOperationsConversation}
+                  selectedOperationsTicketId={selectedOperationsTicketId}
+                  onSelectOperationsTicket={selectOperationsTicket}
+                  paginatedUserConversations={paginatedUserConversations}
+                  paginatedUserContracts={paginatedUserContracts}
+                  paginatedUserSteps={paginatedUserSteps}
+                  onPrevUserConversationsPage={prevUserConversationsPage}
+                  onNextUserConversationsPage={nextUserConversationsPage}
+                  onPrevUserContractsPage={prevUserContractsPage}
+                  onNextUserContractsPage={nextUserContractsPage}
+                  onPrevUserStepsPage={prevUserStepsPage}
+                  onNextUserStepsPage={nextUserStepsPage}
+                  directConversation={directConversation}
+                  loadingDirectConversation={loadingDirectConversation}
+                  directConversationError={directConversationError}
+                  paginatedAdminMessages={paginatedAdminMessages}
+                  onPrevAdminMessagesPage={prevAdminMessagesPage}
+                  onNextAdminMessagesPage={nextAdminMessagesPage}
+                  messageDraft={messageDraft}
+                  onMessageDraftChange={setMessageDraft}
+                  sendingMessage={sendingMessage}
+                  adminMessageError={adminMessageError}
+                  onSendAdminMessage={sendAdminMessage}
+                />
+              ) : null}
+
+              {activeTab === "contratos" ? (
+                <AdminContractsSection tickets={dashboard.tickets} />
+              ) : null}
+
+              {activeTab === "pagamentos" ? (
+                <AdminPaymentsSection dashboard={dashboard} />
+              ) : null}
+
+              {activeTab === "documentos" ? (
+                <AdminDocumentsSection documents={dashboard.documents} />
+              ) : null}
+
+              {activeTab === "conversas" ? (
+                <AdminConversationsSection
+                  conversations={dashboard.conversations}
+                  selectedConversationId={selectedConversationId}
+                  selectedConversationRow={selectedConversationRow}
+                  conversationViewer={conversationViewer}
+                  loadingConversationViewer={loadingConversationViewer}
+                  conversationViewerError={conversationViewerError}
+                  paginatedConversationMessages={paginatedConversationMessages}
+                  onSelectConversation={loadConversationViewer}
+                  onPrevMessagesPage={prevConversationMessagesPage}
+                  onNextMessagesPage={nextConversationMessagesPage}
+                />
+              ) : null}
+            </>
+          ) : null}
+
+          {!loading && !dashboard && !error ? (
+            <div className="mt-6">
+              <EmptyState
+                title="Sem dados para exibir"
+                description="Atualize o painel ou ajuste os filtros para reenquadrar a consulta administrativa."
+              />
+            </div>
+          ) : null}
         </div>
-      )}
+      </div>
     </div>
   );
 }
