@@ -7,6 +7,7 @@ import ApplicationLayout from "@/components/layouts/ApplicationLayout";
 import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
 import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { setResumeRoute } from "@/lib/utils";
 
 const LANDING_ROUTES = ["/", "/auth"];
 const ADMIN_ROUTES = ["/admin"];
@@ -86,7 +87,7 @@ function AppContent() {
   }, [isInitialized, isLoggedIn, isPublic, navigate]);
 
   useEffect(() => {
-    sessionStorage.setItem("last_route", location);
+    setResumeRoute(location);
   }, [location]);
 
   return (

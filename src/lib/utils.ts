@@ -6,6 +6,57 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const RESUME_ROUTE_KEY = "last_app_route";
+const LEGACY_RESUME_ROUTE_KEY = "last_route";
+const LAST_MESSAGE_PARTNER_KEY = "messages_last_partner_id";
+
+function canUseSessionStorage() {
+  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+}
+
+export function shouldPersistResumeRoute(path: string): boolean {
+  if (!path) return false;
+  if (path === "/" || path === "/auth" || path === "/admin") return false;
+  if (path.startsWith("/convite/")) return false;
+  return true;
+}
+
+export function setResumeRoute(path: string) {
+  if (!canUseSessionStorage() || !shouldPersistResumeRoute(path)) return;
+  sessionStorage.setItem(RESUME_ROUTE_KEY, path);
+  sessionStorage.setItem(LEGACY_RESUME_ROUTE_KEY, path);
+}
+
+export function getResumeRoute(defaultRoute = "/home"): string {
+  if (!canUseSessionStorage()) return defaultRoute;
+  const storedRoute =
+    sessionStorage.getItem(RESUME_ROUTE_KEY) ||
+    sessionStorage.getItem(LEGACY_RESUME_ROUTE_KEY);
+
+  if (!storedRoute || !shouldPersistResumeRoute(storedRoute)) {
+    return defaultRoute;
+  }
+
+  return storedRoute;
+}
+
+export function setLastMessagePartnerId(partnerId: number | null | undefined) {
+  if (!canUseSessionStorage()) return;
+  if (typeof partnerId === "number" && Number.isFinite(partnerId)) {
+    sessionStorage.setItem(LAST_MESSAGE_PARTNER_KEY, String(partnerId));
+    return;
+  }
+  sessionStorage.removeItem(LAST_MESSAGE_PARTNER_KEY);
+}
+
+export function getLastMessagePartnerId(): number | null {
+  if (!canUseSessionStorage()) return null;
+  const rawValue = sessionStorage.getItem(LAST_MESSAGE_PARTNER_KEY);
+  if (!rawValue) return null;
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export const formatDate = (dateString: string) => {
   try {
     const date = new Date(dateString);
@@ -246,4 +297,3 @@ export const formatCnpj = (value: string): string => {
     .replace(/(\d{3})(\d)/, '$1/$2')
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 };
-

@@ -10,9 +10,10 @@ import {
   CreateConversationRequest,
 } from "@/lib/Interfaces";
 import { useContract } from "./use-contract";
+import { getLastMessagePartnerId, setLastMessagePartnerId } from "@/lib/utils";
 
 export function useMessaging(initialPartnerId?: string | null) {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isInitialized } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isVisible, setIsVisible] = useState<boolean>(!document.hidden);
@@ -34,7 +35,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     refetch: refetchConversations,
   } = useQuery({
     queryKey: ["conversations", user?.id],
-    enabled: isLoggedIn && !!user?.id,
+    enabled: isInitialized && isLoggedIn && !!user?.id,
     staleTime: 5_000,
     refetchInterval: isVisible ? 2_000 : 10_000, // conversas: rápido visível, mais lento em bg
     queryFn: async () => {
@@ -54,7 +55,7 @@ export function useMessaging(initialPartnerId?: string | null) {
 
   const { data: usersData, isLoading: loadingUsers } = useQuery({
     queryKey: ["users", userIds],
-    enabled: userIds.length > 0,
+    enabled: isInitialized && userIds.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       if (userIds.length === 0) return {};
@@ -118,7 +119,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     error: messagesError,
   } = useQuery<Message[]>({
     queryKey: ["messages", currentConversation?.id, user?.id],
-    enabled: !!currentConversation?.id && isLoggedIn,
+    enabled: isInitialized && !!currentConversation?.id && isLoggedIn,
     staleTime: 1_000,
     refetchInterval: isVisible ? 1_000 : 5_000,
     queryFn: async () => {
@@ -173,6 +174,7 @@ export function useMessaging(initialPartnerId?: string | null) {
   const selectConversation = useCallback((conversation: Conversation) => {
     if (!conversation || !conversation.id || typeof conversation.id !== "number") return;
     setCurrentConversation(conversation);
+    setLastMessagePartnerId(conversation.otherUser?.id);
   }, []);
 
   const createConversationMutation = useMutation({
@@ -192,6 +194,7 @@ export function useMessaging(initialPartnerId?: string | null) {
 
   const startConversation = useCallback(
     async (targetUserId: number) => {
+      if (!isInitialized) return false;
       if (!user || !isLoggedIn) {
         toast({
           title: "Login necessário",
@@ -207,6 +210,7 @@ export function useMessaging(initialPartnerId?: string | null) {
         const existing = conversations.find((c) => c.otherUser.id === targetUserId);
         if (existing) {
           setCurrentConversation(existing);
+          setLastMessagePartnerId(existing.otherUser?.id);
           return true;
         }
         await createConversationMutation.mutateAsync({
@@ -221,7 +225,7 @@ export function useMessaging(initialPartnerId?: string | null) {
         setIsInitializing(false);
       }
     },
-    [user, isLoggedIn, isInitializing, conversations, createConversationMutation, toast]
+    [isInitialized, user, isLoggedIn, isInitializing, conversations, createConversationMutation, toast]
   );
 
   const startConversationAndNavigate = useCallback(
@@ -233,23 +237,35 @@ export function useMessaging(initialPartnerId?: string | null) {
   );
 
   useEffect(() => {
-    if (loadingConversations || loadingUsers || isInitializing) return;
+    if (!isInitialized || loadingConversations || loadingUsers || isInitializing) return;
 
     if (initialPartnerId) {
       const targetId = parseInt(initialPartnerId);
+      if (Number.isNaN(targetId)) return;
       const found = conversations.find((c) => c.otherUser.id === targetId);
       if (found) {
         setCurrentConversation(found);
+        setLastMessagePartnerId(found.otherUser?.id);
       } else if (!isInitializing) {
         startConversation(targetId);
       }
     } else if (!currentConversation && conversations.length > 0) {
+      const storedPartnerId = getLastMessagePartnerId();
+      const storedConversation =
+        typeof storedPartnerId === "number"
+          ? conversations.find((conversation) => conversation.otherUser.id === storedPartnerId)
+          : null;
       const mostRecent = conversations
         .slice()
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
-      if (mostRecent) setCurrentConversation(mostRecent);
+      const conversationToRestore = storedConversation || mostRecent;
+      if (conversationToRestore) {
+        setCurrentConversation(conversationToRestore);
+        setLastMessagePartnerId(conversationToRestore.otherUser?.id);
+      }
     }
   }, [
+    isInitialized,
     initialPartnerId,
     conversations,
     currentConversation,
@@ -260,14 +276,22 @@ export function useMessaging(initialPartnerId?: string | null) {
   ]);
 
   useEffect(() => {
-    if (initialPartnerId && !loadingConversations && !loadingUsers && conversations.length > 0) {
+    if (
+      isInitialized &&
+      initialPartnerId &&
+      !loadingConversations &&
+      !loadingUsers &&
+      conversations.length > 0
+    ) {
       const targetId = parseInt(initialPartnerId);
+      if (Number.isNaN(targetId)) return;
       const nextConv = conversations.find((c) => c.otherUser.id === targetId);
       if (nextConv && (!currentConversation || currentConversation.id !== nextConv.id)) {
         setCurrentConversation(nextConv);
+        setLastMessagePartnerId(nextConv.otherUser?.id);
       }
     }
-  }, [conversations, initialPartnerId, currentConversation, loadingConversations, loadingUsers]);
+  }, [isInitialized, conversations, initialPartnerId, currentConversation, loadingConversations, loadingUsers]);
 
   const contract = useContract(currentConversation?.id);
 

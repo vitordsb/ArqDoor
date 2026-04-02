@@ -5,21 +5,18 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import LoginLayout from "@/components/layouts/LoginLayout";
+import { getResumeRoute } from "@/lib/utils";
 
 export default function AuthPage() {
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
-  const { isLoggedIn } = useAuth();
-  const [location, navigate] = useLocation();
-  const [justLoggedIn, setJustLoggedIn] = useState(false);
+  const { isLoggedIn, isInitialized } = useAuth();
+  const [, navigate] = useLocation();
 
   useEffect(() => {
-    if (isLoggedIn && justLoggedIn) {
-      const lastRoute = sessionStorage.getItem("last_route");
-      const shouldGo = !lastRoute || lastRoute === "/auth" ? "/home" : lastRoute;
-      navigate(shouldGo);
-    }
-  }, [isLoggedIn, justLoggedIn, navigate]);
+    if (!isInitialized || !isLoggedIn) return;
+    navigate(getResumeRoute("/home"));
+  }, [isInitialized, isLoggedIn, navigate]);
 
   const handleSwitchToRegister = () => {
     setIsLoginOpen(false);
@@ -31,9 +28,7 @@ export default function AuthPage() {
     setIsLoginOpen(true);
   };
 
-  const handleAuthSuccess = () => {
-    setJustLoggedIn(true);
-  };
+  const handleAuthSuccess = () => undefined;
   return (
     <LoginLayout>
       <div className="flex min-h-screen">
@@ -108,4 +103,3 @@ export default function AuthPage() {
     </LoginLayout>
   );
 }
-

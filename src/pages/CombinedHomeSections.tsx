@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { getResumeRoute } from "@/lib/utils";
 import {
   ArrowRight,
   BadgeCheck,
@@ -107,6 +108,7 @@ const CombinedHomeSections = () => {
   const [text, setText] = useState<string>("Comece a usar agora");
   const whatsappUrl = "https://wa.me/message/WYONYONWQG5XG1";
   const { isLoggedIn } = useAuth();
+  const primaryCtaHref = isLoggedIn ? getResumeRoute("/home") : "/auth";
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -145,7 +147,7 @@ const CombinedHomeSections = () => {
           </p>
 
           <div className="flex flex-col gap-4 sm:flex-row">
-            <Link href="/auth">
+            <Link href={primaryCtaHref}>
               <Button className="rounded-full bg-orange-500 px-8 py-6 text-base font-semibold text-white hover:bg-orange-600">
                 {text}
               </Button>
