@@ -493,60 +493,62 @@ export function NewProposalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[96vw] max-h-[92vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="flex min-h-0 max-h-[92vh] max-w-[96vw] flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6">
           <DialogTitle>{dialogTitle}</DialogTitle>
           <p className="text-sm text-muted-foreground">{dialogDescription}</p>
         </DialogHeader>
 
-        <div className="rounded-2xl border bg-muted/20 p-2">
-          <div className="grid gap-2 md:grid-cols-3">
-            {COMPOSER_STAGES.map((stage, index) => {
-              const isActive = activeStage === stage.key;
-              const isCompleted = index < activeStageIndex;
+        <div className="shrink-0 px-6 pt-4">
+          <div className="rounded-2xl border bg-muted/20 p-2">
+            <div className="grid gap-2 md:grid-cols-3">
+              {COMPOSER_STAGES.map((stage, index) => {
+                const isActive = activeStage === stage.key;
+                const isCompleted = index < activeStageIndex;
 
-              return (
-                <button
-                  key={stage.key}
-                  type="button"
-                  onClick={() => goToStage(stage.key)}
-                  className={cn(
-                    "rounded-2xl border px-4 py-3 text-left transition",
-                    isActive
-                      ? "border-orange-300 bg-white shadow-sm"
-                      : isCompleted
-                        ? "border-emerald-200 bg-emerald-50"
-                        : "border-transparent bg-transparent hover:border-slate-200 hover:bg-white"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
-                        isCompleted
-                          ? "bg-emerald-500 text-white"
-                          : isActive
-                            ? "bg-orange-500 text-white"
-                            : "bg-slate-200 text-slate-700"
-                      )}
-                    >
-                      {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : stage.shortLabel}
+                return (
+                  <button
+                    key={stage.key}
+                    type="button"
+                    onClick={() => goToStage(stage.key)}
+                    className={cn(
+                      "rounded-2xl border px-4 py-3 text-left transition",
+                      isActive
+                        ? "border-orange-300 bg-white shadow-sm"
+                        : isCompleted
+                          ? "border-emerald-200 bg-emerald-50"
+                          : "border-transparent bg-transparent hover:border-slate-200 hover:bg-white"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
+                          isCompleted
+                            ? "bg-emerald-500 text-white"
+                            : isActive
+                              ? "bg-orange-500 text-white"
+                              : "bg-slate-200 text-slate-700"
+                        )}
+                      >
+                        {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : stage.shortLabel}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{stage.title}</p>
+                        <p className="text-xs text-slate-500">{stage.description}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{stage.title}</p>
-                      <p className="text-xs text-slate-500">{stage.description}</p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
           {activeStage === "steps" ? (
-            <div className="grid h-full gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="space-y-4 overflow-hidden">
+            <div className="grid h-full min-h-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
+              <section className="flex min-h-0 flex-col space-y-4 overflow-hidden">
                 <div className="rounded-2xl border bg-muted/20 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -567,7 +569,7 @@ export function NewProposalDialog({
                   </div>
                 </div>
 
-                <div className="space-y-3 overflow-y-auto pr-1 pb-2">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 pb-2">
                   {proposalSteps.map((step, idx) => (
                     <div key={step.id} className="rounded-2xl border bg-white p-4 shadow-sm space-y-4">
                       <div className="flex items-center justify-between gap-3">
@@ -728,7 +730,7 @@ export function NewProposalDialog({
                 </div>
               </section>
 
-              <aside className="space-y-4 overflow-y-auto">
+              <aside className="min-h-0 space-y-4 overflow-y-auto pr-2">
                 <div className="rounded-2xl border bg-white p-4 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Info className="h-4 w-4 text-orange-500" />
@@ -866,8 +868,8 @@ export function NewProposalDialog({
           ) : null}
 
           {activeStage === "receiving" ? (
-            <div className="grid h-full gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="space-y-4 overflow-y-auto pr-1">
+            <div className="grid h-full min-h-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
+              <section className="min-h-0 space-y-4 overflow-y-auto pr-2">
                 <div className="rounded-2xl border bg-muted/20 p-4">
                   <p className="text-sm font-semibold text-slate-900">Como o prestador vai receber?</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -978,7 +980,7 @@ export function NewProposalDialog({
                 ) : null}
               </section>
 
-              <aside className="space-y-4 overflow-y-auto">
+              <aside className="min-h-0 space-y-4 overflow-y-auto pr-2">
                 <div className="rounded-2xl border border-dashed bg-white p-4 space-y-3">
                   <Label className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <FileText className="h-4 w-4 text-orange-500" />
@@ -1026,8 +1028,8 @@ export function NewProposalDialog({
           ) : null}
 
           {activeStage === "review" ? (
-            <div className="grid h-full gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="space-y-4 overflow-y-auto pr-1">
+            <div className="grid h-full min-h-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
+              <section className="min-h-0 space-y-4 overflow-y-auto pr-2">
                 <div className="rounded-2xl border bg-white p-4">
                   <p className="text-sm font-semibold text-slate-900">Revisão do envio</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -1133,7 +1135,7 @@ export function NewProposalDialog({
                 </div>
               </section>
 
-              <aside className="space-y-4 overflow-y-auto">
+              <aside className="min-h-0 space-y-4 overflow-y-auto pr-2">
                 <div className="rounded-2xl border bg-white p-4 space-y-3">
                   <p className="text-sm font-semibold text-slate-900">Checklist final</p>
                   <ChecklistItem
@@ -1163,7 +1165,7 @@ export function NewProposalDialog({
           ) : null}
         </div>
 
-        <DialogFooter className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <DialogFooter className="shrink-0 border-t bg-background px-6 py-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
