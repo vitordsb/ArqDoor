@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { User, Briefcase, Loader2, MessageCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { setConversationStartIntent } from "@/lib/utils";
 
 export interface UserApi {
   id: number;
@@ -144,7 +145,14 @@ export default function ClientProfile() {
               <p className="text-slate-600">Contratante</p>
               <Badge className="mt-2 text-xs">Membro desde {new Date(user.createdAt).toLocaleDateString()}</Badge>
             </div>
-            <Button size="sm" onClick={() => setLocation(`/messages/${user.id}`)} className="mt-4 sm:mt-0 mb-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                setConversationStartIntent(user.id);
+                setLocation(`/messages/${user.id}`);
+              }}
+              className="mt-4 sm:mt-0 mb-2"
+            >
               <MessageCircle className="w-4 h-4 mr-1" /> Enviar mensagem
             </Button>
           </div>
@@ -195,7 +203,10 @@ export default function ClientProfile() {
                         <p className="text-slate-600 line-clamp-2">{d.description}</p>
                         <p className="text-green-600 font-bold">R$ {d.price}</p>
                       </div>
-                      <Link href={`/messages/${user.id}?text=${encodeURIComponent(`Olá ${user.name}, vi sua demanda "${d.title}" no seu perfil e tenho interesse em atender.`)}`}>
+                      <Link
+                        href={`/messages/${user.id}?text=${encodeURIComponent(`Olá ${user.name}, vi sua demanda "${d.title}" no seu perfil e tenho interesse em atender.`)}`}
+                        onClick={() => setConversationStartIntent(user.id)}
+                      >
                         <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-8 text-xs font-medium rounded-md">
                           Ver Detalhes / Responder
                         </Button>

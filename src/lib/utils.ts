@@ -9,6 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 const RESUME_ROUTE_KEY = "last_app_route";
 const LEGACY_RESUME_ROUTE_KEY = "last_route";
 const LAST_MESSAGE_PARTNER_KEY = "messages_last_partner_id";
+const CONVERSATION_START_INTENT_KEY = "messages_start_intent";
+const CONVERSATION_START_INTENT_TTL_MS = 2 * 60 * 1000;
 
 function canUseSessionStorage() {
   return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
@@ -55,6 +57,52 @@ export function getLastMessagePartnerId(): number | null {
   if (!rawValue) return null;
   const parsed = Number.parseInt(rawValue, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function setConversationStartIntent(partnerId: number) {
+  if (!canUseSessionStorage() || !Number.isFinite(partnerId)) return;
+
+  sessionStorage.setItem(
+    CONVERSATION_START_INTENT_KEY,
+    JSON.stringify({
+      partnerId,
+      createdAt: Date.now(),
+    })
+  );
+}
+
+export function clearConversationStartIntent() {
+  if (!canUseSessionStorage()) return;
+  sessionStorage.removeItem(CONVERSATION_START_INTENT_KEY);
+}
+
+export function hasConversationStartIntent(partnerId: number): boolean {
+  if (!canUseSessionStorage() || !Number.isFinite(partnerId)) return false;
+
+  const rawValue = sessionStorage.getItem(CONVERSATION_START_INTENT_KEY);
+  if (!rawValue) return false;
+
+  try {
+    const parsed = JSON.parse(rawValue) as {
+      partnerId?: number;
+      createdAt?: number;
+    };
+
+    const isValid =
+      Number(parsed?.partnerId) === Number(partnerId) &&
+      Number.isFinite(parsed?.createdAt) &&
+      Date.now() - Number(parsed.createdAt) <= CONVERSATION_START_INTENT_TTL_MS;
+
+    if (!isValid) {
+      clearConversationStartIntent();
+      return false;
+    }
+
+    return true;
+  } catch {
+    clearConversationStartIntent();
+    return false;
+  }
 }
 
 export const formatDate = (dateString: string) => {

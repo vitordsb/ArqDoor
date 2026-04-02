@@ -36,6 +36,7 @@ import {
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { ServicesResponse, EnrichedService } from "@/lib/Interfaces";
+import { setConversationStartIntent } from "@/lib/utils";
 
 const buildImageUrl = (path?: string) => {
   if (!path) return "";
@@ -374,7 +375,11 @@ export default function ServicesFeed() {
 
                   {/* Footer Actions */}
                   <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-50">
-                    <Link href={`/messages/${svc.ServiceProvider.user_id}?text=${encodeURIComponent(`Olá ${svc.userName}, vi seu serviço "${svc.title}" no ArqDoor e gostaria de saber mais detalhes.`)}`} className="flex-1">
+                    <Link
+                      href={`/messages/${svc.ServiceProvider.user_id}?text=${encodeURIComponent(`Olá ${svc.userName}, vi seu serviço "${svc.title}" no ArqDoor e gostaria de saber mais detalhes.`)}`}
+                      className="flex-1"
+                      onClick={() => setConversationStartIntent(svc.ServiceProvider.user_id)}
+                    >
                       <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-9 text-xs font-medium rounded-md">
                         Ver Detalhes / Conversar
                       </Button>

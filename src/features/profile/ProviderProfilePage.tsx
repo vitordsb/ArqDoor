@@ -17,6 +17,7 @@ import { ProviderInfoCard } from "./components/ProviderInfoCard";
 import { ProviderServicesSection } from "./components/ProviderServicesSection";
 import { ProviderPortfolioSection } from "./components/ProviderPortfolioSection";
 import { ProviderRatingsSection } from "./components/ProviderRatingsSection";
+import { setConversationStartIntent } from "@/lib/utils";
 
 export default function ProviderProfilePage() {
   const { provider_id } = useParams<{ provider_id: string }>();
@@ -320,7 +321,10 @@ export default function ProviderProfilePage() {
           user={user}
           provider={provider}
           ratings={ratings}
-          onMessage={() => setLocation(`/messages/${user.id}`)}
+          onMessage={() => {
+            setConversationStartIntent(user.id);
+            setLocation(`/messages/${user.id}`);
+          }}
         />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,_320px)_minmax(0,_1fr)_minmax(0,_320px)]">

@@ -10,7 +10,13 @@ import {
   CreateConversationRequest,
 } from "@/lib/Interfaces";
 import { useContract } from "./use-contract";
-import { getLastMessagePartnerId, setLastMessagePartnerId } from "@/lib/utils";
+import {
+  clearConversationStartIntent,
+  getLastMessagePartnerId,
+  hasConversationStartIntent,
+  setConversationStartIntent,
+  setLastMessagePartnerId,
+} from "@/lib/utils";
 
 export function useMessaging(initialPartnerId?: string | null) {
   const { user, isLoggedIn, isInitialized } = useAuth();
@@ -180,8 +186,11 @@ export function useMessaging(initialPartnerId?: string | null) {
   const createConversationMutation = useMutation({
     mutationFn: async (data: CreateConversationRequest) => {
       const response = await apiRequest("POST", "/conversation", data);
-      if (!response.ok) throw new Error(`Erro ao criar conversa: ${response.status}`);
-      return await response.json();
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.message || `Erro ao criar conversa: ${response.status}`);
+      }
+      return body;
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -211,15 +220,25 @@ export function useMessaging(initialPartnerId?: string | null) {
         if (existing) {
           setCurrentConversation(existing);
           setLastMessagePartnerId(existing.otherUser?.id);
+          clearConversationStartIntent();
           return true;
         }
         await createConversationMutation.mutateAsync({
           user1_id: user.id,
           user2_id: targetUserId,
         });
+        clearConversationStartIntent();
         return true;
-      } catch (err) {
+      } catch (err: any) {
         console.error("❌ Erro ao iniciar conversa:", err);
+        clearConversationStartIntent();
+        toast({
+          title: "Conversa indisponível",
+          description:
+            err?.message ||
+            "Não foi possível iniciar essa conversa na plataforma.",
+          variant: "destructive",
+        });
         return false;
       } finally {
         setIsInitializing(false);
@@ -230,6 +249,7 @@ export function useMessaging(initialPartnerId?: string | null) {
 
   const startConversationAndNavigate = useCallback(
     async (targetUserId: number, setLocation: (path: string) => void) => {
+      setConversationStartIntent(targetUserId);
       const ok = await startConversation(targetUserId);
       if (ok) setLocation(`/messages/${targetUserId}`);
     },
@@ -246,8 +266,13 @@ export function useMessaging(initialPartnerId?: string | null) {
       if (found) {
         setCurrentConversation(found);
         setLastMessagePartnerId(found.otherUser?.id);
-      } else if (!isInitializing) {
+        clearConversationStartIntent();
+      } else if (!isInitializing && hasConversationStartIntent(targetId)) {
         startConversation(targetId);
+      } else {
+        setCurrentConversation(null);
+        setLastMessagePartnerId(null);
+        clearConversationStartIntent();
       }
     } else if (!currentConversation && conversations.length > 0) {
       const storedPartnerId = getLastMessagePartnerId();

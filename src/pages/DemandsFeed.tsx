@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { Demand, EnrichedDemand } from "@/lib/Interfaces";
-import { getInitials } from "@/lib/utils";
+import { getInitials, setConversationStartIntent } from "@/lib/utils";
 
 const buildImageUrl = (path?: string) => {
   if (!path) return "";
@@ -270,10 +270,14 @@ export default function DemandsPage() {
                   {/* Footer Actions */}
                   <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-50">
                     {/* Reply / Chat Link */}
-                    <Link href={`/messages/${demand.id_user}?text=${encodeURIComponent(`Olá ${demand.userName}, vi sua demanda "${demand.title}" no ArqDoor e tenho interesse em atender.`)}`} className="flex-1">
+                    <Link
+                      href={`/messages/${demand.id_user}?text=${encodeURIComponent(`Olá ${demand.userName}, vi sua demanda "${demand.title}" no ArqDoor e tenho interesse em atender.`)}`}
+                      className="flex-1"
+                      onClick={() => setConversationStartIntent(demand.id_user)}
+                    >
                       <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-9 text-xs font-medium rounded-md">
                         Ver Detalhes / Responder
-                            </Button>
+                      </Button>
                     </Link>
                     <Link href={`/user/${demand.id_user}`}>
                       <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md">

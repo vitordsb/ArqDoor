@@ -37,7 +37,7 @@ import {
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { User as UserInterface } from "@/lib/Interfaces";
-import { getInitials } from "@/lib/utils";
+import { getInitials, setConversationStartIntent } from "@/lib/utils";
 import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
 
 // Estados do Brasil para o filtro
@@ -290,6 +290,7 @@ export default function SocialFeed() {
   };
 
   const handleStartChat = (targetUserId: number) => {
+    setConversationStartIntent(targetUserId);
     setLocation(`/messages/${targetUserId}`);
   };
 
