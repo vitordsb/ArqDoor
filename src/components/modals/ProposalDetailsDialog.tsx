@@ -41,6 +41,10 @@ import { Label } from "@/components/ui/label"
 import { Timer } from "@/components/ui/timer"
 import { AdditionalPaymentList } from "./AdditionalPaymentList"
 import type { AdditionalPayment } from "@/lib/Interfaces"
+import {
+  getContractWorkflowSummary,
+  getWorkflowToneClasses,
+} from "@/features/messages/utils/contractWorkflow"
 
 type ProposalDetailsDialogProps = {
   open: boolean
@@ -191,6 +195,16 @@ export function ProposalDetailsDialog({
   const receivingMethodLabel = displayReceivingMethod
     ? RECEIVING_METHOD_LABELS[displayReceivingMethod] || "Recebimento configurado"
     : null;
+  const workflowSummary = React.useMemo(
+    () =>
+      getContractWorkflowSummary({
+        ticket: activeTicket || { status: currentTicketStatus },
+        steps,
+        currentUserType: userType,
+      }),
+    [activeTicket, currentTicketStatus, steps, userType]
+  );
+  const workflowToneClasses = getWorkflowToneClasses(workflowSummary.tone);
 
   const isCustomPayment = true;
   const isStepPayment = true;
@@ -330,6 +344,19 @@ export function ProposalDetailsDialog({
                 )}
               </div>
             )}
+            <div className={`mt-4 rounded-2xl border px-4 py-3 ${workflowToneClasses.container}`}>
+              <div
+                className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${workflowToneClasses.label}`}
+              >
+                {workflowSummary.label}
+              </div>
+              <div className={`mt-1 text-sm font-semibold ${workflowToneClasses.title}`}>
+                {workflowSummary.title}
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                {workflowSummary.description}
+              </p>
+            </div>
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto pr-2">

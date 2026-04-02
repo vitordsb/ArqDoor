@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { formatDate, formatPrice } from "@/lib/utils";
+import { cn, formatDate, formatPrice } from "@/lib/utils";
 import { FileText, Loader2 } from "lucide-react";
 import { AuthModals } from "@/components/modals/AuthModals";
 
@@ -42,6 +42,29 @@ const RECEIVING_METHOD_LABELS: Record<string, string> = {
   escrow: "Escrow",
   standard: "Padrão",
 };
+
+const inviteJourney = [
+  {
+    id: "login",
+    title: "Entrar",
+    description: "Faça login ou crie sua conta para assumir este contrato.",
+  },
+  {
+    id: "cpf",
+    title: "Confirmar CPF",
+    description: "Complete sua identificação antes da assinatura.",
+  },
+  {
+    id: "review",
+    title: "Revisar grupos",
+    description: "Confira etapas, grupos e o PDF do contrato.",
+  },
+  {
+    id: "sign",
+    title: "Assinar",
+    description: "Aceite o contrato para seguir direto para a conversa.",
+  },
+] as const;
 
 const normalizeInviteSteps = (raw: unknown): InviteStep[] => {
   if (Array.isArray(raw)) return raw as InviteStep[];
@@ -146,6 +169,57 @@ export default function InvitePublic() {
   const cpfDigits = (user?.cpf || "").toString().replace(/\D/g, "");
   const needsCpf = isLoggedIn && cpfDigits.length !== 11;
   const inviteUnavailable = invite?.status && invite.status !== "active";
+  const currentJourneyStep = useMemo(() => {
+    if (inviteUnavailable) return 4;
+    if (!isLoggedIn) return 1;
+    if (needsCpf) return 2;
+    if (!pdfUrl) return 3;
+    return 4;
+  }, [inviteUnavailable, isLoggedIn, needsCpf, pdfUrl]);
+  const journeySummary = useMemo(() => {
+    if (inviteUnavailable) {
+      return {
+        title:
+          invite?.status === "accepted"
+            ? "Este convite já foi utilizado"
+            : "Este convite não está mais disponível",
+        description:
+          invite?.status === "accepted"
+            ? "O contrato já foi aceito anteriormente e não pode ser reutilizado."
+            : "Peça ao prestador para gerar um novo link se você ainda precisar continuar.",
+      };
+    }
+
+    if (!isLoggedIn) {
+      return {
+        title: "Primeiro passo: entrar na plataforma",
+        description:
+          "Você precisa estar autenticado para assumir o contrato e abrir a conversa com o prestador.",
+      };
+    }
+
+    if (needsCpf) {
+      return {
+        title: "Segundo passo: confirmar seu CPF",
+        description:
+          "Esse dado é obrigatório para a assinatura e para a geração futura dos pagamentos do contrato.",
+      };
+    }
+
+    if (!pdfUrl) {
+      return {
+        title: "Terceiro passo: aguardar o PDF do contrato",
+        description:
+          "As etapas já estão organizadas, mas o prestador ainda precisa anexar o PDF para a assinatura final.",
+      };
+    }
+
+    return {
+      title: "Último passo: assinar o contrato",
+      description:
+        "Você já revisou os grupos e está com o CPF em dia. Agora é só confirmar para seguir à conversa.",
+    };
+  }, [invite?.status, inviteUnavailable, isLoggedIn, needsCpf, pdfUrl]);
 
   const handleSaveCpf = async () => {
     const digits = cpfInput.replace(/\D/g, "").slice(0, 11);
@@ -291,9 +365,88 @@ export default function InvitePublic() {
           )}
         </div>
 
+        <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Como aceitar este contrato</h2>
+              <p className="text-sm text-muted-foreground">
+                O fluxo abaixo mostra exatamente onde você está e o que falta para concluir.
+              </p>
+            </div>
+            <Badge variant="outline">Etapa {currentJourneyStep} de 4</Badge>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            {inviteJourney.map((step, index) => {
+              const stepNumber = index + 1;
+              const isDone = !inviteUnavailable && stepNumber < currentJourneyStep;
+              const isCurrent = stepNumber === currentJourneyStep;
+
+              return (
+                <div
+                  key={step.id}
+                  className={cn(
+                    "rounded-2xl border p-4 transition-colors",
+                    isCurrent
+                      ? "border-orange-300 bg-orange-50"
+                      : isDone
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-slate-200 bg-slate-50"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
+                        isCurrent
+                          ? "bg-orange-500 text-white"
+                          : isDone
+                            ? "bg-emerald-500 text-white"
+                            : "bg-white text-slate-700 border border-slate-200"
+                      )}
+                    >
+                      {isDone ? "OK" : stepNumber}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[11px] font-semibold uppercase tracking-[0.14em]",
+                        isCurrent
+                          ? "text-orange-700"
+                          : isDone
+                            ? "text-emerald-700"
+                            : "text-slate-500"
+                      )}
+                    >
+                      {isCurrent ? "Agora" : isDone ? "Concluído" : "Depois"}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-slate-900">
+                    {step.title}
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                    {step.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-700">
+              Próximo passo
+            </div>
+            <div className="mt-1 text-sm font-semibold text-orange-900">
+              {journeySummary.title}
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-slate-700">
+              {journeySummary.description}
+            </p>
+          </div>
+        </div>
+
         {paymentGroups.length > 0 ? (
           <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">Grupos de Pagamento</h2>
+            <h2 className="text-lg font-semibold text-gray-900">3. Revisão dos grupos de pagamento</h2>
             <p className="text-sm text-muted-foreground">
               Este contrato está organizado em {paymentGroups.length} grupo(s) de pagamento em garantia.
               Você pagará cada grupo completo em sequência.
@@ -369,7 +522,7 @@ export default function InvitePublic() {
         ) : (
           /* Regular step-by-step view */
           <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">Etapas do contrato</h2>
+            <h2 className="text-lg font-semibold text-gray-900">3. Revisão das etapas do contrato</h2>
             <div className="space-y-3">
               {safeSteps.map((step, idx) => (
                 <div key={`${step.title}-${idx}`} className="rounded-2xl border p-4">
@@ -395,7 +548,7 @@ export default function InvitePublic() {
         )}
 
         <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Assinatura</h2>
+          <h2 className="text-lg font-semibold text-gray-900">4. Assinatura do contrato</h2>
 
           {inviteUnavailable ? (
             <p className="text-sm text-muted-foreground">
@@ -412,15 +565,26 @@ export default function InvitePublic() {
               <p className="text-sm text-muted-foreground">
                 Faça login ou cadastro (Google ou e-mail) para assinar o contrato.
               </p>
-              <Button
-                onClick={() => {
-                  setPendingAccept(true);
-                  setRegisterOpen(true);
-                }}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                Criar conta para assinar
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPendingAccept(true);
+                    setLoginOpen(true);
+                  }}
+                >
+                  Já tenho conta
+                </Button>
+                <Button
+                  onClick={() => {
+                    setPendingAccept(true);
+                    setRegisterOpen(true);
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  Criar conta para assinar
+                </Button>
+              </div>
             </>
           ) : needsCpf ? (
             <div className="space-y-3">

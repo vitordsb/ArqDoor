@@ -7,6 +7,10 @@ import {
   isSignatureContractStep,
 } from '@/constants/contracts';
 import { useMemo } from 'react';
+import {
+  getContractWorkflowSummary,
+  getWorkflowToneClasses,
+} from '@/features/messages/utils/contractWorkflow';
 
 interface ProposalCardProps {
   ticket: any;
@@ -165,6 +169,11 @@ export function ProposalCard({
     !isTicketClosed;
 
   const formattedDuration = formatTotalDurationFromDays(ticket.total_date);
+  const workflowSummary = useMemo(
+    () => getContractWorkflowSummary({ ticket, steps, currentUserType }),
+    [ticket, steps, currentUserType]
+  );
+  const workflowToneClasses = getWorkflowToneClasses(workflowSummary.tone);
 
   return (
     <div
@@ -196,6 +205,20 @@ export function ProposalCard({
             </div>
           </div>
         )}
+
+        <div className={`rounded-xl border px-3 py-3 ${workflowToneClasses.container}`}>
+          <div
+            className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${workflowToneClasses.label}`}
+          >
+            {workflowSummary.label}
+          </div>
+          <div className={`mt-1 text-sm font-semibold ${workflowToneClasses.title}`}>
+            {workflowSummary.title}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+            {workflowSummary.description}
+          </p>
+        </div>
 
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">{steps.length} etapas</span>
