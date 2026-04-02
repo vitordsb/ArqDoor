@@ -112,6 +112,41 @@ interface NewProposalDialogProps {
 const cn = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(" ");
 
+const hasBankDetails = (account?: ProviderReceivingAccount | null) =>
+  Boolean(
+    account?.bank_code ||
+      account?.bank_name ||
+      account?.bank_agency ||
+      account?.bank_account ||
+      account?.bank_document
+  );
+
+const formatReceivingAccountLabel = (account?: ProviderReceivingAccount | null) => {
+  if (!account) return "Conta não selecionada";
+  const bankLabel = [account.bank_code, account.bank_name].filter(Boolean).join(" · ");
+  if (bankLabel) return `${account.nickname} · ${bankLabel}`;
+  if (account.pix_key) return `${account.nickname} · PIX`;
+  return account.nickname;
+};
+
+const formatReceivingAccountDetails = (account?: ProviderReceivingAccount | null) => {
+  if (!account) return [];
+
+  const lines: string[] = [];
+  if (hasBankDetails(account)) {
+    lines.push(
+      [[account.bank_code, account.bank_name].filter(Boolean).join(" · "), account.bank_agency ? `Agência ${account.bank_agency}` : null, account.bank_account ? `Conta ${account.bank_account}` : null]
+        .filter(Boolean)
+        .join(" · ")
+    );
+  }
+  if (account.pix_key) {
+    lines.push(`PIX: ${account.pix_key}`);
+  }
+
+  return lines.filter(Boolean);
+};
+
 export function NewProposalDialog({
   open,
   onOpenChange,
@@ -954,7 +989,7 @@ export function NewProposalDialog({
                           <option value="">Selecione uma conta cadastrada</option>
                           {receivingAccounts.map((account) => (
                             <option key={account.id} value={account.id}>
-                              {account.nickname} · {account.bank_name}
+                              {formatReceivingAccountLabel(account)}
                             </option>
                           ))}
                         </select>
@@ -964,14 +999,11 @@ export function NewProposalDialog({
                             <p className="font-medium text-slate-900">
                               {selectedReceivingAccount.nickname}
                             </p>
-                            <p className="mt-1">
-                              {selectedReceivingAccount.bank_name} · Agência{" "}
-                              {selectedReceivingAccount.bank_agency} · Conta{" "}
-                              {selectedReceivingAccount.bank_account}
-                            </p>
-                            <p className="mt-1">
-                              PIX: {selectedReceivingAccount.pix_key}
-                            </p>
+                            {formatReceivingAccountDetails(selectedReceivingAccount).map((line) => (
+                              <p key={line} className="mt-1">
+                                {line}
+                              </p>
+                            ))}
                           </div>
                         ) : null}
                       </div>
@@ -1055,7 +1087,7 @@ export function NewProposalDialog({
                       receivingMethod === "escrow"
                         ? "Repasse intermediado pela plataforma."
                         : selectedReceivingAccount
-                          ? `${selectedReceivingAccount.nickname} · ${selectedReceivingAccount.bank_name}`
+                          ? formatReceivingAccountLabel(selectedReceivingAccount)
                           : "Conta da carteira ainda não selecionada."
                     }
                     tone={receivingMethod === "escrow" ? "sky" : "slate"}

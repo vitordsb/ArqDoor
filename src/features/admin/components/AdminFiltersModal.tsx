@@ -129,7 +129,10 @@ export function AdminFiltersModal({
             </label>
           ) : null}
 
-          {(activeTab === "contratos" || activeTab === "all" || activeTab === "dashboard") ? (
+          {(activeTab === "contratos" ||
+            activeTab === "transferencias" ||
+            activeTab === "all" ||
+            activeTab === "dashboard") ? (
             <label className="space-y-2">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 <BriefcaseBusiness className="h-3.5 w-3.5" />
@@ -172,6 +175,7 @@ export function AdminFiltersModal({
           ) : null}
 
           {(activeTab === "contratos" ||
+            activeTab === "transferencias" ||
             activeTab === "pagamentos" ||
             activeTab === "all" ||
             activeTab === "dashboard") ? (

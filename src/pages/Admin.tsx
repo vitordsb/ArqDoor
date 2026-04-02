@@ -8,6 +8,7 @@ import { AdminFiltersModal } from "@/features/admin/components/AdminFiltersModal
 import { AdminLoginView } from "@/features/admin/components/AdminLoginView";
 import { AdminPaymentsSection } from "@/features/admin/components/AdminPaymentsSection";
 import { EmptyState, PaginationControls } from "@/features/admin/components/AdminPrimitives";
+import { AdminTransfersSection } from "@/features/admin/components/AdminTransfersSection";
 import { AdminUsersSection } from "@/features/admin/components/AdminUsersSection";
 import { useAdminDashboard } from "@/features/admin/hooks/useAdminDashboard";
 import { useAdminPageMeta } from "@/features/admin/hooks/useAdminPageMeta";
@@ -303,6 +304,10 @@ export default function Admin() {
 
               {activeTab === "pagamentos" ? (
                 <AdminPaymentsSection dashboard={dashboard} />
+              ) : null}
+
+              {activeTab === "transferencias" ? (
+                <AdminTransfersSection transfers={dashboard.transfers} />
               ) : null}
 
               {activeTab === "documentos" ? (

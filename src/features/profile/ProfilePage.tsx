@@ -42,6 +42,7 @@ import { ReceivingAccountsCard } from "./components/ReceivingAccountsCard";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import type { ProviderReceivingAccountApi } from "./types";
+import type { ReceivingAccountDraft } from "./components/ReceivingAccountsCard";
 
 export default function ProfilePage() {
   const { user, logout, updateUserLocal } = useAuth();
@@ -227,17 +228,7 @@ export default function ProfilePage() {
   }, [loadReceivingAccounts]);
 
   const saveReceivingAccount = useCallback(
-    async (
-      draft: {
-        nickname: string;
-        bank_name: string;
-        bank_agency: string;
-        bank_account: string;
-        bank_document: string;
-        pix_key: string;
-      },
-      accountId?: number
-    ) => {
+    async (draft: ReceivingAccountDraft, accountId?: number) => {
       if (!providerProfile?.provider_id) return false;
       try {
         const endpoint = accountId
@@ -247,6 +238,7 @@ export default function ProfilePage() {
         const payload = {
           ...draft,
           nickname: draft.nickname.trim(),
+          bank_code: draft.bank_code.trim(),
           bank_name: draft.bank_name.trim(),
           bank_agency: draft.bank_agency.trim(),
           bank_account: draft.bank_account.trim(),
@@ -277,29 +269,13 @@ export default function ProfilePage() {
   );
 
   const handleCreateReceivingAccount = useCallback(
-    async (draft: {
-      nickname: string;
-      bank_name: string;
-      bank_agency: string;
-      bank_account: string;
-      bank_document: string;
-      pix_key: string;
-    }) => saveReceivingAccount(draft),
+    async (draft: ReceivingAccountDraft) => saveReceivingAccount(draft),
     [saveReceivingAccount]
   );
 
   const handleUpdateReceivingAccount = useCallback(
-    async (
-      accountId: number,
-      draft: {
-        nickname: string;
-        bank_name: string;
-        bank_agency: string;
-        bank_account: string;
-        bank_document: string;
-        pix_key: string;
-      }
-    ) => saveReceivingAccount(draft, accountId),
+    async (accountId: number, draft: ReceivingAccountDraft) =>
+      saveReceivingAccount(draft, accountId),
     [saveReceivingAccount]
   );
 

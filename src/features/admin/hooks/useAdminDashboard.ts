@@ -210,6 +210,7 @@ export function useAdminDashboard({
     if (activeTab === "usuarios") return dashboard.meta.pagination.users;
     if (activeTab === "contratos") return dashboard.meta.pagination.tickets;
     if (activeTab === "pagamentos") return dashboard.meta.pagination.payments;
+    if (activeTab === "transferencias") return dashboard.meta.pagination.transfers;
     if (activeTab === "documentos") return dashboard.meta.pagination.documents;
     if (activeTab === "conversas") return dashboard.meta.pagination.conversations;
     return null;

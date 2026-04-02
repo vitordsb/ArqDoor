@@ -6,6 +6,7 @@ export type AdminTab =
   | "usuarios"
   | "contratos"
   | "pagamentos"
+  | "transferencias"
   | "documentos"
   | "conversas";
 
@@ -14,6 +15,7 @@ export type DashboardSection =
   | "usuarios"
   | "contratos"
   | "pagamentos"
+  | "transferencias"
   | "documentos"
   | "conversas";
 
@@ -124,6 +126,47 @@ export type AdminDocumentRow = {
   contractor: Participant | null;
 };
 
+export type AdminTransferStepRow = {
+  id: number;
+  title: string;
+  status: string;
+  price: number;
+  updated_at: string | null;
+  group_label: string;
+  payout_reason: string;
+};
+
+export type AdminTransferContractRow = {
+  ticket_id: number;
+  conversation_id: number;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  total_price: number;
+  payment_preference: "per_step" | "at_end" | "custom" | null;
+  contractor: Participant | null;
+  provider_receiving_method: "escrow" | "standard";
+  provider_receiving_account_label: string | null;
+  provider_bank_name: string | null;
+  provider_bank_agency: string | null;
+  provider_bank_account: string | null;
+  provider_bank_document: string | null;
+  provider_pix_key: string | null;
+  ready_steps_count: number;
+  ready_total: number;
+  steps: AdminTransferStepRow[];
+};
+
+export type AdminTransferRow = {
+  provider_id: number | null;
+  provider: Participant | null;
+  active_contracts_count: number;
+  contracts_count: number;
+  ready_steps_count: number;
+  ready_total: number;
+  contracts: AdminTransferContractRow[];
+};
+
 export type AdminConversationRow = {
   conversation_id: number;
   created_at: string | null;
@@ -196,6 +239,7 @@ export type DashboardData = {
   tickets: AdminTicketRow[];
   documents: AdminDocumentRow[];
   conversations: AdminConversationRow[];
+  transfers: AdminTransferRow[];
   payments: {
     items: AdminPaymentRow[];
     pending: AdminPaymentRow[];
@@ -217,6 +261,7 @@ export type DashboardData = {
     pagination: {
       users: SectionPagination;
       tickets: SectionPagination;
+      transfers: SectionPagination;
       documents: SectionPagination;
       conversations: SectionPagination;
       payments: PaymentsPagination;

@@ -5,11 +5,12 @@ export type ProviderReceivingMethod = "escrow" | "standard";
 export type ProviderReceivingAccount = {
   id: number;
   nickname: string;
-  bank_name: string;
-  bank_agency: string;
-  bank_account: string;
-  bank_document: string;
-  pix_key: string;
+  bank_code?: string | null;
+  bank_name: string | null;
+  bank_agency: string | null;
+  bank_account: string | null;
+  bank_document: string | null;
+  pix_key: string | null;
   is_active?: boolean;
 };
 

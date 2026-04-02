@@ -3,6 +3,7 @@ import {
   BadgeDollarSign,
   BriefcaseBusiness,
   FileSignature,
+  Landmark,
   MessageSquareText,
   Sparkles,
   Users,
@@ -13,6 +14,7 @@ export const TABS: AdminTabConfig[] = [
   { key: "usuarios", label: "Usuários", icon: Users },
   { key: "contratos", label: "Contratos", icon: BriefcaseBusiness },
   { key: "pagamentos", label: "Pagamentos", icon: BadgeDollarSign },
+  { key: "transferencias", label: "Transferências", icon: Landmark },
   { key: "documentos", label: "Documentos", icon: FileSignature },
   { key: "conversas", label: "Conversas", icon: MessageSquareText },
 ];
@@ -39,6 +41,7 @@ export const INITIAL_PAGES: Record<AdminTab, number> = {
   usuarios: 1,
   contratos: 1,
   pagamentos: 1,
+  transferencias: 1,
   documentos: 1,
   conversas: 1,
 };
@@ -49,6 +52,7 @@ export const PAGE_SIZE_BY_TAB: Record<AdminTab, number> = {
   usuarios: 12,
   contratos: 9,
   pagamentos: 10,
+  transferencias: 8,
   documentos: 9,
   conversas: 10,
 };
