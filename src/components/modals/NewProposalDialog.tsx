@@ -493,7 +493,7 @@ export function NewProposalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex min-h-0 max-h-[92vh] max-w-[96vw] flex-col overflow-hidden p-0">
+      <DialogContent className="flex h-[92vh] max-h-[92vh] min-h-0 max-w-[96vw] flex-col overflow-hidden p-0">
         <DialogHeader className="shrink-0 px-6 pt-6">
           <DialogTitle>{dialogTitle}</DialogTitle>
           <p className="text-sm text-muted-foreground">{dialogDescription}</p>
@@ -545,10 +545,10 @@ export function NewProposalDialog({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           {activeStage === "steps" ? (
-            <div className="grid h-full min-h-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="flex min-h-0 flex-col space-y-4 overflow-hidden">
+            <div className="grid min-h-full gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+              <section className="space-y-4">
                 <div className="rounded-2xl border bg-muted/20 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -569,7 +569,7 @@ export function NewProposalDialog({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 pb-2">
+                <div className="space-y-3 pb-2">
                   {proposalSteps.map((step, idx) => (
                     <div key={step.id} className="rounded-2xl border bg-white p-4 shadow-sm space-y-4">
                       <div className="flex items-center justify-between gap-3">
@@ -730,7 +730,7 @@ export function NewProposalDialog({
                 </div>
               </section>
 
-              <aside className="min-h-0 space-y-4 overflow-y-auto pr-2">
+              <aside className="space-y-4 xl:sticky xl:top-0">
                 <div className="rounded-2xl border bg-white p-4 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Info className="h-4 w-4 text-orange-500" />
@@ -868,8 +868,8 @@ export function NewProposalDialog({
           ) : null}
 
           {activeStage === "receiving" ? (
-            <div className="grid h-full min-h-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="min-h-0 space-y-4 overflow-y-auto pr-2">
+            <div className="grid min-h-full gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+              <section className="space-y-4">
                 <div className="rounded-2xl border bg-muted/20 p-4">
                   <p className="text-sm font-semibold text-slate-900">Como o prestador vai receber?</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -980,7 +980,7 @@ export function NewProposalDialog({
                 ) : null}
               </section>
 
-              <aside className="min-h-0 space-y-4 overflow-y-auto pr-2">
+              <aside className="space-y-4 xl:sticky xl:top-0">
                 <div className="rounded-2xl border border-dashed bg-white p-4 space-y-3">
                   <Label className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <FileText className="h-4 w-4 text-orange-500" />
@@ -1028,8 +1028,8 @@ export function NewProposalDialog({
           ) : null}
 
           {activeStage === "review" ? (
-            <div className="grid h-full min-h-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="min-h-0 space-y-4 overflow-y-auto pr-2">
+            <div className="grid min-h-full gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+              <section className="space-y-4">
                 <div className="rounded-2xl border bg-white p-4">
                   <p className="text-sm font-semibold text-slate-900">Revisão do envio</p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -1135,7 +1135,7 @@ export function NewProposalDialog({
                 </div>
               </section>
 
-              <aside className="min-h-0 space-y-4 overflow-y-auto pr-2">
+              <aside className="space-y-4 xl:sticky xl:top-0">
                 <div className="rounded-2xl border bg-white p-4 space-y-3">
                   <p className="text-sm font-semibold text-slate-900">Checklist final</p>
                   <ChecklistItem
