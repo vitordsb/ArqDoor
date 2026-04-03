@@ -75,6 +75,7 @@ type ProposalDetailsDialogProps = {
   currentIndex: number
   ticketStatus?: string
   ticketId?: number | null
+  ticketHasLinkedPayments?: boolean
   onDeleteTicket?: (ticketId: number) => void
   deletingTicket?: boolean
   onRefreshPayment?: (ticketId: number) => void
@@ -138,6 +139,7 @@ export function ProposalDetailsDialog({
   confirmingStepPaymentIds,
   ticketStatus,
   ticketId,
+  ticketHasLinkedPayments = false,
   onDeleteTicket,
   deletingTicket,
   onRefreshPayment,
@@ -318,6 +320,7 @@ export function ProposalDetailsDialog({
               </div>
               {userType === "prestador" &&
                 ticketId &&
+                !ticketHasLinkedPayments &&
                 ["pendente", "cancelada"].includes((ticketStatus || "").toLowerCase()) && (
                   <Button
                     variant="destructive"

@@ -288,13 +288,18 @@ export function useContract(conversationId?: number) {
     async (ticketId: number) => {
       try {
         const res = await apiRequest("DELETE", `/ticket/${ticketId}`);
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.success === false) {
+          throw new Error(
+            data?.message || "Não foi possível excluir a proposta."
+          );
+        }
         console.log("Ticket removido pelo DELETE", data)
         queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
         return true;
       } catch (err: any) {
         console.error("❌ Erro ao deletar ticket:", err);
-        return false;
+        throw err;
       }
     },
     [conversationId, queryClient]

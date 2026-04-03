@@ -1633,6 +1633,15 @@ export default function Messages() {
         });
         return;
       }
+      if (ticket.has_linked_payments) {
+        toast({
+          title: 'Ação não permitida',
+          description:
+            'Não é possível excluir um contrato que já possui pagamento vinculado.',
+          variant: 'destructive',
+        });
+        return;
+      }
       try {
         setDeletingTicket(true);
         const ok = await deleteTicket(ticketId);
@@ -2217,6 +2226,12 @@ export default function Messages() {
             : null
         }
         ticketId={selectedTicketSteps[0]?.ticket_id}
+        ticketHasLinkedPayments={
+          selectedTicketSteps[0]
+            ? !!tickets.find((t: any) => t.id === selectedTicketSteps[0].ticket_id)
+                ?.has_linked_payments
+            : false
+        }
         onDeleteTicket={handleDeleteTicket}
         deletingTicket={deletingTicket}
         onRefreshPayment={handleRefreshTicketPayment}

@@ -228,6 +228,7 @@ export interface Ticket {
   grouped_payment?: boolean;
   grouped_payment_enabled?: boolean;
   payment?: boolean;
+  has_linked_payments?: boolean;
   contract_pdf_url?: string | null;
   signed_at?: string | null;
   signed_by?: number | null;
@@ -255,6 +256,67 @@ export interface EnrichedDemand extends Demand {
   userEmail: string;
   userPerfil?: string | null;
   createdAt: string;
+}
+
+export interface ClientConnection {
+  id: number;
+  provider_user_id: number;
+  client_user_id: number;
+  requested_by_user_id: number;
+  demand_id?: number | null;
+  status: "pending" | "accepted" | "rejected";
+  responded_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  can_message?: boolean;
+  provider_profile_id?: number | null;
+  counterpart?: {
+    id: number;
+    name: string;
+    email?: string | null;
+    type: "prestador" | "contratante";
+    perfil?: string | null;
+  } | null;
+}
+
+export interface ProviderDashboardData {
+  summary: {
+    clients_contacted: number;
+    open_contracts: number;
+    finished_contracts: number;
+    completed_payments: number;
+    completed_payments_volume: number;
+  };
+  recent_clients: Array<{
+    id: number;
+    name: string;
+    perfil?: string | null;
+    last_interaction_at: string;
+    conversation_id: number;
+  }>;
+  recent_contracts: Array<{
+    id: number;
+    status: string;
+    total_price: number;
+    created_at: string;
+    updated_at: string;
+    conversation_id: number;
+  }>;
+  recent_payments: Array<{
+    id: number;
+    amount: number;
+    method: string;
+    paid_at?: string | null;
+    ticket_id: number;
+    status: string;
+  }>;
+  filters: {
+    date_from?: string;
+    date_to?: string;
+  };
+  meta?: {
+    generated_at: string;
+  };
 }
 
 export interface ServiceProvider {

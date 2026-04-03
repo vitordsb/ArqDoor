@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, Home, Newspaper, Image, ShoppingBag, User, LogOut, MessageCircle, Link2 } from "lucide-react";
+import { Menu, Home, Newspaper, Image, ShoppingBag, User, LogOut, MessageCircle, Link2, Users } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -67,13 +67,20 @@ const Navbar = () => {
             <>
               <Link href="/home">
                 <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <Home className="w-4 h-4" /> Início
+                  <Home className="w-4 h-4" /> {user?.type === "prestador" ? "Painel" : "Início"}
                 </div>
               </Link>
               {user?.type === "contratante" && (
                 <Link href="/services">
                   <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
                     <Newspaper className="w-4 h-4" /> Serviços
+                  </div>
+                </Link>
+              )}
+              {user?.type === "contratante" && (
+                <Link href="/connections">
+                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
+                    <Users className="w-4 h-4" /> Conexões
                   </div>
                 </Link>
               )}
@@ -160,12 +167,21 @@ const Navbar = () => {
                 <Link href="/home">
                   <div className="text-gray-700 hover:text-amber-500">Início</div>
                 </Link>
-                <Link href="/home/services">
-                  <div className="text-gray-700 hover:text-amber-500">Serviços</div>
-                </Link>
-                <Link href="/home/demands">
-                  <div className="text-gray-700 hover:text-amber-500">Demandas</div>
-                </Link>
+                {user?.type === "contratante" && (
+                  <Link href="/services">
+                    <div className="text-gray-700 hover:text-amber-500">Serviços</div>
+                  </Link>
+                )}
+                {user?.type === "contratante" && (
+                  <Link href="/connections">
+                    <div className="text-gray-700 hover:text-amber-500">Conexões</div>
+                  </Link>
+                )}
+                {user?.type === "prestador" && (
+                  <Link href="/demands">
+                    <div className="text-gray-700 hover:text-amber-500">Demandas</div>
+                  </Link>
+                )}
                 {isLoggedIn && user?.type === "prestador" && (
                   <Link href="/convites">
                     <div className="text-gray-700 hover:text-amber-500">Convites</div>

@@ -903,7 +903,7 @@ export function NewProposalDialog({
           ) : null}
 
           {activeStage === "receiving" ? (
-            <div className="grid min-h-full gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+            <div className="grid min-h-full gap-5 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px] xl:items-start">
               <section className="space-y-4">
                 <div className="rounded-2xl border bg-muted/20 p-4">
                   <p className="text-sm font-semibold text-slate-900">Como o prestador vai receber?</p>
@@ -927,11 +927,8 @@ export function NewProposalDialog({
                       <div className="mt-0.5 rounded-xl bg-orange-100 p-2 text-orange-600">
                         <ShieldCheck className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1">
+                      <div>
                         <div className="font-medium text-gray-900">Escrow</div>
-                        <p className="text-sm text-gray-600">
-                          A plataforma intermedeia o recebimento e libera o valor conforme a evolução do contrato.
-                        </p>
                       </div>
                     </div>
                   </button>
@@ -950,11 +947,8 @@ export function NewProposalDialog({
                       <div className="mt-0.5 rounded-xl bg-orange-100 p-2 text-orange-600">
                         <Landmark className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1">
+                      <div>
                         <div className="font-medium text-gray-900">Padrão</div>
-                        <p className="text-sm text-gray-600">
-                          O administrador poderá pagar o prestador direto pelo painel usando a conta escolhida na carteira.
-                        </p>
                       </div>
                     </div>
                   </button>

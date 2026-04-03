@@ -17,7 +17,7 @@ const NotFound = lazy(() => import("@/pages/not-found"));
 const Home = lazy(() => import("@/pages/Home"));
 const AuthPage = lazy(() => import("@/pages/auth-page"));
 const Profile = lazy(() => import("@/pages/Profile"));
-const SocialFeed = lazy(() => import("@/pages/SocialFeed"));
+const AppHome = lazy(() => import("@/pages/AppHome"));
 const DemandsFeed = lazy(() => import("@/pages/DemandsFeed"));
 const ServicePage = lazy(() => import("@/pages/ServicePage"));
 const ServicesFeed = lazy(() => import("@/pages/ServicesFeed"));
@@ -27,6 +27,7 @@ const Messages = lazy(() => import("@/pages/Messages"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Invites = lazy(() => import("@/pages/Invites"));
 const InvitePublic = lazy(() => import("@/pages/InvitePublic"));
+const Connections = lazy(() => import("@/pages/Connections"));
 
 function RouteLoading() {
   return (
@@ -47,13 +48,14 @@ function Router() {
         <Route path="/"><Home /></Route>
         <Route path="/auth"><AuthPage /></Route>
         <Route path="/profile"><Profile /></Route>
-        <Route path="/home"><SocialFeed /></Route>
+        <Route path="/home"><AppHome /></Route>
         <Route path="/demands"><DemandsFeed /></Route>
         <Route path="/services/viewService"><ServicePage /></Route>
         <Route path="/services"><ServicesFeed /></Route>
         <Route path="/providers/:provider_id"><ProviderProfile /></Route>
         <Route path="/user/:user_id"><ClientProfile /></Route>
         <Route path="/messages/:userId?"><Messages /></Route>
+        <Route path="/connections"><Connections /></Route>
         <Route path="/admin"><Admin /></Route>
         <Route path="/convites"><Invites /></Route>
         <Route path="/convite/:token"><InvitePublic /></Route>

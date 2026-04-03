@@ -1,9 +1,9 @@
 
 // src/pages/ClientProfile.tsx
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
 import {
   Card,
@@ -15,10 +15,28 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { User, Briefcase, Loader2, MessageCircle, Clock } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  FileText,
+  Loader2,
+  MessageCircle,
+  Reply,
+  User,
+  UserRoundPlus,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { setConversationStartIntent } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export interface UserApi {
   id: number;
@@ -36,6 +54,7 @@ export interface Demand {
   title: string;
   description: string;
   price: number;
+  status: string;
   created_at: string;
 }
 
@@ -51,6 +70,17 @@ export default function ClientProfile() {
   const { user_id } = useParams<{ user_id: string }>();
   const [location, setLocation] = useLocation();
   const { user: currentUser } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [detailsDemand, setDetailsDemand] = useState<Demand | null>(null);
+  const [showReplyBlockedModal, setShowReplyBlockedModal] = useState(false);
+
+  const selectedDemandId = useMemo(() => {
+    const queryString = location.includes("?") ? location.split("?")[1] : "";
+    const params = new URLSearchParams(queryString);
+    const demandParam = Number(params.get("demand"));
+    return Number.isInteger(demandParam) && demandParam > 0 ? demandParam : null;
+  }, [location]);
 
   const { data: userEnv, isLoading: loadingUsers } = useQuery<{ user: UserApi }>({
     queryKey: ["user", user_id],
@@ -64,6 +94,14 @@ export default function ClientProfile() {
 
   const [demands, setDemands] = useState<Demand[]>([]);
   const [loadingDm, setLoadingDm] = useState(true);
+  const isProviderViewer = currentUser?.type === "prestador";
+  const activeDemands = useMemo(
+    () =>
+      demands.filter((demand) =>
+        ["pendente", "em andamento"].includes(String(demand.status || "").toLowerCase())
+      ),
+    [demands]
+  );
 
   useEffect(() => {
     (async () => {
@@ -80,6 +118,120 @@ export default function ClientProfile() {
       }
     })();
   }, [user_id]);
+
+  const connectionStatusQuery = useQuery<{
+    status: "none" | "pending" | "accepted" | "rejected" | "unavailable";
+    can_request: boolean;
+    can_resend?: boolean;
+    can_message: boolean;
+    client_has_active_demand: boolean;
+    eligible_demand_id?: number | null;
+  }>({
+    queryKey: ["client-connection-status", currentUser?.id, user_id, selectedDemandId],
+    enabled: isProviderViewer && !!currentUser?.id && !!user_id,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedDemandId) {
+        params.set("demand_id", String(selectedDemandId));
+      }
+      const response = await apiRequest(
+        "GET",
+        `/connections/status/${user_id}${params.toString() ? `?${params.toString()}` : ""}`
+      );
+      if (!response.ok) {
+        throw new Error("Não foi possível verificar o status da conexão.");
+      }
+      return response.json();
+    },
+  });
+
+  const createConnectionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/connections", {
+        client_user_id: Number(user_id),
+        demand_id: selectedDemandId,
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(
+          body?.message || "Não foi possível enviar a solicitação de conexão."
+        );
+      }
+      return body;
+    },
+    onSuccess: (body) => {
+      queryClient.invalidateQueries({ queryKey: ["client-connection-status"] });
+      queryClient.invalidateQueries({ queryKey: ["connections-page"] });
+      toast({
+        title: "Solicitação enviada",
+        description:
+          body?.message ||
+          "Agora o cliente precisa aceitar para liberar a conversa.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Não foi possível solicitar conexão",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const replyToDemandMutation = useMutation({
+    mutationFn: async (demand: Demand) => {
+      const conversationResponse = await apiRequest("POST", "/conversation", {
+        user1_id: Number(currentUser?.id),
+        user2_id: Number(user_id),
+      });
+      const conversationBody = await conversationResponse.json().catch(() => ({}));
+      if (!conversationResponse.ok || conversationBody?.success === false) {
+        throw new Error(
+          conversationBody?.message || "Não foi possível iniciar a conversa."
+        );
+      }
+
+      const conversationId = Number(conversationBody?.conversation?.conversation_id);
+      if (!conversationId) {
+        throw new Error("Conversa inválida para enviar a resposta da demanda.");
+      }
+
+      const initialMessage = `Olá ${user?.name}, referente ao projeto postado "${demand.title}", gostaria de prestar esse serviço.`;
+
+      const messageResponse = await apiRequest("POST", "/message", {
+        conversation_id: conversationId,
+        content: initialMessage,
+      });
+      const messageBody = await messageResponse.json().catch(() => ({}));
+      if (!messageResponse.ok || messageBody?.success === false) {
+        throw new Error(
+          messageBody?.message || "Não foi possível enviar a resposta da demanda."
+        );
+      }
+
+      return {
+        demand,
+        conversationId,
+      };
+    },
+    onSuccess: ({ demand }) => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      setConversationStartIntent(Number(user_id));
+      toast({
+        title: "Resposta enviada",
+        description: `A conversa foi iniciada a partir da demanda "${demand.title}".`,
+      });
+      setLocation(`/messages/${user_id}`);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Não foi possível responder a demanda",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   if (loadingUsers) {
     return (
@@ -114,11 +266,79 @@ export default function ClientProfile() {
     currentUser.id === user.id ||
     currentUser.type !== "prestador";
 
-  const hasCpf = !!user.cpf?.replace(/\D/g, "").trim();
+  const hasCpf = !!(user.cpf || "").replace(/\D/g, "").trim();
   const trustPercent = hasCpf && user.perfil_completo ? 100 : 60;
   const trustLabel = hasCpf && user.perfil_completo
     ? "Informações completas"
     : "Informações pendentes";
+
+  const connectionStatus = connectionStatusQuery.data?.status || "none";
+  const canMessage = connectionStatusQuery.data?.can_message;
+  const canRequestConnection = connectionStatusQuery.data?.can_request;
+  const canResendConnection = connectionStatusQuery.data?.can_resend;
+  const hasDemandContext = !!selectedDemandId;
+
+  const handleReplyToDemand = (demand: Demand) => {
+    if (!canMessage) {
+      setShowReplyBlockedModal(true);
+      return;
+    }
+    replyToDemandMutation.mutate(demand);
+  };
+
+  const renderPrimaryAction = () => {
+    if (!isProviderViewer) return null;
+
+    if (canMessage) {
+      return (
+        <Button
+          size="sm"
+          onClick={() => {
+            setConversationStartIntent(user.id);
+            setLocation(`/messages/${user.id}`);
+          }}
+          className="mt-4 sm:mt-0 mb-2"
+        >
+          <MessageCircle className="w-4 h-4 mr-1" /> Conversar
+        </Button>
+      );
+    }
+
+    if (connectionStatus === "pending") {
+      return (
+        <Button size="sm" disabled className="mt-4 sm:mt-0 mb-2">
+          <UserRoundPlus className="w-4 h-4 mr-1" /> Solicitação pendente
+        </Button>
+      );
+    }
+
+    if (canRequestConnection || canResendConnection) {
+      return (
+        <Button
+          size="sm"
+          onClick={() => createConnectionMutation.mutate()}
+          disabled={createConnectionMutation.isPending}
+          className="mt-4 sm:mt-0 mb-2"
+        >
+          {createConnectionMutation.isPending ? (
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+          ) : (
+            <UserRoundPlus className="w-4 h-4 mr-1" />
+          )}
+          {connectionStatus === "rejected" ? "Solicitar novamente" : "Adicionar cliente"}
+        </Button>
+      );
+    }
+
+    return (
+      <Button size="sm" disabled className="mt-4 sm:mt-0 mb-2">
+        <UserRoundPlus className="w-4 h-4 mr-1" />
+        {hasDemandContext
+          ? "Aguardando demanda elegível"
+          : "Selecione uma demanda abaixo"}
+      </Button>
+    );
+  };
 
   return (
     <ApplicationLayout>
@@ -143,18 +363,32 @@ export default function ClientProfile() {
             <div className="flex-1 text-center sm:text-left pt-2 sm:pt-0">
               <h1 className="text-2xl font-bold mt-1">{user.name}</h1>
               <p className="text-slate-600">Contratante</p>
-              <Badge className="mt-2 text-xs">Membro desde {new Date(user.createdAt).toLocaleDateString()}</Badge>
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                <Badge className="text-xs">Membro desde {new Date(user.createdAt).toLocaleDateString()}</Badge>
+                {isProviderViewer && canMessage ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Conexão aceita
+                  </Badge>
+                ) : null}
+                {isProviderViewer && connectionStatus === "pending" ? (
+                  <Badge variant="secondary">Solicitação pendente</Badge>
+                ) : null}
+                {isProviderViewer && selectedDemandId ? (
+                  <Badge variant="outline">Demanda #{selectedDemandId} selecionada</Badge>
+                ) : null}
+              </div>
+              {isProviderViewer ? (
+                <p className="mt-3 max-w-2xl text-sm text-slate-500">
+                  {canMessage
+                    ? "Esse cliente já aceitou sua conexão, então a conversa está liberada."
+                    : hasDemandContext
+                      ? "Você está visualizando o cliente a partir de uma demanda ativa. Envie a solicitação para que ele decida se quer liberar o contato."
+                      : "Para pedir conexão, abra o perfil por uma demanda ativa ou selecione uma das demandas abaixo."}
+                </p>
+              ) : null}
             </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                setConversationStartIntent(user.id);
-                setLocation(`/messages/${user.id}`);
-              }}
-              className="mt-4 sm:mt-0 mb-2"
-            >
-              <MessageCircle className="w-4 h-4 mr-1" /> Enviar mensagem
-            </Button>
+            {renderPrimaryAction()}
           </div>
         </Card>
 
@@ -203,14 +437,54 @@ export default function ClientProfile() {
                         <p className="text-slate-600 line-clamp-2">{d.description}</p>
                         <p className="text-green-600 font-bold">R$ {d.price}</p>
                       </div>
-                      <Link
-                        href={`/messages/${user.id}?text=${encodeURIComponent(`Olá ${user.name}, vi sua demanda "${d.title}" no seu perfil e tenho interesse em atender.`)}`}
-                        onClick={() => setConversationStartIntent(user.id)}
-                      >
-                        <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white h-8 text-xs font-medium rounded-md">
-                          Ver Detalhes / Responder
-                        </Button>
-                      </Link>
+                      {isProviderViewer ? (
+                        <div className="space-y-2">
+                          <Link href={`/user/${user.id}?demand=${d.id_demand}`}>
+                            <Button
+                              variant={selectedDemandId === d.id_demand ? "secondary" : "default"}
+                              className="w-full h-8 text-xs font-medium rounded-md"
+                            >
+                              {selectedDemandId === d.id_demand
+                                ? "Demanda selecionada para conexão"
+                                : "Usar esta demanda para solicitar conexão"}
+                            </Button>
+                          </Link>
+                          <p className="text-[11px] text-slate-500">
+                            O contato só será liberado se o cliente aceitar a solicitação.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={!canMessage}
+                              onClick={() => setDetailsDemand(d)}
+                            >
+                              <FileText className="mr-1 h-3.5 w-3.5" />
+                              Ver detalhes
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={replyToDemandMutation.isPending}
+                              onClick={() => handleReplyToDemand(d)}
+                            >
+                              {replyToDemandMutation.isPending ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Reply className="mr-1 h-3.5 w-3.5" />
+                              )}
+                              Reply
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          Perfil visível apenas para acompanhamento do contratante.
+                        </p>
+                      )}
                     </div>
                   ))
                 )}
@@ -219,6 +493,71 @@ export default function ClientProfile() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!detailsDemand} onOpenChange={(open) => !open && setDetailsDemand(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da demanda</DialogTitle>
+            <DialogDescription>
+              Veja o contexto completo da postagem antes de responder.
+            </DialogDescription>
+          </DialogHeader>
+          {detailsDemand ? (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                  Projeto
+                </p>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {detailsDemand.title}
+                </h3>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Status</p>
+                  <p className="mt-1 font-medium capitalize text-slate-900">
+                    {detailsDemand.status}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Valor</p>
+                  <p className="mt-1 font-medium text-slate-900">R$ {detailsDemand.price}</p>
+                </div>
+                <div className="rounded-lg border bg-slate-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Publicada em</p>
+                  <p className="mt-1 font-medium text-slate-900">
+                    {new Date(detailsDemand.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                  Descrição
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+                  {detailsDemand.description}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showReplyBlockedModal} onOpenChange={setShowReplyBlockedModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conexão necessária</DialogTitle>
+            <DialogDescription>
+              Você ainda não está conectado com o cliente, envie a conexão e após aceita você poderá responder sobre a postagem.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReplyBlockedModal(false)}>
+              Entendi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ApplicationLayout>
   );
 }
