@@ -1,4 +1,3 @@
-import { Check, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import type { LandingPrimaryCta } from "@/components/landing/types";
@@ -10,45 +9,59 @@ interface LandingHeroSectionProps {
 
 export default function LandingHeroSection({ primaryCta }: LandingHeroSectionProps) {
   return (
-    <section className="relative overflow-hidden bg-[#efe4de] pb-12 pt-8 md:pb-16 md:pt-12 lg:pb-20">
-      <div className="mx-auto grid w-full max-w-[1360px] gap-8 px-4 lg:grid-cols-[1.02fr_1fr] lg:items-center lg:gap-7">
+    <section className="relative overflow-hidden bg-[#ffece3] pt-8 md:pt-12">
+      <div className="mx-auto grid w-full max-w-[1360px] gap-8 px-4 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-7">
         <div className="text-center lg:text-left">
           <h1 className={landingType.heroTitle}>
-            Estruture o projeto, formalize o contrato e receba com{" "}
-            <span className="inline-block bg-[#F05B10] px-3 py-0.5 font-medium text-white">mais segurança</span>
+            Estruture o projeto, <br />
+            formalize o contrato <br />
+            e receba com
+            <span className="mt-4 block w-fit bg-[#e45712] px-2 py-2 pb-4 text-white">
+              mais segurança
+            </span>
           </h1>
 
-          <p className={`mx-auto mt-7 max-w-[700px] lg:mx-0 lg:max-w-[840px] ${landingType.heroBody}`}>
+          <p className={`mx-auto mt-6 max-w-[700px] lg:mx-0 lg:max-w-[550px] ${landingType.heroBody}`}>
             Com a ArqDoor, arquitetos e engenheiros organizam seus projetos por etapas, definem valores por fase, formalizam o
             contrato e contam com intermediação segura de pagamentos em uma única plataforma.
           </p>
 
-          <div className="mt-9 flex flex-col items-center gap-5 lg:items-start">
+          <div className="mt-6 flex flex-col items-center gap-5 lg:items-start">
             <Button
               asChild
-              className={`h-[56px] rounded-[20px] bg-[#F05B10] px-8 text-white hover:bg-[#db530f] md:h-[62px] md:px-11 ${landingType.buttonText}`}
+              className={`inline-flex items-center justify-center rounded-[16px] bg-[#e45712] px-4 py-6 font-medium text-white transition-colors hover:bg-[#ce4f0f] md:px-11 ${landingType.buttonText}`}
             >
               <Link href={primaryCta.href}>{primaryCta.label}</Link>
             </Button>
 
             <a
               href="#escrow"
-              className="inline-flex items-center gap-3 text-base font-semibold leading-snug text-[#cf4f10] sm:text-lg md:text-xl"
+              className="mt-2 inline-flex items-center gap-2 text-base font-semibold leading-snug text-[#e75812] sm:text-lg md:text-xl"
             >
-              <ShieldCheck className="h-7 w-7 flex-shrink-0 md:h-8 md:w-8" />
+              <svg
+                viewBox="0 0 36 36"
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-8 w-8 flex-shrink-0 md:h-8 md:w-8"
+                fill="currentColor"
+              >
+                <path d="M31.25,7.4a43.79,43.79,0,0,1-6.62-2.35,45,45,0,0,1-6.08-3.21L18,1.5l-.54.35a45,45,0,0,1-6.08,3.21A43.79,43.79,0,0,1,4.75,7.4L4,7.59v8.34c0,13.39,13.53,18.4,13.66,18.45l.34.12.34-.12c.14,0,13.66-5.05,13.66-18.45V7.59Zm-4.57,6.65L15.51,24.9,9.19,18.57a1.4,1.4,0,0,1,2-2L15.54,21,24.73,12a1.4,1.4,0,1,1,2,2Z" />
+              </svg>
+
               Utilize Escrow e proteja 100% dos seus honorários
             </a>
           </div>
         </div>
 
-        <div className="relative mx-auto mt-2 w-full max-w-[1000px] lg:mt-0">
-          <img src="/images/landing/Imagem_pag1.png" alt="Fluxo de etapas do projeto na ArqDoor" className="w-full rounded-[24px]" />
-
-          <span className="absolute -bottom-3 right-6 hidden h-[78px] w-[78px] items-center justify-center rounded-full bg-[#ececf0] text-[#F05B10] shadow-[0_10px_18px_rgba(0,0,0,0.2)] md:inline-flex">
-            <Check className="h-10 w-10" />
-          </span>
+        <div className="relative mx-auto mt-2 max-w-[620px] lg:mt-0">
+          <img
+            src="/images/landing/Imagem_pag1.png"
+            alt="Fluxo de etapas do projeto na ArqDoor"
+            className="w-full"
+          />
         </div>
       </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/20 to-transparent" />
     </section>
   );
 }
