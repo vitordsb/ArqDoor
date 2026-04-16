@@ -10,8 +10,8 @@ interface LandingHeroSectionProps {
 export default function LandingHeroSection({ primaryCta }: LandingHeroSectionProps) {
   return (
     <section className="relative overflow-hidden bg-[#ffece3] pt-8 md:pt-12">
-      <div className="mx-auto grid w-full max-w-[1360px] gap-8 px-4 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-7">
-        <div className="text-center lg:text-left">
+      <div className="mx-auto grid w-full max-w-[1380px] gap-10 px-4 lg:grid-cols-2 lg:items-start lg:gap-x-16">
+        <div className="max-w-[580px] text-center lg:text-left">
           <h1 className={landingType.heroTitle}>
             Estruture o projeto, <br />
             formalize o contrato <br />
@@ -52,11 +52,11 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
           </div>
         </div>
 
-        <div className="relative mx-auto mt-2 max-w-[620px] lg:mt-0">
+        <div className="relative mt-2 w-full lg:mt-0 lg:justify-self-end">
           <img
             src="/images/landing/Imagem_pag1.png"
             alt="Fluxo de etapas do projeto na ArqDoor"
-            className="w-full"
+            className="w-full max-w-[620px]"
           />
         </div>
       </div>

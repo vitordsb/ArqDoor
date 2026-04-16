@@ -20,10 +20,10 @@ export default function LandingComparisonSection() {
         </h2>
 
         <div className="mt-14">
-          <div className="flex items-start gap-8">
-            {/* Coluna esquerda fixa */}
-            <div className="w-[170px] shrink-0">
-              <div className="mb-6 grid grid-cols-2 items-end gap-x-6">
+          <div className="flex items-start gap-8 items-end">
+            {/* Coluna esquerda */}
+            <div className="w-[200px] shrink-0">
+              <div className="mb-6 grid grid-cols-2 items-end gap-x-5">
                 <div className="flex justify-center">
                   <span className={`text-center ${landingType.comparisonLabel}`}>
                     Modelo
@@ -33,9 +33,7 @@ export default function LandingComparisonSection() {
                 </div>
 
                 <div className="flex justify-center">
-                  <span className="text-center text-base font-extrabold leading-none text-[#ef6a14] sm:text-lg md:text-xl">
-                    ARQ
-                  </span>
+                  <img src="/images/landing/logo.png" alt="ArqDoor" className="h-4 w-auto md:h-7" />
                 </div>
               </div>
 
@@ -43,22 +41,22 @@ export default function LandingComparisonSection() {
                 {highlights.map((item, index) => (
                   <div
                     key={`icons-${index}`}
-                    className="grid h-[62px] grid-cols-2 items-center gap-x-6"
+                    className="grid h-[62px] grid-cols-2 items-center gap-x-4"
                   >
                     <div className="flex justify-center">
-                      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#ff1414]">
+                      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#ff0000]">
                         <X
                           className="h-[30px] w-[30px] text-white"
-                          strokeWidth={3.5}
+                          strokeWidth={3}
                         />
                       </div>
                     </div>
 
                     <div className="flex justify-center">
-                      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#79be08]">
+                      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#77b800]">
                         <Check
                           className="h-[30px] w-[30px] text-white"
-                          strokeWidth={3.5}
+                          strokeWidth={3}
                         />
                       </div>
                     </div>
@@ -75,7 +73,7 @@ export default function LandingComparisonSection() {
                 {highlights.map((item) => (
                   <div
                     key={item}
-                    className="flex h-[62px] items-center rounded-[20px] border border-[#d8d3cf] bg-[#f4f1f1] px-6 shadow-[12px_12px_22px_rgba(0,0,0,0.16)] md:px-8"
+                    className="flex h-[62px] items-center  rounded-[20px] border border-[#d8d3cf] bg-[#f4f1f1] px-6 shadow-[12px_12px_22px_rgba(0,0,0,0.16)] md:px-8"
                   >
                     <p className={landingType.comparisonRow}>
                       {item}
