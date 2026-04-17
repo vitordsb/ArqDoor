@@ -20,7 +20,7 @@ export default function LandingComparisonSection() {
         </h2>
 
         <div className="mt-14">
-          <div className="flex items-start gap-8 items-end">
+          <div className="flex gap-8 items-end">
             {/* Coluna esquerda */}
             <div className="w-[200px] shrink-0">
               <div className="mb-6 grid grid-cols-2 items-end gap-x-5">

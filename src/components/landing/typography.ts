@@ -11,8 +11,8 @@ export const landingType = {
   comparisonTitle: "text-3xl font-semibold leading-tight text-[#121212] sm:text-4xl lg:text-5xl",
   comparisonLabel: "text-[11px] font-bold leading-tight text-[#3f3f3f] sm:text-xs md:text-sm",
   comparisonRow: "text-sm font-bold leading-snug text-[#4a4643] sm:text-base md:text-lg",
-  footerHeading: "text-lg font-bold leading-none sm:text-xl",
-  footerLink: "text-base font-medium leading-snug underline underline-offset-2 transition hover:text-orange-100 sm:text-lg",
-  legal: "text-xs font-medium leading-relaxed text-[#ffe8da] sm:text-sm",
+  footerHeading: "text-lg font-bold leading-none sm:text-xl text-center",
+  footerLink: "text-center font-medium leading-snug underline underline-offset-2 transition hover:text-orange-100 sm:text-lg",
+  legal: "text-sm font-medium leading-relaxed text-[#ffe8da] sm:text-base",
 };
 
