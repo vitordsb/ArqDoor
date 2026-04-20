@@ -7,28 +7,33 @@ const featureCards = [
   {
     title: "Clareza",
     description: "Etapas e entregas definidas",
-    icon: <HiOutlineLightBulb className="h-20 w-20 text-white stroke-[2.2]" />,
+    icon: <HiOutlineLightBulb className="h-20 w-20 text-[#fffffe] transition-colors duration-300 group-hover:text-[#e85a0c]" />,
   },
   {
     title: "Proteção",
     description: "Assinatura eletrônica",
-    icon: <ShieldCheck className="h-10 w-10 text-white stroke-[2.2]" />,
+    icon: <ShieldCheck className="h-10 w-10 text-[#fffffe] transition-colors duration-300 group-hover:text-[#e85a0c]" />,
   },
   {
     title: "Segurança",
     description: "Pagamento intermediado",
-    icon: <LockKeyhole className="h-10 w-10 text-white stroke-[2.2]" />,
+    icon: <LockKeyhole className="h-10 w-10 text-[#fffffe] transition-colors duration-300 group-hover:text-[#e85a0c]" />,
   },
 ];
 
 export default function LandingProductPreviewSection() {
+  const typedPrefix = "Organize o seu trabalho com ";
+  const typedHighlight = "Contratos Digitais Inteligentes";
   const typedText = useTypewriter(
-  "Organize o seu trabalho com Contratos Digitais Inteligentes_",
-  35
-);
+    `${typedPrefix}${typedHighlight}`,
+    35
+  );
+
+  const typedPrefixIsComplete = typedText.length >= typedPrefix.length;
+  const typedHighlightPortion = typedPrefixIsComplete ? typedText.slice(typedPrefix.length) : "";
   return (
-    <section id="sobre" className="bg-[#DADAE6] py-20 ">
-      <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-10 px-4 lg:flex-row lg:items-start lg:gap-6 xl:gap-10">
+    <section id="sobre" className="bg-[#DADAE6] py-24 ">
+      <div className="mx-auto flex w-full max-w-[1280px] flex-col lg:flex-row lg:items-center gap-6 lg:gap-10 xl:gap-16">
 
         <div className="w-full lg:w-[50%] ">
           <img
@@ -48,18 +53,25 @@ export default function LandingProductPreviewSection() {
                 Inteligentes_
               </span>
               
-              <span className="absolute left-0 top-0 w-full font-normal leading-tight text-justify break-words">
-                {typedText}
-                <span className="animate-pulse">|</span>
+              <span className="absolute left-0 top-0 w-full font-semibold leading-tight text-justify break-words">
+                {typedPrefixIsComplete ? (
+                  <>
+                    {typedPrefix}
+                    <span className="text-[#e85a0c]">{typedHighlightPortion}</span>
+                  </>
+                ) : (
+                  typedText
+                )}
+                <span className="animate-pulse text-[#e85a0c]">_</span>
               </span>
             </h2>
 
-            <p className={`mt-14 text-justify ${landingType.sectionBody}`}>
+            <p className={`mt-14 text-justify text-[#636466] ${landingType.sectionBody}`}>
               Na relação entre arquiteto e cliente, a falta de estrutura pode
               gerar dúvidas sobre escopo, pagamentos e responsabilidades.
             </p>
 
-            <p className={`mt-4 text-justify ${landingType.sectionBody}`}>
+            <p className={`mt-4 text-justify text-[#636466] ${landingType.sectionBody}`}>
               Por isso, garanta uma experiência Premium para o seu cliente
               utilizando os nossos Contratos Digitais Inteligentes, e evite
               atritos desnecessários.
@@ -70,9 +82,9 @@ export default function LandingProductPreviewSection() {
             {featureCards.map((card) => (
               <article
                 key={card.title}
-                className="flex w-full max-w-[320px] mx-auto flex-col items-center rounded-[18px] bg-[#F05A0F] px-2 py-5 text-center text-white shadow-[0_15px_35px_rgba(0,0,0,0.3),0_10px_15px_rgba(0,0,0,0.2)]"
+                className="group mx-auto flex w-full max-w-[320px] flex-col items-center rounded-[18px] bg-[#F05A0F] px-2 py-5 text-center text-[#1F2937] shadow-[0_10px_28px_rgba(240,90,15,0.16)] transition-all duration-300 hover:-translate-y-1 hover:bg-[#fffffe] hover:text-[#F05A0F] hover:shadow-[0_16px_34px_rgba(240,90,15,0.35)]"
               >
-                <h3 className={landingType.cardTitle}>
+                <h3 className={`${landingType.miniCardTitle} text-[#fffffe] transition-colors duration-300 group-hover:text-[#e85a0c]`}>
                   {card.title}
                 </h3>
 
@@ -80,7 +92,7 @@ export default function LandingProductPreviewSection() {
                   {card.icon}
                 </div>
 
-                <p className={"mt-4 font-medium text-white"}>
+                <p className="mt-4 font-normal text-[#fffffe] transition-colors duration-300 group-hover:text-[#e85a0c]">
                   {card.description}
                 </p>
               </article>

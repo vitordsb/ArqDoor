@@ -14,19 +14,19 @@ const navItems = [
 
 export default function LandingHeader({ primaryCta }: LandingHeaderProps) {
   return (
-    <header className="relative z-40 bg-[#ffece3] pt-5">
-      <div className="mx-auto w-full max-w-[1360px] px-10">
-        <div className="flex h-[60px] items-center justify-between rounded-[999px] border border-[#cec5bf] bg-[#f9ede7] px-3 md:px-6">
+    <header className="relative z-40 border-b border-[#e6e6e6] bg-[#FFF]">
+      <div className="mx-auto w-full max-w-[1600px] px-6 md:px-12">
+        <div className="flex h-[80px] items-center max-w-[1280px] mx-auto">
           <Link href="/" className="inline-flex items-center">
-            <img src="/images/landing/logo.png" alt="ArqDoor" className="h-4 w-auto md:h-8" />
+            <img src="/images/landing/logo.png" alt="ArqDoor" className="h-5 w-auto md:h-9" />
           </Link>
 
-          <nav className="hidden items-center gap-9 xl:flex">
+          <nav className="mx-auto hidden items-center gap-10 lg:flex">
             {navItems.map((item) => (
               <a
                 key={item.label}
                 href={item.href}
-                className={landingType.navLink}
+                className={`${landingType.navLink} text-[#4A5565] hover:text-[#e85a0c]`}
               >
                 {item.label}
               </a>
@@ -35,7 +35,7 @@ export default function LandingHeader({ primaryCta }: LandingHeaderProps) {
 
           <Button
             asChild
-            className={`h-12 rounded-[16px] bg-[#e45712] px-4 text-white hover:bg-[#ce4f0f] md:h-[40px] md:rounded-[14px] md:px-8 ${landingType.navButton}`}
+            className={`h-[40px] rounded-xl bg-[#e85a0c] px-7 text-white shadow-[0_3px_8px_rgba(0,0,0,0.18)] hover:bg-[#cf4f0a] md:px-8 ${landingType.navButton}`}
           >
             <Link href={primaryCta.href}>{primaryCta.label}</Link>
           </Button>

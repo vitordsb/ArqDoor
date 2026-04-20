@@ -9,14 +9,14 @@ interface LandingHeroSectionProps {
 
 export default function LandingHeroSection({ primaryCta }: LandingHeroSectionProps) {
   return (
-    <section className="relative overflow-hidden bg-[#ffece3] pt-8 md:pt-12">
-      <div className="mx-auto grid w-full max-w-[1380px] gap-10 px-4 lg:grid-cols-2 lg:items-start lg:gap-x-16">
-        <div className="max-w-[580px] text-center lg:text-left">
+    <section className="relative overflow-hidden bg-[#fffaf3] pt-12 md:pt-[74px]">
+      <div className="mx-auto grid w-full max-w-[1280px] gap-10 px-4 lg:grid-cols-2 lg:items-start lg:gap-x-16">
+        <div className="max-w-[580px] text-center lg:text-left ">
           <h1 className={landingType.heroTitle}>
             Estruture o projeto, <br />
             formalize o contrato <br />
             e receba com
-            <span className="mt-4 block w-fit bg-[#e45712] px-2 py-2 pb-4 text-white">
+            <span className={landingType.heroSpan}>
               mais segurança
             </span>
           </h1>
@@ -36,12 +36,12 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
 
             <a
               href="#escrow"
-              className="mt-2 inline-flex items-center gap-2 text-base font-semibold leading-snug text-[#e75812] sm:text-lg md:text-xl"
+              className="mt-2 inline-flex items-center gap-2 text-base font-semibold leading-snug text-[#e75812] border border-[#e75812] bg-[#FFF7ED] rounded-[16px] px-4 py-3"
             >
               <svg
                 viewBox="0 0 36 36"
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 flex-shrink-0 md:h-8 md:w-8"
+                className="h-4 w-4 flex-shrink-0 md:h-6 md:w-6"
                 fill="currentColor"
               >
                 <path d="M31.25,7.4a43.79,43.79,0,0,1-6.62-2.35,45,45,0,0,1-6.08-3.21L18,1.5l-.54.35a45,45,0,0,1-6.08,3.21A43.79,43.79,0,0,1,4.75,7.4L4,7.59v8.34c0,13.39,13.53,18.4,13.66,18.45l.34.12.34-.12c.14,0,13.66-5.05,13.66-18.45V7.59Zm-4.57,6.65L15.51,24.9,9.19,18.57a1.4,1.4,0,0,1,2-2L15.54,21,24.73,12a1.4,1.4,0,1,1,2,2Z" />
