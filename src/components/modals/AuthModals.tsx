@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { RegisterInterface, LoginInterface } from "@/lib/Interfaces";
 import { useGoogleLogin } from "@react-oauth/google";
+import { apiRequest } from "@/lib/queryClient";
 
 // --- Small helpers -----------------------------------------------------------
 function DialogShell({
@@ -156,7 +157,11 @@ export const AuthModals: React.FC<{
     const [registerLoading, setRegisterLoading] = useState(false);
     const [googleLoginLoading, setGoogleLoginLoading] = useState(false);
     const [googleRegisterLoading, setGoogleRegisterLoading] = useState(false);
-  const [emailToPreFill, setEmailToPreFill] = useState<string>("");
+    const [emailToPreFill, setEmailToPreFill] = useState<string>("");
+    const [forgotOpen, setForgotOpen] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState("");
+    const [forgotLoading, setForgotLoading] = useState(false);
+    const [forgotSent, setForgotSent] = useState(false);
     const googleModeRef = useRef<"login" | "register" | null>(null);
     const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -394,8 +399,62 @@ export const AuthModals: React.FC<{
       return s; // 0..4
     }, [registerForm.watch("password")]);
 
+    async function handleForgotPassword() {
+      if (!forgotEmail.trim()) {
+        toast({ title: "Informe o e-mail", variant: "destructive" });
+        return;
+      }
+      setForgotLoading(true);
+      try {
+        const res = await apiRequest("POST", "/auth/forgot-password", { email: forgotEmail.trim() });
+        const json = await res.json();
+        if (json.success) {
+          setForgotSent(true);
+        } else {
+          toast({ title: json.message || "Erro ao enviar e-mail", variant: "destructive" });
+        }
+      } catch {
+        toast({ title: "Erro ao enviar e-mail", variant: "destructive" });
+      } finally {
+        setForgotLoading(false);
+      }
+    }
+
     return (
       <>
+        {/* FORGOT PASSWORD */}
+        <Dialog open={forgotOpen} onOpenChange={(v) => { setForgotOpen(v); if (!v) { setForgotSent(false); setForgotEmail(""); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Esqueci minha senha</DialogTitle>
+              <DialogDescription>
+                {forgotSent
+                  ? "Verifique seu e-mail — enviamos o link de redefinição."
+                  : "Informe seu e-mail e enviaremos um link para redefinir a senha."}
+              </DialogDescription>
+            </DialogHeader>
+            {!forgotSent ? (
+              <div className="space-y-4 pt-1">
+                <Input
+                  type="email"
+                  placeholder="voce@exemplo.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleForgotPassword()}
+                />
+                <Button className="w-full" disabled={forgotLoading} onClick={handleForgotPassword}>
+                  {forgotLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enviar link
+                </Button>
+              </div>
+            ) : (
+              <Button variant="outline" className="w-full mt-2" onClick={() => { setForgotOpen(false); setForgotSent(false); setForgotEmail(""); }}>
+                Fechar
+              </Button>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* LOGIN */}
         <Dialog open={isLoginOpen} onOpenChange={onLoginClose}>
           <DialogContent className="max-w-md border-0 bg-transparent p-0">
@@ -431,8 +490,14 @@ export const AuthModals: React.FC<{
                       </FormItem>
                     )}
                   />
-                  <div className="text-left text-sm text-muted-foreground hover:underline">
-                    <a href="#">Esqueci minha senha</a>
+                  <div className="text-left">
+                    <button
+                      type="button"
+                      className="text-sm text-muted-foreground hover:underline"
+                      onClick={() => setForgotOpen(true)}
+                    >
+                      Esqueci minha senha
+                    </button>
                   </div>
                   <Button type="submit" disabled={loginLoading} className="w-full">
                     {loginLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

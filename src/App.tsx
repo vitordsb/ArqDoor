@@ -9,7 +9,7 @@ import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { setResumeRoute } from "@/lib/utils";
 
-const LANDING_ROUTES = ["/", "/auth"];
+const LANDING_ROUTES = ["/", "/auth", "/nova-senha"];
 const ADMIN_ROUTES = ["/admin"];
 
 // Route-level code splitting: reduces the initial JS payload in production.
@@ -28,6 +28,8 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const Invites = lazy(() => import("@/pages/Invites"));
 const InvitePublic = lazy(() => import("@/pages/InvitePublic"));
 const Connections = lazy(() => import("@/pages/Connections"));
+const KanbanPage = lazy(() => import("@/pages/KanbanPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 
 function RouteLoading() {
   return (
@@ -59,6 +61,8 @@ function Router() {
         <Route path="/admin"><Admin /></Route>
         <Route path="/convites"><Invites /></Route>
         <Route path="/convite/:token"><InvitePublic /></Route>
+        <Route path="/kanban"><KanbanPage /></Route>
+        <Route path="/nova-senha"><ResetPasswordPage /></Route>
         <Route path="/termos-de-uso"><NotFound /></Route>
         <Route><NotFound /></Route>
       </Switch>

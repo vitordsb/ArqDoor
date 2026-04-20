@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, Home, Newspaper, Image, ShoppingBag, User, LogOut, MessageCircle, Link2, Users } from "lucide-react";
+import { Menu, Home, Newspaper, Image, User, LogOut, MessageCircle, Link2, Users, LayoutDashboard } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -98,6 +98,11 @@ const Navbar = () => {
                   </div>
                 </Link>
               )}
+              <Link href="/kanban">
+                <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
+                  <LayoutDashboard className="w-4 h-4" /> Kanban
+                </div>
+              </Link>
             </>
           )}
           {isLoggedIn && (
@@ -185,6 +190,13 @@ const Navbar = () => {
                 {isLoggedIn && user?.type === "prestador" && (
                   <Link href="/convites">
                     <div className="text-gray-700 hover:text-amber-500">Convites</div>
+                  </Link>
+                )}
+                {isLoggedIn && (
+                  <Link href="/kanban">
+                    <div className="flex items-center gap-1 text-gray-700 hover:text-amber-500">
+                      <LayoutDashboard className="h-4 w-4" /> Kanban
+                    </div>
                   </Link>
                 )}
                 {isLoggedIn && (
