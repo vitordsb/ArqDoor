@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import type { LandingPrimaryCta } from "@/components/landing/types";
 import { landingType } from "@/components/landing/typography";
@@ -7,26 +8,74 @@ interface LandingHeroSectionProps {
   primaryCta: LandingPrimaryCta;
 }
 
+const fadeLeft = {
+  hidden: { opacity: 0, x: -40 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.7, ease: "easeOut" },
+  },
+};
+
+const fadeRight = {
+  hidden: { opacity: 0, x: 40 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.8, ease: "easeOut" },
+  },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: "easeOut" },
+  },
+};
+
 export default function LandingHeroSection({ primaryCta }: LandingHeroSectionProps) {
   return (
     <section className="relative overflow-hidden bg-[#fffaf3] pt-12 md:pt-[74px]">
       <div className="mx-auto grid w-full max-w-[1280px] gap-10 px-4 lg:grid-cols-2 lg:items-start lg:gap-x-16">
-        <div className="max-w-[580px] text-center lg:text-left ">
-          <h1 className={landingType.heroTitle}>
+        <motion.div
+          className="max-w-[580px] text-center lg:text-left"
+          variants={fadeLeft}
+          initial="hidden"
+          animate="visible"
+        >
+          <motion.h1
+            className={landingType.heroTitle}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ delay: 0.1 }}
+          >
             Estruture o projeto, <br />
             formalize o contrato <br />
             e receba com
-            <span className={landingType.heroSpan}>
-              mais segurança
-            </span>
-          </h1>
+            <span className={landingType.heroSpan}> mais segurança</span>
+          </motion.h1>
 
-          <p className={`mx-auto mt-6 max-w-[700px] lg:mx-0 lg:max-w-[550px] ${landingType.heroBody}`}>
+          <motion.p
+            className={`mx-auto mt-6 max-w-[700px] lg:mx-0 lg:max-w-[550px] ${landingType.heroBody}`}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ delay: 0.25 }}
+          >
             Com a ArqDoor, arquitetos e engenheiros organizam seus projetos por etapas, definem valores por fase, formalizam o
             contrato e contam com intermediação segura de pagamentos em uma única plataforma.
-          </p>
+          </motion.p>
 
-          <div className="mt-6 flex flex-col items-center gap-5 lg:items-start">
+          <motion.div
+            className="mt-6 flex flex-col items-center gap-5 lg:items-start"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ delay: 0.4 }}
+          >
             <Button
               asChild
               className={`inline-flex items-center justify-center rounded-[16px] bg-[#e45712] px-4 py-6 font-medium text-white transition-colors hover:bg-[#ce4f0f] md:px-11 ${landingType.buttonText}`}
@@ -36,7 +85,7 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
 
             <a
               href="#escrow"
-              className="mt-2 inline-flex items-center gap-2 text-base font-semibold leading-snug text-[#e75812] border border-[#e75812] bg-[#FFF7ED] rounded-[16px] px-4 py-3"
+              className="mt-2 inline-flex items-center gap-2 rounded-[16px] border border-[#e75812] bg-[#FFF7ED] px-4 py-3 text-base font-semibold leading-snug text-[#e75812] transition-all duration-300 hover:scale-[1.02] hover:shadow-md"
             >
               <svg
                 viewBox="0 0 36 36"
@@ -49,16 +98,22 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
 
               Utilize Escrow e proteja 100% dos seus honorários
             </a>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
-        <div className="relative mt-2 w-full lg:mt-0 lg:justify-self-end">
+        <motion.div
+          className="relative mt-2 w-full lg:mt-0 lg:justify-self-end"
+          variants={fadeRight}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.2 }}
+        >
           <img
             src="/images/landing/Imagem_pag1.png"
             alt="Fluxo de etapas do projeto na ArqDoor"
             className="w-full max-w-[620px]"
           />
-        </div>
+        </motion.div>
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/20 to-transparent" />

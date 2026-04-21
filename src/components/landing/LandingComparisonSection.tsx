@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { Check, X } from "lucide-react";
 import { landingType } from "@/components/landing/typography";
 
@@ -9,80 +10,169 @@ const highlights = [
   "Gestão e organização 100% digital dos documentos das suas obras",
 ];
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: "easeOut" },
+  },
+};
+
+const leftCard = {
+  hidden: { opacity: 0, x: -40 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.7, ease: "easeOut" },
+  },
+};
+
+const rightCard = {
+  hidden: { opacity: 0, x: 40 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.7, ease: "easeOut", delay: 0.1 },
+  },
+};
+
+const listContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+const listItem = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35 },
+  },
+};
+
 export default function LandingComparisonSection() {
   return (
-    <section className="w-full bg-[#d9d9e6] py-20">
+    <section className="w-full bg-white py-16">
       <div className="mx-auto max-w-[1280px] px-6">
-        <h2 className={`mx-auto max-w-[980px] text-center ${landingType.comparisonTitle}`}>
+        <motion.h2
+          className={`mx-auto max-w-[880px] text-center ${landingType.comparisonTitle}`}
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+        >
           Já é hora de atualizar o seu modo
           <br />
           de trabalho
-        </h2>
+        </motion.h2>
 
-        <div className="mt-14">
-          <div className="flex gap-8 items-end">
-            {/* Coluna esquerda */}
-            <div className="w-[200px] shrink-0">
-              <div className="mb-6 grid grid-cols-2 items-end gap-x-5">
-                <div className="flex justify-center">
-                  <span className={`text-center ${landingType.comparisonLabel}`}>
-                    Modelo
-                    <br />
-                    tradicional
+        <motion.p
+          className={landingType.sectionSubtitle}
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          transition={{ delay: 0.1 }}
+        >
+          Compare como o ARQ transforma a gestão de obras e contratos, protegendo você e seus clientes.
+        </motion.p>
+
+        <div className="mx-auto mt-12 mb-10 grid max-w-[900px] gap-10 lg:grid-cols-2">
+          
+          {/* TRADICIONAL */}
+          <motion.article
+            variants={leftCard}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="rounded-[28px] border border-[#d2d7de] bg-[#f8f8f8] p-5 sm:p-6"
+          >
+            <div className="mx-auto mb-6 w-fit rounded-[18px] bg-[#d4d4d4] px-6 py-3 text-center text-[16px] font-bold text-[#4B5563] sm:text-[17px]">
+              Modelo tradicional
+            </div>
+
+            <motion.div
+              className="space-y-3"
+              variants={listContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+            >
+              {highlights.map((item) => (
+                <motion.div
+                  key={`traditional-${item}`}
+                  variants={listItem}
+                  className="flex items-start gap-3 rounded-[14px] border border-[#E5E7EB] bg-[#ebebeb] px-4 py-3"
+                >
+                  <span className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#ef4444] text-white">
+                    <X className="h-4 w-4" strokeWidth={3} />
                   </span>
-                </div>
 
-                <div className="flex justify-center">
-                  <img src="/images/landing/logo.png" alt="ArqDoor" className="h-4 w-auto md:h-7" />
-                </div>
-              </div>
+                  <p className="leading-snug text-[#5d6878] sm:text-sm font-medium">
+                    {item}
+                  </p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.article>
 
-              <div className="space-y-6">
-                {highlights.map((item, index) => (
-                  <div
-                    key={`icons-${index}`}
-                    className="grid h-[62px] grid-cols-2 items-center gap-x-4"
-                  >
-                    <div className="flex justify-center">
-                      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#ff0000]">
-                        <X
-                          className="h-[30px] w-[30px] text-white"
-                          strokeWidth={3}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-center">
-                      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#77b800]">
-                        <Check
-                          className="h-[30px] w-[30px] text-white"
-                          strokeWidth={3}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* ARQDOOR */}
+          <motion.article
+            variants={rightCard}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            animate={{
+              boxShadow: [
+                "0 10px 25px rgba(249,115,22,0.15)",
+                "0 18px 40px rgba(249,115,22,0.35)",
+                "0 10px 25px rgba(249,115,22,0.15)",
+              ],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="rounded-[28px] border-2 border-[#f97316] bg-[#fbf7f4] p-5 sm:p-6"
+          >
+            <div className="mx-auto mb-6 w-fit rounded-[18px] bg-[#f97316] px-6 py-3 shadow-[0_10px_20px_rgba(249,115,22,0.25)]">
+              <img
+                src="/images/landing/logo_branca.png"
+                alt="ArqDoor"
+                className="h-6 w-auto opacity-90 sm:h-7"
+              />
             </div>
 
-            {/* Coluna direita com cards */}
-            <div className="min-w-0 flex-1">
-              <div className="h-[34px]" />
+            <motion.div
+              className="space-y-3"
+              variants={listContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+            >
+              {highlights.map((item) => (
+                <motion.div
+                  key={`arq-${item}`}
+                  variants={listItem}
+                  className="flex items-start gap-3 rounded-[14px] border border-[#f6d8c7] bg-white px-4 py-3"
+                >
+                  <span className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white">
+                    <Check className="h-4 w-4" strokeWidth={3} />
+                  </span>
 
-              <div className="space-y-6">
-                {highlights.map((item) => (
-                  <div
-                    key={item}
-                    className="flex h-[62px] items-center  rounded-[20px] border border-[#d8d3cf] bg-[#f4f1f1] px-6 shadow-[12px_12px_22px_rgba(0,0,0,0.16)] md:px-8"
-                  >
-                    <p className={landingType.comparisonRow}>
-                      {item}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                  <p className="leading-snug text-[#444444] sm:text-sm font-medium">
+                    {item}
+                  </p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.article>
         </div>
       </div>
     </section>
