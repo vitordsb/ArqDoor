@@ -10,6 +10,14 @@ const highlights = [
   "Gestão e organização 100% digital dos documentos das suas obras",
 ];
 
+const highlightsTrad = [
+  "Cliente sem clareza do que foi entregue em cada fase", 
+  "Risco de calote e cobrança constrangedora após a entrega",
+  "Assinar contrato, cobrar e acompanhar em 3 lugares diferentes",
+  "Sem respaldo jurídico quando o cliente contesta o serviço",
+  "Papelada perdida, versões desatualizadas e retrabalho constante",
+];
+
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   visible: {
@@ -103,7 +111,7 @@ export default function LandingComparisonSection() {
               whileInView="visible"
               viewport={{ once: true }}
             >
-              {highlights.map((item) => (
+              {highlightsTrad.map((item) => (
                 <motion.div
                   key={`traditional-${item}`}
                   variants={listItem}
