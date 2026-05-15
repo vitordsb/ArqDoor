@@ -648,13 +648,16 @@ export function useContract(conversationId?: number) {
         return new Date(`${datePart}T12:00:00`);
       };
 
-      const tomorrowDate = getFutureDateIso(1);
-      const dayAfterTomorrowDate = getFutureDateIso(2);
-      const SIGN_STEP: Omit<CreateStepRequest, "ticket_id"> & { start_date: string; end_date: string } = {
+      // Etapa de assinatura: ocupa apenas o dia de hoje (janela zero).
+      // Hoje em dia assinatura digital + PIX são instantâneos, não há motivo
+      // pra reservar dias. A primeira etapa real pode começar a partir de amanhã.
+      const todayDate = getFutureDateIso(0);
+      const SIGN_STEP: Omit<CreateStepRequest, "ticket_id"> & { start_date: string; end_date: string; is_signature_step?: boolean } = {
         title: SIGNATURE_STEP_TITLE,
         price: 0,
-        start_date: tomorrowDate,
-        end_date: dayAfterTomorrowDate,
+        start_date: todayDate,
+        end_date: todayDate,
+        is_signature_step: true,
       };
       const stepsToCreate = [SIGN_STEP, ...validSteps] as (Omit<CreateStepRequest, "ticket_id"> & { start_date?: string | null, endDate?: string | null })[];
       const totalPrice = stepsToCreate.reduce((acc, s, index) => {
@@ -688,16 +691,27 @@ export function useContract(conversationId?: number) {
         if (!ticketId) throw new Error("ID do ticket não retornado pela API");
 
         // criar grupos de pagamento do fluxo em garantia
+        // Filtra grupos sem etapas (grupos vazios criados pelo prestador no UI
+        // não devem ser persistidos para não confundir o cliente).
+        const referencedGroupIds = new Set(
+          stepsToCreate
+            .map((s: any) => s.payment_group_id ?? s.paymentGroupId)
+            .filter((id: any): id is number => typeof id === "number")
+        );
+        const usedGroups = (paymentGroups || []).filter((g) =>
+          referencedGroupIds.has(g.id)
+        );
+
         const groupIdMap = new Map<number, number>();
-        if (paymentGroups && paymentGroups.length > 0) {
-          console.log("Processando grupos de pagamento:", paymentGroups);
-          for (const group of paymentGroups) {
+        if (usedGroups.length > 0) {
+          console.log("Processando grupos de pagamento:", usedGroups);
+          for (const group of usedGroups) {
             try {
               console.log("Criando grupo:", group);
               const gRes = await apiRequest("POST", "/payment-groups", {
                 ticket_id: ticketId,
                 name: group.name,
-                sequence: group.id
+                sequence: group.id,
               });
               if (gRes.ok) {
                 const gJson = await gRes.json();
@@ -808,6 +822,9 @@ export function useContract(conversationId?: number) {
             start_date: safeStartDate.toISOString(),
             end_date: safeEndDate.toISOString(),
             group_id: realGroupId,
+            // Apenas a primeira etapa (assinatura) recebe a flag.
+            // Etapas comuns omitem o campo (default false no banco).
+            ...(isSignatureStep ? { is_signature_step: true } : {}),
           };
 
           const sRes = await apiRequest("POST", "/step", stepPayload);
@@ -838,6 +855,23 @@ export function useContract(conversationId?: number) {
             );
           }
         }
+
+        // Aplica a taxa de plataforma de 5% (teto R$ 1.500) sobre as etapas
+        // cobráveis. Backend redistribui o valor — preço de cada etapa passa
+        // a incluir sua parcela da taxa. Falha aqui é não-fatal: a proposta
+        // funciona mas sem a taxa aplicada (admin pode reaplicar depois).
+        try {
+          const feeRes = await apiRequest("POST", `/ticket/${ticketId}/finalize-fee`);
+          if (!feeRes.ok) {
+            console.warn(
+              "[finalize-fee] Falha ao aplicar taxa de plataforma:",
+              await feeRes.text().catch(() => "")
+            );
+          }
+        } catch (feeError) {
+          console.warn("[finalize-fee] Erro de rede ao aplicar taxa:", feeError);
+        }
+
         const uploaded = await uploadPDF(ticketId, contractFile);
         if (!uploaded || (uploaded as any)?.success === false) {
           await deleteTicket(ticketId);

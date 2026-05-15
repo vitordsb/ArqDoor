@@ -286,7 +286,11 @@ export default function ProviderProfilePage() {
   };
 
   const hasAbout = !!provider?.about?.trim();
-  const hasDocuments = !!(user?.cpf?.trim?.() || user?.cnpj?.trim?.());
+  // "hasDocuments" agora reflete a verificação do admin (feita via WhatsApp),
+  // não apenas o preenchimento de CPF/CNPJ. Antes a barra mostrava "Pendente"
+  // mesmo com CPF preenchido pois a verificação real era manual.
+  const isVerified = (user as any)?.is_verified === true;
+  const hasDocuments = isVerified;
   const hasProfession = !!provider?.profession?.trim();
   const baseTotal = 3;
   const baseCompleted = Number(hasAbout) + Number(hasDocuments) + Number(hasProfession);
@@ -346,7 +350,11 @@ export default function ProviderProfilePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={hasDocuments ? "default" : "secondary"}>Documentos</Badge>
-                    <span>{hasDocuments ? "CPF/CNPJ cadastrado" : "Pendente"}</span>
+                    <span>
+                      {hasDocuments
+                        ? "Verificado pelo admin"
+                        : "Pendente — solicite verificação no WhatsApp"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={hasProfession ? "default" : "secondary"}>Profissão</Badge>
@@ -355,10 +363,6 @@ export default function ProviderProfilePage() {
                   <div className="flex items-center gap-2">
                     <Badge variant={hasPortfolio ? "default" : "outline"}>Portfólio</Badge>
                     <span>{hasPortfolio ? "Destaques publicados" : "Opcional (impulsiona confiança)"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={hasServices ? "default" : "outline"}>Serviços</Badge>
-                    <span>{hasServices ? "Serviços na plataforma" : "Opcional (impulsiona confiança)"}</span>
                   </div>
                 </div>
               </CardContent>

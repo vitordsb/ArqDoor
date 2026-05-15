@@ -248,13 +248,108 @@ export function ProposalDetailsDialog({
       group.total += Number(step.price || 0);
       
       const stepPaid = Boolean((step as any).is_financially_cleared) || Boolean((step as any).paid);
-      if (!stepPaid && Number(step.price || 0) > 0 && step.title !== SIGNATURE_STEP_TITLE) {
+      if (!stepPaid && Number(step.price || 0) > 0 && !isSignatureContractStep(step)) {
         group.paid = false;
       }
     });
 
     return groups;
   }, [steps, isCustomPayment]);
+
+  // Contagem de fases de pagamento concluídas para mostrar progresso no header.
+  // Substitui o badge "Pagamento parcial" por uma informação mais útil.
+  const paymentPhasesProgress = React.useMemo(() => {
+    if (!groupedSteps.length) return null;
+    const billable = groupedSteps.filter((g) => g.total > 0);
+    if (!billable.length) return null;
+    const paid = billable.filter((g) => g.paid).length;
+    return { paid, total: billable.length };
+  }, [groupedSteps]);
+
+  // Itens da sidebar de progresso. Emite um badge "Grupo X — R$ Y" antes do
+  // primeiro step de cada grupo, depois lista os steps na sequência.
+  const progressSidebarItems = React.useMemo(() => {
+    type SidebarItem =
+      | { kind: "group"; key: string; name: string; total: number; paid: boolean }
+      | { kind: "step"; key: string; step: Step; status: "concluido" | "andamento" | "pendente" };
+
+    const items: SidebarItem[] = [];
+    const seenGroups = new Set<string>();
+
+    steps.forEach((step) => {
+      const groupKey =
+        (step as any).group_id ||
+        (step as any).payment_group_id ||
+        (step as any).group_sequence ||
+        null;
+
+      if (groupKey != null) {
+        const gid = String(groupKey);
+        if (!seenGroups.has(gid)) {
+          seenGroups.add(gid);
+          const group = groupedSteps.find((g) => {
+            const stepGroup =
+              (step as any).group_id ||
+              (step as any).payment_group_id ||
+              (step as any).group_sequence;
+            return g.steps.some((s: any) => {
+              const sg =
+                (s as any).group_id ||
+                (s as any).payment_group_id ||
+                (s as any).group_sequence;
+              return sg === stepGroup;
+            });
+          });
+          if (group && group.total > 0) {
+            items.push({
+              kind: "group",
+              key: `group-${gid}`,
+              name: group.name || `Grupo ${gid}`,
+              total: group.total,
+              paid: group.paid,
+            });
+          }
+        }
+      }
+
+      const normalizedStatus = String(step.status || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "");
+      let status: "concluido" | "andamento" | "pendente" = "pendente";
+      if (normalizedStatus === "concluido") status = "concluido";
+      else if (normalizedStatus === "em andamento") status = "andamento";
+
+      items.push({
+        kind: "step",
+        key: `step-${step.id}`,
+        step,
+        status,
+      });
+    });
+
+    return items;
+  }, [steps, groupedSteps]);
+
+  // Total e duração do contrato pra exibir no rodapé da sidebar.
+  const contractSummary = React.useMemo(() => {
+    const total = steps.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+    let durationDays: number | null = null;
+    const dates = steps
+      .flatMap((s) => [(s as any).start_date, (s as any).end_date])
+      .filter(Boolean)
+      .map((d) => new Date(d).getTime())
+      .filter((t) => !Number.isNaN(t));
+
+    if (dates.length >= 2) {
+      const min = Math.min(...dates);
+      const max = Math.max(...dates);
+      durationDays = Math.max(1, Math.ceil((max - min) / (1000 * 60 * 60 * 24)));
+    }
+
+    return { total, durationDays };
+  }, [steps]);
 
 
   const resetFeedbackModal = () => {
@@ -311,11 +406,11 @@ export function ProposalDetailsDialog({
       <Dialog open={open} onOpenChange={(v) => {
         onOpenChange(v);
       }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <DialogTitle>Detalhes da Proposta</DialogTitle>
+                <DialogTitle>Detalhes do Serviço</DialogTitle>
                 <DialogDescription>Veja o status e as ações disponíveis para cada etapa.</DialogDescription>
               </div>
               {userType === "prestador" &&
@@ -334,16 +429,18 @@ export function ProposalDetailsDialog({
                   </Button>
                 )}
             </div>
-            {(paymentModeLabel || paymentStatusLabel || receivingMethodLabel) && (
-              <div className="mt-3 flex flex-wrap gap-2">
+            {(paymentModeLabel || receivingMethodLabel || paymentPhasesProgress) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {paymentModeLabel && (
                   <Badge variant="outline">{paymentModeLabel}</Badge>
                 )}
                 {receivingMethodLabel && (
                   <Badge variant="outline">{receivingMethodLabel}</Badge>
                 )}
-                {paymentStatusLabel && (
-                  <Badge variant="outline">{paymentStatusLabel}</Badge>
+                {paymentPhasesProgress && (
+                  <span className="text-sm font-semibold text-slate-900">
+                    {paymentPhasesProgress.paid} de {paymentPhasesProgress.total} {paymentPhasesProgress.total === 1 ? "Fase" : "Fases"} de pagamento {paymentPhasesProgress.paid === 1 ? "realizada" : "realizadas"}
+                  </span>
                 )}
               </div>
             )}
@@ -361,8 +458,143 @@ export function ProposalDetailsDialog({
               </p>
             </div>
           </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto pr-2">
+
+          <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
+            {/* Sidebar de progresso — empilha em cima do conteúdo em mobile */}
+            {steps.length > 0 && (
+              <aside className="md:w-72 md:flex-shrink-0 md:overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 mb-4">
+                  Progresso
+                </h3>
+                <div>
+                  {progressSidebarItems.map((item, idx) => {
+                    const isLast = idx === progressSidebarItems.length - 1;
+
+                    // Cor da linha: verde se a etapa atual está concluída
+                    // (pinta o trecho até a próxima etapa). Caso contrário cinza.
+                    const lineColorClass =
+                      item.kind === "step" && item.status === "concluido"
+                        ? "bg-emerald-400"
+                        : item.kind === "group" && item.paid
+                          ? "bg-emerald-400"
+                          : "bg-slate-300";
+
+                    if (item.kind === "group") {
+                      return (
+                        <div key={item.key} className="relative flex items-stretch gap-3">
+                          {/* Coluna da linha — mesma largura da coluna do dot pra alinhar */}
+                          <div className="relative w-5 flex-shrink-0">
+                            {!isLast && (
+                              <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 ${lineColorClass}`} />
+                            )}
+                          </div>
+                          <div className="flex-1 py-2">
+                            <div
+                              className={`inline-block rounded-md px-2.5 py-1 text-xs font-medium ${
+                                item.paid
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {item.name} —{" "}
+                              {new Intl.NumberFormat("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              }).format(item.total)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const dotClass =
+                      item.status === "concluido"
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : item.status === "andamento"
+                          ? "bg-blue-500 border-blue-500"
+                          : "bg-white border-slate-300";
+
+                    const statusLabel =
+                      item.status === "concluido"
+                        ? "Concluído"
+                        : item.status === "andamento"
+                          ? "Em andamento"
+                          : "Pendente";
+
+                    return (
+                      <div key={item.key} className="relative flex items-stretch gap-3">
+                        <div className="relative w-5 flex-shrink-0">
+                          {/* Linha de cima — só renderiza se não é o primeiro item */}
+                          {idx > 0 && (
+                            <div
+                              className={`absolute top-0 left-1/2 -translate-x-1/2 w-0.5 ${
+                                progressSidebarItems[idx - 1].kind === "step" &&
+                                (progressSidebarItems[idx - 1] as any).status === "concluido"
+                                  ? "bg-emerald-400"
+                                  : progressSidebarItems[idx - 1].kind === "group" &&
+                                    (progressSidebarItems[idx - 1] as any).paid
+                                    ? "bg-emerald-400"
+                                    : "bg-slate-300"
+                              }`}
+                              style={{ height: "calc(50% - 10px)" }}
+                            />
+                          )}
+                          {/* Bolinha de status no centro vertical */}
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                            <div
+                              className={`h-5 w-5 rounded-full border-2 flex items-center justify-center text-[10px] ${dotClass}`}
+                            >
+                              {item.status === "concluido" && "✓"}
+                            </div>
+                          </div>
+                          {/* Linha de baixo — só renderiza se não é o último item */}
+                          {!isLast && (
+                            <div
+                              className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-0.5 ${lineColorClass}`}
+                              style={{ height: "calc(50% - 10px)" }}
+                            />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 py-2">
+                          <p
+                            className={`text-sm font-medium truncate ${
+                              item.status === "pendente" ? "text-slate-400" : "text-slate-900"
+                            }`}
+                            title={item.step.title}
+                          >
+                            {item.step.title}
+                          </p>
+                          <p className="text-xs text-slate-500">{statusLabel}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(contractSummary.total > 0 || contractSummary.durationDays) && (
+                  <div className="mt-6 pt-4 border-t border-slate-200">
+                    {contractSummary.total > 0 && (
+                      <p className="text-xs text-slate-500">Total do contrato</p>
+                    )}
+                    {contractSummary.total > 0 && (
+                      <p className="text-base font-semibold text-slate-900">
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(contractSummary.total)}
+                      </p>
+                    )}
+                    {contractSummary.durationDays && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {contractSummary.durationDays} {contractSummary.durationDays === 1 ? "dia" : "dias"} de duração
+                      </p>
+                    )}
+                  </div>
+                )}
+              </aside>
+            )}
+
+            <div className="flex-1 overflow-y-auto pr-2">
 
           {loading ? (
             <div className="text-center py-8">Carregando…</div>
@@ -373,49 +605,43 @@ export function ProposalDetailsDialog({
           ) : (
             <div className="space-y-4">
               {groupedSteps.map((group) => (
-                <div
-                  key={group.id}
-                  className={`space-y-2 ${
-                    isCustomPayment
-                      ? `border rounded-xl p-4 ${
-                          group.paid ? "bg-emerald-50 border-green-200" : "bg-gray-50"
-                        }`
-                      : ""
-                  }`}
-                >
+                <div key={group.id} className="space-y-2">
                   {isCustomPayment && group.name && (
+                    <h3 className="text-base font-semibold text-gray-900 px-1">
+                      {group.name}
+                    </h3>
+                  )}
+                  <div
+                    className={`space-y-2 ${
+                      isCustomPayment
+                        ? `border rounded-xl p-4 ${
+                            group.paid ? "bg-emerald-50 border-green-200" : "bg-gray-50"
+                          }`
+                        : ""
+                    }`}
+                  >
+                  {isCustomPayment && group.total > 0 && (
                     <div className="mb-2 pb-2 border-b border-gray-200 flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">
-                          {group.name.trim().toLowerCase().startsWith("grupo")
-                          ? group.name
-                          : `Grupo ${group.name}`}
-                        </h3>
-                        {/* Show total group value */}
-                        {group.total > 0 && (
-                          <span className="text-sm font-medium text-gray-600">
-                            ({new Intl.NumberFormat("pt-BR", {
-                              style: "currency",
-                              currency: "BRL"
-                            }).format(group.total)})
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {isCustomPayment && userType === "contratante" && !group.paid && group.total > 0 && (
-                           <Button
-                              size="sm"
-                              className="bg-orange-600 hover:bg-orange-700 text-white h-8"
-                              onClick={() => onPaySteps?.(group.steps)}
-                            >
-                              <QrCode className="h-3.5 w-3.5 mr-1.5" />
-                              Pagar Grupo
-                            </Button>
-                        )}
+                      <span className="text-sm font-medium text-gray-700">
+                        Total do grupo: {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL"
+                        }).format(group.total)}
+                      </span>
 
-                        {isCustomPayment && userType === "contratante" && group.paid && (
-                          <span className="text-sm text-green-600 flex items-center shrink-0 mt-0.5" title="Etapa Paga">
+                      <div className="flex items-center gap-2">
+                        {userType === "contratante" && !group.paid && (
+                          <Button
+                            size="sm"
+                            className="bg-orange-600 hover:bg-orange-700 text-white h-8"
+                            onClick={() => onPaySteps?.(group.steps)}
+                          >
+                            <QrCode className="h-3.5 w-3.5 mr-1.5" />
+                            Pagar Grupo
+                          </Button>
+                        )}
+                        {userType === "contratante" && group.paid && (
+                          <span className="text-sm text-green-600 flex items-center shrink-0" title="Pagamento realizado">
                             <CheckCircle className="h-4 w-4 mr-1" /> Pagamento realizado
                           </span>
                         )}
@@ -919,6 +1145,7 @@ export function ProposalDetailsDialog({
 
                 )
                   })}
+                </div>
               </div>
               ))}
 
@@ -955,6 +1182,7 @@ export function ProposalDetailsDialog({
               />
             </div>
           )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

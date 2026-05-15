@@ -87,7 +87,7 @@ export default function LandingComparisonSection() {
           viewport={{ once: true }}
           transition={{ delay: 0.1 }}
         >
-          Compare como o ARQ transforma a gestão de obras e contratos, protegendo você e seus clientes.
+          Compare como a ArqDoor transforma a gestão de obras e contratos, protegendo você e seus clientes.
         </motion.p>
 
         <div className="mx-auto mt-12 mb-10 grid max-w-[900px] gap-10 lg:grid-cols-2">

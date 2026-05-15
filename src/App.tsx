@@ -30,6 +30,7 @@ const InvitePublic = lazy(() => import("@/pages/InvitePublic"));
 const Connections = lazy(() => import("@/pages/Connections"));
 const KanbanPage = lazy(() => import("@/pages/KanbanPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
+const TermsRedirect = lazy(() => import("@/pages/TermsRedirect"));
 
 function RouteLoading() {
   return (
@@ -37,6 +38,14 @@ function RouteLoading() {
       Carregando...
     </div>
   );
+}
+
+// Wrapper que isola cada rota num ErrorBoundary próprio. Se um componente lazy
+// falhar, o erro é contido nessa rota — restante da app (navbar, outras rotas)
+// continua funcional. Sem isso, qualquer erro em Messages.tsx (~2400 linhas)
+// derruba a UI inteira pro fallback global.
+function RouteBoundary({ children }: { children: ReactNode }) {
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
 function PlainLayout({ children }: { children: ReactNode }) {
@@ -47,24 +56,24 @@ function Router() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <Switch>
-        <Route path="/"><Home /></Route>
-        <Route path="/auth"><AuthPage /></Route>
-        <Route path="/profile"><Profile /></Route>
-        <Route path="/home"><AppHome /></Route>
-        <Route path="/demands"><DemandsFeed /></Route>
-        <Route path="/services/viewService"><ServicePage /></Route>
-        <Route path="/services"><ServicesFeed /></Route>
-        <Route path="/providers/:provider_id"><ProviderProfile /></Route>
-        <Route path="/user/:user_id"><ClientProfile /></Route>
-        <Route path="/messages/:userId?"><Messages /></Route>
-        <Route path="/connections"><Connections /></Route>
-        <Route path="/admin"><Admin /></Route>
-        <Route path="/convites"><Invites /></Route>
-        <Route path="/convite/:token"><InvitePublic /></Route>
-        <Route path="/kanban"><KanbanPage /></Route>
-        <Route path="/nova-senha"><ResetPasswordPage /></Route>
-        <Route path="/termos-de-uso"><NotFound /></Route>
-        <Route><NotFound /></Route>
+        <Route path="/"><RouteBoundary><Home /></RouteBoundary></Route>
+        <Route path="/auth"><RouteBoundary><AuthPage /></RouteBoundary></Route>
+        <Route path="/profile"><RouteBoundary><Profile /></RouteBoundary></Route>
+        <Route path="/home"><RouteBoundary><AppHome /></RouteBoundary></Route>
+        <Route path="/demands"><RouteBoundary><DemandsFeed /></RouteBoundary></Route>
+        <Route path="/services/viewService"><RouteBoundary><ServicePage /></RouteBoundary></Route>
+        <Route path="/services"><RouteBoundary><ServicesFeed /></RouteBoundary></Route>
+        <Route path="/providers/:provider_id"><RouteBoundary><ProviderProfile /></RouteBoundary></Route>
+        <Route path="/user/:user_id"><RouteBoundary><ClientProfile /></RouteBoundary></Route>
+        <Route path="/messages/:userId?"><RouteBoundary><Messages /></RouteBoundary></Route>
+        <Route path="/connections"><RouteBoundary><Connections /></RouteBoundary></Route>
+        <Route path="/admin"><RouteBoundary><Admin /></RouteBoundary></Route>
+        <Route path="/convites"><RouteBoundary><Invites /></RouteBoundary></Route>
+        <Route path="/convite/:token"><RouteBoundary><InvitePublic /></RouteBoundary></Route>
+        <Route path="/kanban"><RouteBoundary><KanbanPage /></RouteBoundary></Route>
+        <Route path="/nova-senha"><RouteBoundary><ResetPasswordPage /></RouteBoundary></Route>
+        <Route path="/termos-de-uso"><RouteBoundary><TermsRedirect /></RouteBoundary></Route>
+        <Route><RouteBoundary><NotFound /></RouteBoundary></Route>
       </Switch>
     </Suspense>
   );

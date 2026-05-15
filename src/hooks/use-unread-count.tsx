@@ -6,10 +6,10 @@ export function useUnreadCount() {
   const { isLoggedIn, user } = useAuth();
 
   const { data } = useQuery({
-    queryKey: ["conversations"],
+    queryKey: ["conversations", user?.id],
     enabled: isLoggedIn && !!user,
-    staleTime: 10000,
-    refetchInterval: 5000, // Poll every 5s for new messages
+    staleTime: 5_000,
+    refetchInterval: 15_000,
     queryFn: async () => {
       const response = await apiRequest("GET", "/conversation");
       if (!response.ok) return { conversations: [] };

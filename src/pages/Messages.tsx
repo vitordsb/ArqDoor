@@ -139,15 +139,18 @@ export default function Messages() {
 
   const ensureSignaturePasswordConfigured = useCallback(() => {
     if (user?.signature_password_set !== true) {
+      const isGoogle = (user as any)?.provider === "google";
       toast({
-        title: "Senha de assinatura",
-        description: "Você não configurou sua senha de assinatura.",
+        title: "Senha de assinatura não configurada",
+        description: isGoogle
+          ? "Como você entrou pelo Google, precisa criar uma senha de assinatura no seu perfil antes de assinar contratos."
+          : "Você ainda não definiu sua senha de assinatura. Vá em Perfil → Segurança para criar uma.",
         variant: "destructive",
       });
       return false;
     }
     return true;
-  }, [toast, user?.signature_password_set]);
+  }, [toast, user?.signature_password_set, (user as any)?.provider]);
 
   const signaturePasswordHint =
     "Use a senha do login (contas com e-mail/senha) ou a senha de assinatura do perfil (contas Google).";
@@ -168,6 +171,98 @@ export default function Messages() {
     updateProposalStep,
     handleContractFileChange,
   } = useProposalComposer({ toast });
+
+  // Grupos de pagamento ficam controlados aqui pra persistir nomes customizados.
+  const [paymentGroups, setPaymentGroups] = useState<{ id: number; name: string }[]>([
+    { id: 1, name: "Grupo 1" },
+  ]);
+
+  // ---------- draft (rascunho) da proposta ----------
+  const draftKey = currentConversation?.id
+    ? `arqdoor:proposal-draft:${currentConversation.id}`
+    : null;
+  const [draftRestoredName, setDraftRestoredName] = useState<string | null>(null);
+  const draftLoadedRef = React.useRef(false);
+
+  // Restaura ao trocar de conversa ou montar
+  React.useEffect(() => {
+    draftLoadedRef.current = false;
+    if (!draftKey) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.proposalSteps && Array.isArray(parsed.proposalSteps)) {
+        setProposalSteps(parsed.proposalSteps);
+      }
+      if (Array.isArray(parsed?.paymentGroups)) {
+        setPaymentGroups(parsed.paymentGroups);
+      }
+      if (parsed?.providerReceivingMethod) {
+        setProviderReceivingMethod(parsed.providerReceivingMethod);
+      }
+      if (parsed?.selectedReceivingAccountId !== undefined) {
+        setSelectedReceivingAccountId(parsed.selectedReceivingAccountId);
+      }
+      if (parsed?.contractFileName) {
+        setDraftRestoredName(parsed.contractFileName);
+      }
+    } catch (e) {
+      console.warn("Falha ao restaurar rascunho de proposta:", e);
+    } finally {
+      // próxima persistência só dispara após primeiro render-pós-load
+      setTimeout(() => { draftLoadedRef.current = true; }, 0);
+    }
+  }, [draftKey]);
+
+  // Persiste a cada mudança (debounced via mecânica natural do React)
+  React.useEffect(() => {
+    if (!draftKey || !draftLoadedRef.current) return;
+    try {
+      const hasContent =
+        proposalSteps.some((s) => s.title || s.price || s.startDate || s.endDate) ||
+        contractFile;
+      if (!hasContent) {
+        localStorage.removeItem(draftKey);
+        return;
+      }
+      const payload = {
+        proposalSteps,
+        paymentGroups,
+        providerReceivingMethod,
+        selectedReceivingAccountId,
+        contractFileName: contractFile?.name || draftRestoredName || null,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+    } catch (e) {
+      // localStorage cheio ou desabilitado — silencia
+    }
+  }, [
+    draftKey,
+    proposalSteps,
+    paymentGroups,
+    providerReceivingMethod,
+    selectedReceivingAccountId,
+    contractFile,
+    draftRestoredName,
+  ]);
+
+  const clearProposalDraft = useCallback(() => {
+    if (draftKey) localStorage.removeItem(draftKey);
+    setDraftRestoredName(null);
+    setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0, paymentGroupId: 1 }]);
+    setPaymentGroups([{ id: 1, name: "Grupo 1" }]);
+    setProviderReceivingMethod("escrow");
+    setSelectedReceivingAccountId(null);
+    setContractFile(null);
+  }, [
+    draftKey,
+    setContractFile,
+    setProposalSteps,
+    setProviderReceivingMethod,
+    setSelectedReceivingAccountId,
+  ]);
   const [pendingProposalData, setPendingProposalData] = useState<{
     steps: ProposalStepPayload[];
     contractFile?: File | null;
@@ -545,14 +640,19 @@ export default function Messages() {
       return;
     }
 
+    // O dialog agora usa <input type="date"> e mantém ISO yyyy-mm-dd no estado.
+    // Mantemos suporte a dd/mm/aaaa por compatibilidade com qualquer caller legado.
     const toIso = (value?: string) => {
       if (!value) return undefined;
-      const parts = value.split('/');
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+      const parts = trimmed.split('/');
       if (parts.length === 3) {
         const [d, m, y] = parts;
         return `${y.length === 2 ? `20${y}` : y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
       }
-      return value;
+      return trimmed;
     };
 
     const payloadSteps: ProposalStepPayload[] = valid.map(step => ({
@@ -1212,15 +1312,15 @@ export default function Messages() {
   };
 
   const handleCopyPaymentCode = useCallback(
-    async (code?: string, label: string = 'C¢digo copiado') => {
+    async (code?: string, label: string = 'Código copiado') => {
       if (!code) return;
       try {
         await navigator.clipboard.writeText(code);
-        toast({ title: label, description: 'Copiado para a  rea de transferˆncia.' });
+        toast({ title: label, description: 'Copiado para a área de transferência.' });
       } catch {
         toast({
-          title: 'NÆo foi poss¡vel copiar',
-          description: 'Copie manualmente o c¢digo exibido.',
+          title: 'Não foi possível copiar',
+          description: 'Copie manualmente o código exibido.',
           variant: 'destructive',
         });
       }
@@ -1468,7 +1568,7 @@ export default function Messages() {
       if (!cleaned.length) return;
 
       const payableSteps = cleaned.filter((step: any) => {
-        const isSignature = step?.title === SIGNATURE_STEP_TITLE;
+        const isSignature = isSignatureContractStep(step);
         const paid = Boolean(step?.paid) || Boolean(step?.is_financially_cleared);
         const price = Number(step?.price) || 0;
         const rejected = (step?.status || "").toLowerCase() === "recusado";
@@ -1559,7 +1659,7 @@ export default function Messages() {
         const response = await apiRequest('GET', `/payments/steps/${step.id}/refresh`);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.success === false) {
-          throw new Error(payload?.message || 'NÆo foi poss¡vel atualizar o pagamento.');
+          throw new Error(payload?.message || 'Não foi possível atualizar o pagamento.');
         }
         const ticketId = (step as any)?.ticket_id || (step as any)?.ticketId;
         if (ticketId) {
@@ -1673,7 +1773,7 @@ export default function Messages() {
         const res = await apiRequest("GET", `/payments/tickets/${ticketId}/refresh`);
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body?.success === false) {
-          throw new Error(body?.message || "NÆo foi poss¡vel verificar o pagamento.");
+          throw new Error(body?.message || "Não foi possível verificar o pagamento.");
         }
         await refetchTickets();
         const steps = await getStepsWithPayment(ticketId);
@@ -1969,10 +2069,8 @@ export default function Messages() {
           resetSignatureDialogState();
           setPendingProposalData(null);
           setShowProposalModal(false);
-          setProposalSteps([{ id: crypto.randomUUID(), title: '', price: 0, paymentGroupId: 1 }]);
-          setProviderReceivingMethod("escrow");
-          setSelectedReceivingAccountId(null);
-          setContractFile(null);
+          // limpa o rascunho do localStorage e o state local
+          clearProposalDraft();
           return;
         } finally {
           setSendingProposal(false);
@@ -2195,6 +2293,10 @@ export default function Messages() {
         loadingReceivingAccounts={loadingReceivingAccounts}
         selectedReceivingAccountId={selectedReceivingAccountId}
         onSelectedReceivingAccountIdChange={setSelectedReceivingAccountId}
+        paymentGroups={paymentGroups}
+        onPaymentGroupsChange={setPaymentGroups}
+        draftRestoredFileName={draftRestoredName}
+        onClearDraft={clearProposalDraft}
         showToast={({ title, description, variant }) =>
           toast({ title, description, variant: variant ?? 'default' })
         }
@@ -2354,6 +2456,8 @@ export default function Messages() {
         agreeLabel={signatureFlow?.agreeLabel}
         passwordPlaceholder={signatureFlow?.passwordPlaceholder}
         requireAck={signatureRequiresAck}
+        signaturePasswordConfigured={user?.signature_password_set === true}
+        isGoogleAccount={(user as any)?.provider === "google"}
       />
 
       <GroupedPaymentDialog

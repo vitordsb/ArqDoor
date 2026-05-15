@@ -17,7 +17,7 @@ type AdminContractsSectionProps = {
 
 export function AdminContractsSection({ tickets }: AdminContractsSectionProps) {
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {tickets.length ? (
         tickets.map((ticket) => (
           <SectionCard

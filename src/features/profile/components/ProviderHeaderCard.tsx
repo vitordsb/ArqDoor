@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Eye, MessageCircle, Star } from "lucide-react";
+import { BadgeCheck, Eye, MessageCircle, Star } from "lucide-react";
 import { ProviderApi, UserApi } from "../types";
 import { API_BASE_URL } from "@/lib/queryClient";
 
@@ -59,10 +59,21 @@ export function ProviderHeaderCard({
           <h1 className="text-2xl font-bold mt-2">{user.name}</h1>
           <p className="text-slate-600 font-medium">{provider.profession}</p>
           <div className="flex gap-2 mt-2 justify-center sm:justify-start flex-wrap">
-            <Badge className="gap-1 bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
-              <Star className="w-3 h-3" />
-              {ratings.count > 0 ? `${ratings.average.toFixed(1)} (${ratings.count})` : "Nova"}
-            </Badge>
+            {/* Badge de rating só aparece se houver avaliações. Antes mostrava "Nova"
+                quando count=0; agora some pra dar espaço pro selo de verificação. */}
+            {ratings.count > 0 && (
+              <Badge className="gap-1 bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+                <Star className="w-3 h-3" />
+                {ratings.average.toFixed(1)} ({ratings.count})
+              </Badge>
+            )}
+            {/* Selo de "Verificado": só aparece quando admin marca via WhatsApp */}
+            {(user as any)?.is_verified === true && (
+              <Badge className="gap-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
+                <BadgeCheck className="w-3 h-3" />
+                Verificado
+              </Badge>
+            )}
             <Badge className="gap-1 bg-blue-100 text-blue-800 hover:bg-blue-200">
               <Eye className="w-3 h-3" />
               {provider.views_profile || 0} visualizações

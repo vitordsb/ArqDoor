@@ -824,7 +824,11 @@ export default function ProfilePage() {
   };
 
   const hasAbout = !!providerProfile?.about?.trim?.();
-  const hasCpf = !!documentsData.cpf?.replace(/\D/g, "").trim();
+  // Verificação de documentos agora é controlada pelo admin via WhatsApp.
+  // CPF preenchido no perfil não é mais critério — o admin marca a conta
+  // como verificada após conferir os documentos.
+  const isVerified = (user as any)?.is_verified === true;
+  const hasCpf = isVerified;
   const hasProfession = !!providerProfile?.profession?.trim?.();
   const hasPortfolio = portfolio.length > 0;
   const hasServices = services.length > 0;
@@ -857,8 +861,48 @@ export default function ProfilePage() {
           <ProfileHeader user={user as any} onLogout={logout} />
 
           <div className="grid lg:grid-cols-3 gap-8">
-            {/* Coluna Esquerda: Informações, Sobre, Profissão */}
+            {/* Coluna Esquerda: Nível de confiança (prestador), Informações, Sobre, Profissão */}
             <div className="space-y-6">
+              {user.type === "prestador" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Nível de confiança</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Perfil verificado</span>
+                      <span className="font-semibold text-slate-900">{trustPercent}%</span>
+                    </div>
+                    <Progress value={trustPercent} />
+                    <div className="space-y-1 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasAbout ? "default" : "secondary"}>Sobre mim</Badge>
+                        <span>{hasAbout ? "Preenchido" : "Pendente"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasCpf ? "default" : "secondary"}>Documentos</Badge>
+                        <span>
+                          {hasCpf
+                            ? "Verificado pelo admin"
+                            : "Pendente — solicite verificação no WhatsApp (limita 60% de confiança)"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasAddress ? "default" : "secondary"}>Endereço</Badge>
+                        <span>{hasAddress ? "Cadastrado" : "Pendente"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasProfession ? "default" : "secondary"}>Profissão</Badge>
+                        <span>{hasProfession ? "Informada" : "Pendente"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasPortfolio ? "default" : "outline"}>Portfólio</Badge>
+                        <span>{hasPortfolio ? "Destaques publicados" : "Opcional (5% confiança)"}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader>
                   <CardTitle>Informações Pessoais</CardTitle>
@@ -1126,46 +1170,6 @@ export default function ProfilePage() {
                   )}
                 </CardContent>
               </Card>
-              {user.type === "prestador" && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Nível de confiança</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-600">Perfil verificado</span>
-                      <span className="font-semibold text-slate-900">{trustPercent}%</span>
-                    </div>
-                    <Progress value={trustPercent} />
-                    <div className="space-y-1 text-sm text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={hasAbout ? "default" : "secondary"}>Sobre mim</Badge>
-                        <span>{hasAbout ? "Preenchido" : "Pendente"}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={hasCpf ? "default" : "secondary"}>CPF</Badge>
-                        <span>{hasCpf ? "CPF cadastrado" : "Pendente (até 60% confiança)"}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={hasAddress ? "default" : "secondary"}>Endereço</Badge>
-                        <span>{hasAddress ? "Cadastrado" : "Pendente"}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={hasProfession ? "default" : "secondary"}>Profissão</Badge>
-                        <span>{hasProfession ? "Informada" : "Pendente"}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={hasPortfolio ? "default" : "outline"}>Portfólio</Badge>
-                        <span>{hasPortfolio ? "Destaques publicados" : "Opcional (5% confiança)"}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={hasServices ? "default" : "outline"}>Serviços</Badge>
-                        <span>{hasServices ? "Serviços na plataforma" : "Opcional (5% confiança)"}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </div>
           </div>
         </div>

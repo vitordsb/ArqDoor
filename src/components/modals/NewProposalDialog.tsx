@@ -46,16 +46,16 @@ const COMPOSER_STAGES: Array<{
   description: string;
 }> = [
   {
-    key: "steps",
-    shortLabel: "1",
-    title: "Etapas e grupos",
-    description: "Organize entregas, prazos e grupos de cobrança antes de falar em recebimento.",
-  },
-  {
     key: "receiving",
-    shortLabel: "2",
+    shortLabel: "1",
     title: "Recebimento e contrato",
     description: "Escolha como o prestador vai receber e confirme o PDF do contrato.",
+  },
+  {
+    key: "steps",
+    shortLabel: "2",
+    title: "Etapas e grupos",
+    description: "Organize entregas, prazos e grupos de cobrança.",
   },
   {
     key: "review",
@@ -107,6 +107,10 @@ interface NewProposalDialogProps {
   onSelectedReceivingAccountIdChange?: (value: number | null) => void;
   hasExistingContractFile?: boolean;
   existingContractLabel?: string | null;
+  /** Nome do arquivo de contrato salvo no rascunho (precisa ser reanexado). */
+  draftRestoredFileName?: string | null;
+  /** Callback para descartar o rascunho salvo. */
+  onClearDraft?: () => void;
 }
 
 const cn = (...classes: Array<string | false | null | undefined>) =>
@@ -171,13 +175,19 @@ export function NewProposalDialog({
   onSelectedReceivingAccountIdChange,
   hasExistingContractFile = false,
   existingContractLabel,
+  draftRestoredFileName = null,
+  onClearDraft,
 }: NewProposalDialogProps) {
   const [priceDigits, setPriceDigits] = React.useState<Record<string, string>>({});
+  // Drafts dos inputs de data (BR dd/mm/aaaa). Só commitamos no state global
+  // quando o draft está completo (10 chars) e válido — antes disso o input
+  // exibe o draft local pra o user poder digitar livremente.
+  const [dateDrafts, setDateDrafts] = React.useState<Record<string, string>>({});
   const [internalPaymentGroups, setInternalPaymentGroups] = React.useState<PaymentGroup[]>([
     { id: 1, name: "Grupo 1" },
   ]);
   const [newGroupName, setNewGroupName] = React.useState("");
-  const [activeStage, setActiveStage] = React.useState<ComposerStage>("steps");
+  const [activeStage, setActiveStage] = React.useState<ComposerStage>("receiving");
   const [selectedContractFileName, setSelectedContractFileName] = React.useState<string>("");
 
   const paymentGroups = externalPaymentGroups || internalPaymentGroups;
@@ -188,6 +198,20 @@ export function NewProposalDialog({
     () =>
       proposalSteps.reduce((acc, step) => acc + (Number(step.price) || 0), 0),
     [proposalSteps]
+  );
+
+  // Taxa de plataforma: 5% sobre o total, com teto de R$ 1.500. Calcula no
+  // cliente apenas pra exibição — o cálculo definitivo é feito no backend
+  // no endpoint /ticket/:id/finalize-fee após criar as etapas.
+  const PLATFORM_FEE_RATE = 0.05;
+  const PLATFORM_FEE_CAP = 1500;
+  const platformFee = React.useMemo(() => {
+    if (projectTotal <= 0) return 0;
+    return Math.min(projectTotal * PLATFORM_FEE_RATE, PLATFORM_FEE_CAP);
+  }, [projectTotal]);
+  const projectTotalWithFee = React.useMemo(
+    () => projectTotal + platformFee,
+    [projectTotal, platformFee]
   );
 
   const selectedReceivingAccount = React.useMemo(
@@ -234,9 +258,9 @@ export function NewProposalDialog({
   );
 
   const handleAddGroup = () => {
-    if (!newGroupName.trim()) return;
     const nextId = paymentGroups.length > 0 ? Math.max(...paymentGroups.map((g) => g.id)) + 1 : 1;
-    updatePaymentGroups([...paymentGroups, { id: nextId, name: newGroupName.trim() }]);
+    const name = newGroupName.trim() || `Grupo ${nextId}`;
+    updatePaymentGroups([...paymentGroups, { id: nextId, name }]);
     setNewGroupName("");
   };
 
@@ -264,7 +288,7 @@ export function NewProposalDialog({
 
   React.useEffect(() => {
     if (!open) {
-      setActiveStage("steps");
+      setActiveStage("receiving");
       setSelectedContractFileName("");
       return;
     }
@@ -282,46 +306,37 @@ export function NewProposalDialog({
     }
   }, [proposalSteps, onUpdateStep]);
 
+  // Garante que todo paymentGroupId referenciado por uma step existe na lista
+  // de grupos. NÃO remove grupos sem etapas — grupos vazios são intencionais
+  // (criados pelo usuário antes de mover etapas pra dentro).
   React.useEffect(() => {
     if (!open) return;
 
-    const usedIds = Array.from(
+    const referencedIds = Array.from(
       new Set(
         proposalSteps
           .map((step) => step.paymentGroupId)
           .filter((id): id is number => Boolean(id))
       )
-    ).sort((a, b) => a - b);
+    );
 
-    const normalizedIds = usedIds.length > 0 ? usedIds : [1];
+    const baseGroups = externalPaymentGroups || internalPaymentGroups;
+    const existingIds = new Set(baseGroups.map((g) => g.id));
+    const missingIds = referencedIds.filter((id) => !existingIds.has(id));
+
+    if (missingIds.length === 0) return;
+
+    const merged = [
+      ...baseGroups,
+      ...missingIds.map((id) => ({ id, name: `Grupo ${id}` })),
+    ].sort((a, b) => a.id - b.id);
 
     if (onPaymentGroupsChange) {
-      const baseGroups = externalPaymentGroups || paymentGroups;
-      onPaymentGroupsChange(
-        normalizedIds.map((id) => {
-          const existing = baseGroups.find((group) => group.id === id);
-          return existing || { id, name: `Grupo ${id}` };
-        })
-      );
-      return;
+      onPaymentGroupsChange(merged);
+    } else {
+      setInternalPaymentGroups(merged);
     }
-
-    setInternalPaymentGroups((prev) => {
-      const next = normalizedIds.map((id) => {
-        const existing = prev.find((group) => group.id === id);
-        return existing || { id, name: `Grupo ${id}` };
-      });
-
-      const same =
-        prev.length === next.length &&
-        prev.every(
-          (group, index) =>
-            group.id === next[index]?.id && group.name === next[index]?.name
-        );
-
-      return same ? prev : next;
-    });
-  }, [externalPaymentGroups, onPaymentGroupsChange, open, paymentGroups, proposalSteps]);
+  }, [externalPaymentGroups, internalPaymentGroups, onPaymentGroupsChange, open, proposalSteps]);
 
   const getDigitsFromPrice = (price?: number) => {
     if (price == null || Number.isNaN(price)) return "";
@@ -354,33 +369,118 @@ export function NewProposalDialog({
     return "";
   };
 
-  const ensureDateFormat = (value: string) => {
-    const digits = value.replace(/[^\d]/g, "").slice(0, 8);
+  // ====== Datas: utilitários únicos (substituem ensureDateFormat/parseBr/etc.) ======
+  // Sempre trabalhamos com ISO yyyy-mm-dd no estado. O <input type="date"> já
+  // entrega nesse formato. Quando algum legado fornece dd/mm/aaaa, convertemos.
+  const toIsoDate = (value?: string): string => {
+    if (!value) return "";
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    const brMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+    if (brMatch) {
+      const [, d, m, y] = brMatch;
+      const year = y.length === 2 ? `20${y}` : y;
+      return `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    return "";
+  };
+
+  const dateToComparable = (value?: string): Date | undefined => {
+    const iso = toIsoDate(value);
+    if (!iso) return undefined;
+    const parsed = new Date(`${iso}T12:00:00`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+
+  const addDaysIso = (iso: string, days: number): string => {
+    const d = new Date(`${iso}T12:00:00`);
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const todayIso = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  // A etapa de assinatura é instantânea (ocupa só o dia de hoje). A primeira
+  // etapa real pode começar a partir de HOJE — só não pode ser anterior.
+  // Etapas seguintes começam pelo menos no dia seguinte ao fim da anterior.
+  const getStepMinStart = (idx: number): string => {
+    if (idx === 0) return todayIso;
+    const prev = proposalSteps[idx - 1];
+    const prevEnd = toIsoDate(prev?.endDate);
+    const prevStart = toIsoDate(prev?.startDate);
+    const base = prevEnd || prevStart;
+    if (base) return addDaysIso(base, 1);
+    return todayIso;
+  };
+
+  // `min` para data final = data inicial (mesmo dia OK) ou min de início.
+  const getStepMinEnd = (idx: number, step: ProposalStep): string => {
+    const startIso = toIsoDate(step.startDate);
+    if (startIso) return startIso;
+    return getStepMinStart(idx);
+  };
+
+  // ====== Máscara dd/mm/aaaa (formato BR garantido em todos os browsers) ======
+  // Aceita paste tanto BR (dd/mm/aaaa) quanto ISO (yyyy-mm-dd) e normaliza.
+  const formatBrMask = (raw: string): string => {
+    if (!raw) return "";
+    // Paste de ISO yyyy-mm-dd → converte direto
+    const isoMatch = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    }
+    // Só dígitos, máximo 8 (ddmmaaaa)
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
     if (digits.length === 0) return "";
     if (digits.length <= 2) return digits;
-    if (digits.length <= 4) {
-      const d = digits.slice(0, 2);
-      const m = digits.slice(2);
-      return `${d}/${m}`;
-    }
-    const d = digits.slice(0, 2);
-    const m = digits.slice(2, 4);
-    const y = digits.slice(4);
-    return `${d}/${m}/${y}`;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
   };
 
-  const formatDisplayDate = (value?: string) => {
+  // ISO yyyy-mm-dd → BR dd/mm/aaaa (pra exibir no input)
+  const isoToBrDisplay = (value?: string): string => {
     if (!value) return "";
-    return ensureDateFormat(value);
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const [y, m, d] = value.slice(0, 10).split("-");
+      return `${d}/${m}/${y}`;
+    }
+    // já em BR ou parcial
+    return value;
   };
 
-  const dateToComparable = (value?: string) => {
-    if (!value || value.length < 8) return undefined;
-    const [d, m, y] = ensureDateFormat(value).split("/");
-    if (!d || !m || !y || y.length < 2) return undefined;
-    const iso = `${y.length === 2 ? `20${y}` : y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    const parsed = new Date(iso);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  // BR string parcial/completo → ISO ou string vazia. Só retorna ISO se data completa válida.
+  const brInputToIso = (raw: string): string => {
+    const masked = formatBrMask(raw);
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(masked)) return "";
+    return toIsoDate(masked);
+  };
+
+  // Completa o ano atual se o draft for dd/mm ou ddmm (sem ano).
+  // Retorna o masked completo dd/mm/aaaa, ou null se não dá pra completar.
+  const completeYearIfNeeded = (draft: string): string | null => {
+    if (!draft) return null;
+    const trimmed = draft.trim();
+    // dd/mm exato → completa ano
+    if (/^\d{2}\/\d{2}$/.test(trimmed)) {
+      return `${trimmed}/${new Date().getFullYear()}`;
+    }
+    // 4 dígitos (ddmm) → completa
+    if (/^\d{4}$/.test(trimmed)) {
+      return `${trimmed.slice(0, 2)}/${trimmed.slice(2, 4)}/${new Date().getFullYear()}`;
+    }
+    // dd/mm/yy (ano de 2 dígitos) → vira 20yy
+    const shortYear = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+    if (shortYear) {
+      return `${shortYear[1]}/${shortYear[2]}/20${shortYear[3]}`;
+    }
+    return null;
   };
 
   const showStageError = React.useCallback(
@@ -410,22 +510,33 @@ export function NewProposalDialog({
       return false;
     }
 
-    const invalidDateRange = proposalSteps.find((step) => {
-      const hasStart = Boolean(step.startDate?.trim());
-      const hasEnd = Boolean(step.endDate?.trim());
-      if (hasStart !== hasEnd) return true;
-      const startComparable = dateToComparable(step.startDate);
-      const endComparable = dateToComparable(step.endDate);
-      if (startComparable && endComparable && endComparable < startComparable) return true;
-      return false;
-    });
+    // Datas são opcionais individualmente — o hook createProposal preenche
+    // automaticamente o que faltar. Só bloqueamos quando ambas existem e a
+    // final é anterior à inicial, ou quando uma etapa começa antes do mínimo
+    // permitido (depois da assinatura / depois da etapa anterior).
+    for (let i = 0; i < proposalSteps.length; i++) {
+      const step = proposalSteps[i];
+      const startIso = toIsoDate(step.startDate);
+      const endIso = toIsoDate(step.endDate);
 
-    if (invalidDateRange) {
-      showStageError(
-        "Datas inválidas",
-        "Revise as datas das etapas. Sempre preencha início e fim juntos, com a data final posterior à inicial."
-      );
-      return false;
+      if (startIso && endIso && endIso < startIso) {
+        showStageError(
+          `Etapa ${i + 1}: datas inválidas`,
+          "A data final não pode ser anterior à inicial."
+        );
+        return false;
+      }
+
+      if (startIso) {
+        const minStart = getStepMinStart(i);
+        if (startIso < minStart) {
+          showStageError(
+            `Etapa ${i + 1}: data inicial muito cedo`,
+            `Esta etapa só pode começar a partir de ${formatIsoToBr(minStart)}.`
+          );
+          return false;
+        }
+      }
     }
 
     return true;
@@ -533,6 +644,31 @@ export function NewProposalDialog({
           <DialogTitle>{dialogTitle}</DialogTitle>
           <p className="text-sm text-muted-foreground">{dialogDescription}</p>
         </DialogHeader>
+
+        {draftRestoredFileName ? (
+          <div className="shrink-0 px-6 pt-3">
+            <div className="flex items-start justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+              <div className="flex-1">
+                <p className="font-semibold text-blue-900">
+                  Rascunho restaurado
+                </p>
+                <p className="mt-0.5 text-xs text-blue-700">
+                  Suas etapas e configurações foram recuperadas. Reanexe o PDF do contrato <span className="font-mono">{draftRestoredFileName}</span>.
+                </p>
+              </div>
+              {onClearDraft ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-blue-700 hover:bg-blue-100"
+                  onClick={() => onClearDraft()}
+                >
+                  Limpar rascunho
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="shrink-0 px-6 pt-4">
           <div className="rounded-2xl border bg-muted/20 p-2">
@@ -696,13 +832,65 @@ export function NewProposalDialog({
                               type="text"
                               inputMode="numeric"
                               placeholder="dd/mm/aaaa"
-                              value={formatDisplayDate(step.startDate)}
-                              onChange={(event) =>
-                                onUpdateStep(step.id, "startDate", ensureDateFormat(event.target.value))
-                              }
+                              maxLength={10}
+                              value={dateDrafts[`${step.id}-start`] ?? isoToBrDisplay(step.startDate)}
+                              onChange={(event) => {
+                                const masked = formatBrMask(event.target.value);
+                                setDateDrafts((p) => ({ ...p, [`${step.id}-start`]: masked }));
+                                if (masked === "") {
+                                  onUpdateStep(step.id, "startDate", "");
+                                  return;
+                                }
+                                if (/^\d{2}\/\d{2}\/\d{4}$/.test(masked)) {
+                                  const iso = toIsoDate(masked);
+                                  const minStart = getStepMinStart(idx);
+                                  if (iso && iso < minStart) {
+                                    showToast?.({
+                                      title: `Etapa ${idx + 1}: data muito cedo`,
+                                      description:
+                                        idx === 0
+                                          ? `A primeira etapa não pode começar antes de ${formatIsoToBr(minStart)}.`
+                                          : `Esta etapa só pode começar a partir de ${formatIsoToBr(minStart)} (após a etapa anterior).`,
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  onUpdateStep(step.id, "startDate", iso);
+                                }
+                              }}
+                              onBlur={() => {
+                                const draft = dateDrafts[`${step.id}-start`];
+                                const completed = completeYearIfNeeded(draft || "");
+                                if (completed) {
+                                  const iso = toIsoDate(completed);
+                                  const minStart = getStepMinStart(idx);
+                                  if (iso && iso < minStart) {
+                                    showToast?.({
+                                      title: `Etapa ${idx + 1}: data muito cedo`,
+                                      description:
+                                        idx === 0
+                                          ? `A primeira etapa não pode começar antes de ${formatIsoToBr(minStart)}.`
+                                          : `Esta etapa só pode começar a partir de ${formatIsoToBr(minStart)} (após a etapa anterior).`,
+                                      variant: "destructive",
+                                    });
+                                  } else if (iso) {
+                                    onUpdateStep(step.id, "startDate", iso);
+                                  }
+                                }
+                                setDateDrafts((p) => {
+                                  const next = { ...p };
+                                  delete next[`${step.id}-start`];
+                                  return next;
+                                });
+                              }}
                               className="pl-9"
                             />
                           </div>
+                          {idx === 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              A partir de hoje ({formatIsoToBr(todayIso)}).
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -716,27 +904,73 @@ export function NewProposalDialog({
                             type="text"
                             inputMode="numeric"
                             placeholder="dd/mm/aaaa"
-                            value={formatDisplayDate(step.endDate)}
-                            onChange={(event) =>
-                              onUpdateStep(step.id, "endDate", ensureDateFormat(event.target.value))
-                            }
-                            className="pl-9"
-                            onBlur={() => {
-                              const endComparable = dateToComparable(step.endDate);
-                              const startComparable = dateToComparable(step.startDate);
-                              if (
-                                endComparable &&
-                                startComparable &&
-                                endComparable < startComparable
-                              ) {
-                                showToast?.({
-                                  title: "Data inválida",
-                                  description:
-                                    "A data final não pode ser anterior à data inicial.",
-                                  variant: "destructive",
-                                });
+                            maxLength={10}
+                            value={dateDrafts[`${step.id}-end`] ?? isoToBrDisplay(step.endDate)}
+                            onChange={(event) => {
+                              const masked = formatBrMask(event.target.value);
+                              setDateDrafts((p) => ({ ...p, [`${step.id}-end`]: masked }));
+                              if (masked === "") {
+                                onUpdateStep(step.id, "endDate", "");
+                                return;
+                              }
+                              if (/^\d{2}\/\d{2}\/\d{4}$/.test(masked)) {
+                                const iso = toIsoDate(masked);
+                                if (!iso) return;
+                                const startIso = toIsoDate(step.startDate);
+                                if (startIso && iso < startIso) {
+                                  showToast?.({
+                                    title: `Etapa ${idx + 1}: data final inválida`,
+                                    description: `A data final não pode ser anterior à inicial (${formatIsoToBr(startIso)}).`,
+                                    variant: "destructive",
+                                  });
+                                  return;
+                                }
+                                const minEnd = getStepMinEnd(idx, step);
+                                if (iso < minEnd) {
+                                  showToast?.({
+                                    title: `Etapa ${idx + 1}: data final muito cedo`,
+                                    description: `A data final precisa ser a partir de ${formatIsoToBr(minEnd)}.`,
+                                    variant: "destructive",
+                                  });
+                                  return;
+                                }
+                                onUpdateStep(step.id, "endDate", iso);
                               }
                             }}
+                            onBlur={() => {
+                              const draft = dateDrafts[`${step.id}-end`];
+                              const completed = completeYearIfNeeded(draft || "");
+                              if (completed) {
+                                const iso = toIsoDate(completed);
+                                if (iso) {
+                                  const startIso = toIsoDate(step.startDate);
+                                  if (startIso && iso < startIso) {
+                                    showToast?.({
+                                      title: `Etapa ${idx + 1}: data final inválida`,
+                                      description: `A data final não pode ser anterior à inicial (${formatIsoToBr(startIso)}).`,
+                                      variant: "destructive",
+                                    });
+                                  } else {
+                                    const minEnd = getStepMinEnd(idx, step);
+                                    if (iso < minEnd) {
+                                      showToast?.({
+                                        title: `Etapa ${idx + 1}: data final muito cedo`,
+                                        description: `A data final precisa ser a partir de ${formatIsoToBr(minEnd)}.`,
+                                        variant: "destructive",
+                                      });
+                                    } else {
+                                      onUpdateStep(step.id, "endDate", iso);
+                                    }
+                                  }
+                                }
+                              }
+                              setDateDrafts((p) => {
+                                const next = { ...p };
+                                delete next[`${step.id}-end`];
+                                return next;
+                              });
+                            }}
+                            className="pl-9"
                           />
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -746,17 +980,50 @@ export function NewProposalDialog({
                     </div>
                   ))}
 
-                  <div className="flex items-center justify-between rounded-xl border bg-muted/40 px-4 py-3">
-                    <div className="text-sm text-muted-foreground">
-                      Total do projeto ({proposalSteps.length} etapas)
+                  <div className="rounded-xl border bg-muted/40 px-4 py-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Total do projeto ({proposalSteps.length} etapas)
+                      </div>
+                      <div className="text-xl font-semibold text-gray-900">
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(projectTotalWithFee)}
+                      </div>
                     </div>
-                    <div className="text-xl font-semibold text-gray-900">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(projectTotal)}
-                    </div>
+                    {platformFee > 0 && (
+                      <div className="text-xs text-orange-700">
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(projectTotal)}
+                        {" + "}
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(platformFee)}
+                        {" (5%"}
+                        {platformFee >= PLATFORM_FEE_CAP ? ", teto" : ""}
+                        {") = "}
+                        <span className="font-semibold">
+                          {new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(projectTotalWithFee)}
+                        </span>
+                      </div>
+                    )}
                   </div>
+
+                  {platformFee > 0 && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 leading-relaxed">
+                      <strong className="font-semibold">Sobre a taxa:</strong> A
+                      ArqDoor recebe apenas quando você recebe. A taxa de 5% (teto
+                      de R$ 1.500) é distribuída entre as fases e só descontada no
+                      recebimento.
+                    </div>
+                  )}
 
                   <Button variant="outline" onClick={onAddStep} className="w-full">
                     <PlusCircle className="mr-2 h-4 w-4" />
@@ -857,13 +1124,35 @@ export function NewProposalDialog({
                                   </span>
                                 </div>
                               ))}
-                              <div className="border-t border-orange-100 pt-1 text-xs font-semibold text-orange-600">
-                                Total:{" "}
-                                {new Intl.NumberFormat("pt-BR", {
-                                  style: "currency",
-                                  currency: "BRL",
-                                }).format(group.total)}
-                              </div>
+                              {(() => {
+                                const groupFee =
+                                  projectTotal > 0
+                                    ? (group.total / projectTotal) * platformFee
+                                    : 0;
+                                const brl = (v: number) =>
+                                  new Intl.NumberFormat("pt-BR", {
+                                    style: "currency",
+                                    currency: "BRL",
+                                  }).format(v);
+                                return (
+                                  <div className="border-t border-orange-100 pt-1 space-y-0.5">
+                                    <div className="flex items-center justify-between text-[10px] text-gray-500">
+                                      <span>Subtotal</span>
+                                      <span className="font-mono">{brl(group.total)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] text-gray-500">
+                                      <span>+ Taxa ArqDoor (5%)</span>
+                                      <span className="font-mono">{brl(groupFee)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs font-semibold text-orange-600 pt-0.5">
+                                      <span>Total cobrado</span>
+                                      <span className="font-mono">
+                                        {brl(group.total + groupFee)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </>
                           ) : (
                             <p className="text-[10px] text-gray-400 italic">
@@ -917,18 +1206,24 @@ export function NewProposalDialog({
                     type="button"
                     onClick={() => onReceivingMethodChange?.("escrow")}
                     className={cn(
-                      "rounded-2xl border p-5 text-left transition-colors",
+                      "relative rounded-2xl border p-5 text-left transition-colors",
                       receivingMethod === "escrow"
                         ? "border-orange-500 bg-white shadow-sm"
                         : "border-orange-200 bg-orange-50/40 hover:bg-white"
                     )}
                   >
+                    <span className="absolute -top-2 right-4 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                      Recomendado
+                    </span>
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 rounded-xl bg-orange-100 p-2 text-orange-600">
                         <ShieldCheck className="h-4 w-4" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">Escrow</div>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                          Proteja 100% do valor cobrado antes de iniciar a obra. O dinheiro fica em uma conta intermediária, e você recebe após finalizar o serviço.
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -949,16 +1244,24 @@ export function NewProposalDialog({
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">Padrão</div>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                          O cliente paga direto na sua conta bancária ou chave PIX cadastrada. Sem intermediação financeira da plataforma.
+                        </p>
                       </div>
                     </div>
                   </button>
                 </div>
 
-                {receivingMethod === "standard" ? (
+                {receivingMethod ? (
                   <div className="rounded-2xl border bg-white p-4 space-y-3">
                     <Label className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                       <Wallet className="h-4 w-4 text-orange-600" />
                       Conta da carteira
+                      {receivingMethod === "escrow" && (
+                        <span className="ml-1 text-xs font-normal text-slate-500">
+                          (destino do repasse após finalização)
+                        </span>
+                      )}
                     </Label>
 
                     {loadingReceivingAccounts ? (
@@ -1010,7 +1313,7 @@ export function NewProposalDialog({
                 <div className="rounded-2xl border border-dashed bg-white p-4 space-y-3">
                   <Label className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <FileText className="h-4 w-4 text-orange-500" />
-                    Contrato em PDF
+                    PDF de Memorial descritivo ou Contrato
                   </Label>
                   <p className="text-sm text-muted-foreground">
                     O PDF é obrigatório para enviar a proposta. Anexe o contrato ou memorial descritivo completo com os detalhes combinados.
@@ -1045,8 +1348,16 @@ export function NewProposalDialog({
                       value={new Intl.NumberFormat("pt-BR", {
                         style: "currency",
                         currency: "BRL",
-                      }).format(projectTotal)}
+                      }).format(projectTotalWithFee)}
                     />
+                    {platformFee > 0 && (
+                      <p className="text-[11px] text-orange-700 -mt-1">
+                        Inclui taxa de {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(platformFee)} (5%)
+                      </p>
+                    )}
                   </div>
                 </div>
               </aside>
@@ -1100,7 +1411,7 @@ export function NewProposalDialog({
                       {new Intl.NumberFormat("pt-BR", {
                         style: "currency",
                         currency: "BRL",
-                      }).format(projectTotal)}
+                      }).format(projectTotalWithFee)}
                     </Badge>
                   </div>
 
@@ -1196,7 +1507,7 @@ export function NewProposalDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            {activeStage !== "steps" ? (
+            {activeStageIndex > 0 ? (
               <Button variant="ghost" onClick={handlePreviousStage}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Voltar

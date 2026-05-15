@@ -58,6 +58,11 @@ export function useAdminDashboard({
   const [sendingMessage, setSendingMessage] = useState(false);
   const [adminMessageError, setAdminMessageError] = useState<string | null>(null);
 
+  const [payingTransferTicketId, setPayingTransferTicketId] = useState<number | null>(null);
+  const [payTransferError, setPayTransferError] = useState<string | null>(null);
+  const [verifyingUserId, setVerifyingUserId] = useState<number | null>(null);
+  const [verifyUserError, setVerifyUserError] = useState<string | null>(null);
+
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [conversationViewer, setConversationViewer] = useState<ConversationViewer | null>(null);
   const [loadingConversationViewer, setLoadingConversationViewer] = useState(false);
@@ -550,6 +555,64 @@ export function useAdminDashboard({
     selectedUserId,
   ]);
 
+  const payTransfer = useCallback(
+    async (ticketId: number) => {
+      if (!isAuthenticated) return;
+      setPayingTransferTicketId(ticketId);
+      setPayTransferError(null);
+      try {
+        const response = await apiRequest("POST", `/admin/transfers/${ticketId}/pay`);
+        if (!response.ok) {
+          if (response.status === 401) {
+            onUnauthorized("Sessão administrativa expirada.");
+            return;
+          }
+          const body = await response.json().catch(() => ({}));
+          throw new Error((body as { message?: string }).message || "Erro ao registrar repasse.");
+        }
+        refreshDashboard();
+      } catch (err) {
+        console.error(err);
+        setPayTransferError(err instanceof Error ? err.message : "Erro ao registrar repasse.");
+      } finally {
+        setPayingTransferTicketId(null);
+      }
+    },
+    [isAuthenticated, onUnauthorized, refreshDashboard]
+  );
+
+  const verifyUser = useCallback(
+    async (userId: number, verified: boolean) => {
+      if (!isAuthenticated) return;
+      setVerifyingUserId(userId);
+      setVerifyUserError(null);
+      try {
+        const response = await apiRequest("POST", `/admin/users/${userId}/verify`, {
+          verified,
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            onUnauthorized("Sessão administrativa expirada.");
+            return;
+          }
+          const body = await response.json().catch(() => ({}));
+          throw new Error(
+            (body as { message?: string }).message || "Erro ao atualizar verificação."
+          );
+        }
+        refreshDashboard();
+      } catch (err) {
+        console.error(err);
+        setVerifyUserError(
+          err instanceof Error ? err.message : "Erro ao atualizar verificação."
+        );
+      } finally {
+        setVerifyingUserId(null);
+      }
+    },
+    [isAuthenticated, onUnauthorized, refreshDashboard]
+  );
+
   const openConversationFromOverview = useCallback(
     (conversationId: number) => {
       setActiveTab("conversas");
@@ -639,6 +702,12 @@ export function useAdminDashboard({
     sendingMessage,
     adminMessageError,
     sendAdminMessage,
+    payTransfer,
+    payingTransferTicketId,
+    payTransferError,
+    verifyUser,
+    verifyingUserId,
+    verifyUserError,
     selectedConversationId,
     selectedConversationRow,
     conversationViewer,

@@ -8,6 +8,7 @@ export type AdminTab =
   | "pagamentos"
   | "transferencias"
   | "documentos"
+  | "taxas"
   | "conversas";
 
 export type DashboardSection =
@@ -17,6 +18,7 @@ export type DashboardSection =
   | "pagamentos"
   | "transferencias"
   | "documentos"
+  | "taxas"
   | "conversas";
 
 export type UserDetailTab =
@@ -49,6 +51,8 @@ export type AdminUserRow = {
   masked_email: string | null;
   type: "prestador" | "contratante";
   perfil_completo: boolean;
+  is_verified: boolean;
+  is_verified_at: string | null;
   city: string | null;
   state: string | null;
   created_at: string | null;
@@ -116,7 +120,11 @@ export type AdminDocumentRow = {
   id: number;
   ticket_id: number;
   pdf_path: string;
+  signed_pdf_path?: string | null;
+  signature_hash?: string | null;
   download_url?: string | null;
+  download_url_original?: string | null;
+  download_url_signed?: string | null;
   signed: boolean;
   signed_at: string | null;
   created_at: string | null;
@@ -134,6 +142,7 @@ export type AdminTransferStepRow = {
   updated_at: string | null;
   group_label: string;
   payout_reason: string;
+  payout_paid_at: string | null;
 };
 
 export type AdminTransferContractRow = {

@@ -76,64 +76,48 @@ export default function ServicesFeed() {
     isLoading: loadingUsers,
     isError: errorUsers
   } = useQuery<EnrichedService[]>({
-    queryKey: ["enriched-services", servicesData?.servicesFreelancer, currentUser?.id],
+    queryKey: ["enriched-services", servicesData?.servicesFreelancer?.map((s: any) => s.id_serviceFreelancer), currentUser?.id],
     queryFn: async () => {
       if (!servicesData?.servicesFreelancer) return [];
       const services = servicesData.servicesFreelancer;
-      const enriched: EnrichedService[] = [];
-      for (const service of services) {
-        try {
-          let userData = null;
 
-          if (currentUser && service.ServiceProvider.user_id === currentUser.id) {
-            userData = currentUser;
-            console.log(`Usando dados do usuário logado para serviço ${service.id_serviceFreelancer}`);
-          } else {
-            try {
-              const userRes = await apiRequest("GET", `/users/${service.ServiceProvider.user_id}`);
-              if (userRes.ok) {
-                const userResponse = await userRes.json();
-                userData = userResponse.user;
-                console.log(`Dados do usuário ${service.ServiceProvider.user_id} carregados da API`);
-              } else {
-                console.error(`Erro ao buscar usuário ${service.ServiceProvider.user_id}: Status ${userRes.status}`);
-              }
-            } catch (apiError) {
-              console.error(`Erro na requisição para usuário ${service.ServiceProvider.user_id}:`, apiError);
-            }
+      // Deduplica user IDs para não buscar o mesmo usuário duas vezes
+      const uniqueUserIds = [
+        ...new Set(
+          services
+            .map((s: any) => s.ServiceProvider?.user_id)
+            .filter((id: any) => id != null && id !== currentUser?.id)
+        ),
+      ] as number[];
+
+      // Busca todos os usuários em paralelo (1 RTT em vez de N sequenciais)
+      const userResults = await Promise.all(
+        uniqueUserIds.map(async (userId) => {
+          try {
+            const res = await apiRequest("GET", `/users/${userId}`);
+            if (!res.ok) return [userId, null] as const;
+            const body = await res.json();
+            return [userId, body.user] as const;
+          } catch {
+            return [userId, null] as const;
           }
+        })
+      );
 
-          if (userData) {
-            enriched.push({
-              ...service,
-              userName: userData.name,
-              userEmail: userData.email,
-              userType: userData.type,
-              userPerfil: userData.perfil,
-            } as any);
-          } else {
-            enriched.push({
-              ...service,
-              userName: service.ServiceProvider.profession || "Prestador",
-              userEmail: "Email não disponível",
-              userType: "prestador",
-              userPerfil: null,
-            } as any);
-            console.warn(`Usando fallback para serviço ${service.id_serviceFreelancer}`);
-          }
-        } catch (error) {
-          console.error(`Erro geral ao processar usuário ${service.ServiceProvider.user_id}:`, error);
-          enriched.push({
-            ...service,
-            userName: service.ServiceProvider.profession || "Prestador",
-            userEmail: "Email não disponível",
-            userType: "prestador",
-          });
-        }
-      }
+      const userMap = new Map<number, any>(userResults);
+      if (currentUser) userMap.set(currentUser.id, currentUser);
 
-      console.log(`Processados ${enriched.length} serviços de ${services.length} total`);
-      return enriched;
+      return services.map((service: any) => {
+        const uid = service.ServiceProvider?.user_id;
+        const userData = uid != null ? userMap.get(uid) : null;
+        return {
+          ...service,
+          userName: userData?.name ?? service.ServiceProvider?.profession ?? "Prestador",
+          userEmail: userData?.email ?? "Email não disponível",
+          userType: userData?.type ?? "prestador",
+          userPerfil: userData?.perfil ?? null,
+        } as EnrichedService;
+      });
     },
     enabled: !!servicesData?.servicesFreelancer && servicesData.servicesFreelancer.length > 0,
     staleTime: 5 * 60 * 1000,

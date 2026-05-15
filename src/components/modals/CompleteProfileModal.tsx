@@ -235,7 +235,9 @@ export default function CompleteProfileModal() {
         <DialogHeader>
           <DialogTitle>Complete seu cadastro</DialogTitle>
           <DialogDescription>
-            Para continuar, confirme seus dados e informe endereço. Alguns campos não vêm do Google.
+            {(user as any)?.provider === "google"
+              ? "Para continuar, confirme seus dados e informe endereço. Alguns campos não vêm do Google."
+              : "Para continuar, confirme seus dados e informe seu endereço."}
           </DialogDescription>
         </DialogHeader>
 

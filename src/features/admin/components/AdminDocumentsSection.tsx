@@ -14,7 +14,7 @@ type AdminDocumentsSectionProps = {
 
 export function AdminDocumentsSection({ documents }: AdminDocumentsSectionProps) {
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {documents.length ? (
         documents.map((document) => (
           <SectionCard
@@ -56,13 +56,43 @@ export function AdminDocumentsSection({ documents }: AdminDocumentsSectionProps)
                 </div>
               </div>
 
-              <button
-                onClick={() => openSecureFile(document.download_url || document.pdf_path)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Abrir PDF
-              </button>
+              {document.signature_hash && (
+                <div className="rounded-[22px] bg-amber-50 border border-amber-200 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+                    Hash de auditoria
+                  </p>
+                  <p className="mt-1 text-[11px] font-mono text-amber-900 break-all">
+                    {document.signature_hash}
+                  </p>
+                </div>
+              )}
+
+              {document.download_url_signed ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    onClick={() => openSecureFile(document.download_url_signed!)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Versão assinada
+                  </button>
+                  <button
+                    onClick={() => openSecureFile(document.download_url_original || document.download_url || document.pdf_path)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-300"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Versão original
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => openSecureFile(document.download_url || document.pdf_path)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir PDF
+                </button>
+              )}
             </div>
           </SectionCard>
         ))

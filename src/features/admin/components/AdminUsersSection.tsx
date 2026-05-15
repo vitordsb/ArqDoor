@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   AdminDirectConversation,
   AdminOperationalConversation,
@@ -21,7 +22,14 @@ import {
   cn,
 } from "../utils";
 import { EmptyState, PaginationControls, SectionCard, StatusBadge } from "./AdminPrimitives";
-import { SendHorizontal } from "lucide-react";
+import { BadgeCheck, Check, Loader2, SendHorizontal, ShieldOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type AdminUsersSectionProps = {
   users: AdminUserRow[];
@@ -57,6 +65,9 @@ type AdminUsersSectionProps = {
   sendingMessage: boolean;
   adminMessageError: string | null;
   onSendAdminMessage: () => void | Promise<void>;
+  onVerifyUser: (userId: number, verified: boolean) => void | Promise<void>;
+  verifyingUserId: number | null;
+  verifyUserError: string | null;
 };
 
 const USER_DETAIL_TABS: Array<{ key: UserDetailTab; label: string }> = [
@@ -101,50 +112,51 @@ export function AdminUsersSection({
   sendingMessage,
   adminMessageError,
   onSendAdminMessage,
+  onVerifyUser,
+  verifyingUserId,
+  verifyUserError,
 }: AdminUsersSectionProps) {
+  const [detailOpen, setDetailOpen] = useState(false);
+
   return (
-    <div className="mt-4 grid gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
-      <SectionCard title="Usuários" subtitle="Lista compacta para navegação rápida.">
+    <div className="mt-2">
+      <SectionCard title="Usuários">
         {users.length ? (
-          <div className="space-y-2">
+          <div className="divide-y divide-slate-100">
+            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Nome / Email</span>
+              <span>Tipo</span>
+              <span className="hidden md:inline">Contratos</span>
+              <span></span>
+            </div>
             {users.map((user) => (
               <button
                 key={user.id}
-                onClick={() => void onSelectUser(user.id)}
-                className={cn(
-                  "w-full rounded-2xl border px-3 py-3 text-left transition",
-                  selectedUserId === user.id
-                    ? "border-slate-900 bg-slate-950 text-white"
-                    : "border-slate-200 bg-slate-50 hover:bg-white"
-                )}
+                onClick={() => {
+                  void onSelectUser(user.id);
+                  setDetailOpen(true);
+                }}
+                className="grid w-full grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-2 py-1.5 text-left transition hover:bg-slate-50"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{user.name}</p>
-                    <p
-                      className={cn(
-                        "mt-1 truncate text-xs",
-                        selectedUserId === user.id ? "text-slate-300" : "text-slate-500"
-                      )}
-                    >
-                      {user.masked_email || "Email indisponível"}
-                    </p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
+                    {user.is_verified ? (
+                      <Check className="h-3 w-3 shrink-0 text-emerald-600" />
+                    ) : null}
                   </div>
-                  <StatusBadge
-                    label={user.type === "prestador" ? "Prestador" : "Cliente"}
-                    tone={user.type === "prestador" ? "emerald" : "amber"}
-                  />
+                  <p className="truncate text-[11px] text-slate-500">
+                    {user.masked_email || "—"} · #{user.id}
+                  </p>
                 </div>
-                <div
-                  className={cn(
-                    "mt-3 flex flex-wrap gap-3 text-[11px]",
-                    selectedUserId === user.id ? "text-slate-300" : "text-slate-500"
-                  )}
-                >
-                  <span>ID #{user.id}</span>
-                  <span>{user.contracts_count} contrato(s)</span>
-                  <span>{user.running_payments_count} cobrança(s)</span>
-                </div>
+                <StatusBadge
+                  label={user.type === "prestador" ? "Prestador" : "Cliente"}
+                  tone={user.type === "prestador" ? "emerald" : "amber"}
+                />
+                <span className="hidden md:inline text-[11px] text-slate-500">
+                  {user.contracts_count}c / {user.running_payments_count}p
+                </span>
+                <span className="text-[11px] font-semibold text-slate-600">Abrir →</span>
               </button>
             ))}
           </div>
@@ -156,14 +168,14 @@ export function AdminUsersSection({
         )}
       </SectionCard>
 
-      <SectionCard
-        title={selectedUser ? selectedUser.name : "Detalhe do usuário"}
-        subtitle={
-          selectedUser
-            ? "Perfil, conversas, contratos, etapas e atendimento em uma navegação mais enxuta."
-            : "Selecione um usuário na lista para abrir os detalhes."
-        }
-      >
+      <Dialog open={detailOpen && !!selectedUser} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto p-4 sm:p-5">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {selectedUser ? selectedUser.name : "Detalhe do usuário"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-1">
         {selectedUser ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
@@ -173,7 +185,7 @@ export function AdminUsersSection({
                   {selectedUser.masked_email || "Email mascarado"}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge
                   label={selectedUser.type === "prestador" ? "Prestador" : "Cliente"}
                   tone={selectedUser.type === "prestador" ? "emerald" : "amber"}
@@ -183,8 +195,38 @@ export function AdminUsersSection({
                 ) : (
                   <StatusBadge label="Perfil incompleto" tone="slate" />
                 )}
+                {selectedUser.is_verified ? (
+                  <StatusBadge label="Verificado" tone="emerald" />
+                ) : null}
+                <Button
+                  size="sm"
+                  variant={selectedUser.is_verified ? "outline" : "default"}
+                  className={
+                    selectedUser.is_verified
+                      ? ""
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  }
+                  disabled={verifyingUserId === selectedUser.id}
+                  onClick={() =>
+                    void onVerifyUser(selectedUser.id, !selectedUser.is_verified)
+                  }
+                >
+                  {verifyingUserId === selectedUser.id ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : selectedUser.is_verified ? (
+                    <ShieldOff className="mr-1 h-3 w-3" />
+                  ) : (
+                    <BadgeCheck className="mr-1 h-3 w-3" />
+                  )}
+                  {selectedUser.is_verified ? "Remover verificação" : "Verificar conta"}
+                </Button>
               </div>
             </div>
+            {verifyUserError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {verifyUserError}
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
               {USER_DETAIL_TABS.map((tab) => (
@@ -277,13 +319,10 @@ export function AdminUsersSection({
               />
             ) : null}
           </div>
-        ) : (
-          <EmptyState
-            title="Escolha um usuário"
-            description="A lateral mostra a lista principal. Ao selecionar um cadastro, os detalhes aparecem aqui."
-          />
-        )}
-      </SectionCard>
+        ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

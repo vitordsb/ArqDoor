@@ -16,7 +16,7 @@ const CombinedHomeSections = () => {
   const primaryCta = useMemo(
     () => ({
       href: isLoggedIn ? getResumeRoute("/home") : "/auth",
-      label: isLoggedIn ? "Continuar usando, você está online!" : "Gere um contrato gratuitamente",
+      label: isLoggedIn ? "Continuar usando, você está online!" : "Gere uma proposta",
     }),
     [isLoggedIn],
   );

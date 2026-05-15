@@ -93,15 +93,30 @@ export const login = async (
       password: data.password || "",
     };
     const validate = await apiRequest("POST", "/auth/login", sanitized);
-    if (validate.status === 401) {
+    if (!validate.ok) {
+      // Tenta extrair mensagem do backend (formato { error: { message }, message }).
+      // Antes só 401 mostrava toast — qualquer outro erro (403, 500, etc) caía
+      // silenciosamente. Resultado: conta Google tentando logar com senha não
+      // mostrava feedback algum.
+      let backendMessage: string | null = null;
+      try {
+        const body = await validate.clone().json();
+        backendMessage = body?.error?.message || body?.message || null;
+      } catch {
+        // resposta não-JSON, ignora
+      }
+      const fallback =
+        validate.status === 401
+          ? "Email ou senha incorretos"
+          : "Não foi possível fazer login. Tente novamente.";
       toast({
-        title: "Credenciais invalidas",
-        description: "Email ou senha incorretos",
+        title:
+          validate.status === 401 ? "Credenciais inválidas" : "Erro no login",
+        description: backendMessage || fallback,
         variant: "destructive",
       });
       return false;
     }
-    if (!validate.ok) return false;
     const sessionData = await fetchSession();
     if (!sessionData?.user) {
       throw new Error("Sessão não pôde ser carregada após o login.");

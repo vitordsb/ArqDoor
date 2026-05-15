@@ -43,7 +43,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     queryKey: ["conversations", user?.id],
     enabled: isInitialized && isLoggedIn && !!user?.id,
     staleTime: 5_000,
-    refetchInterval: isVisible ? 2_000 : 10_000, // conversas: rápido visível, mais lento em bg
+    refetchInterval: isVisible ? 5_000 : 30_000, // conversas: rápido visível, mais lento em bg
     queryFn: async () => {
       const response = await apiRequest("GET", "/conversation");
       if (!response.ok) throw new Error("Erro ao buscar conversas");
@@ -127,7 +127,7 @@ export function useMessaging(initialPartnerId?: string | null) {
     queryKey: ["messages", currentConversation?.id, user?.id],
     enabled: isInitialized && !!currentConversation?.id && isLoggedIn,
     staleTime: 1_000,
-    refetchInterval: isVisible ? 1_000 : 5_000,
+    refetchInterval: isVisible ? 3_000 : 30_000,
     queryFn: async () => {
       if (!currentConversation?.id) return [];
       const response = await apiRequest("GET", `/message/conversation/${currentConversation.id}`);

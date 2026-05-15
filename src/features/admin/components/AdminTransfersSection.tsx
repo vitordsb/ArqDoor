@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { formatCnpj, formatCpf } from "@/lib/utils";
 import type { AdminTransferRow, DashboardData } from "../types";
 import {
@@ -10,6 +13,9 @@ import { EmptyState, SectionCard, StatusBadge } from "./AdminPrimitives";
 
 type AdminTransfersSectionProps = {
   transfers: DashboardData["transfers"];
+  onPayTransfer: (ticketId: number) => Promise<void>;
+  payingTicketId: number | null;
+  payTransferError: string | null;
 };
 
 const maskBankDocument = (value: string | null | undefined) => {
@@ -49,28 +55,40 @@ const bankSummary = (contract: AdminTransferRow["contracts"][number]) => {
   return lines;
 };
 
-export function AdminTransfersSection({ transfers }: AdminTransfersSectionProps) {
+export function AdminTransfersSection({
+  transfers,
+  onPayTransfer,
+  payingTicketId,
+  payTransferError,
+}: AdminTransfersSectionProps) {
+  const [confirming, setConfirming] = useState<number | null>(null);
   return (
-    <div className="mt-6 space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
+    <div className="mt-2 space-y-2">
+      <div className="grid gap-2 grid-cols-3">
         <SectionCard title="Prestadores prontos" subtitle="Com repasse liberado">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
             {transfers.length}
           </p>
         </SectionCard>
         <SectionCard title="Etapas liberadas" subtitle="Já pagas e concluídas">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
             {transfers.reduce((sum, item) => sum + Number(item.ready_steps_count || 0), 0)}
           </p>
         </SectionCard>
         <SectionCard title="Total para repasse" subtitle="Valor disponível agora">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
             {formatCurrency(
               transfers.reduce((sum, item) => sum + Number(item.ready_total || 0), 0)
             )}
           </p>
         </SectionCard>
       </div>
+
+      {payTransferError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {payTransferError}
+        </div>
+      )}
 
       {transfers.length ? (
         <div className="space-y-4">
@@ -122,13 +140,47 @@ export function AdminTransfersSection({ transfers }: AdminTransfersSectionProps)
                           </p>
                         </div>
 
-                        <div className="text-right">
+                        <div className="flex flex-col items-end gap-2">
                           <p className="text-lg font-semibold text-slate-950">
                             {formatCurrency(contract.ready_total)}
                           </p>
                           <p className="text-sm text-slate-500">
                             {contract.ready_steps_count} etapa(s) pronta(s)
                           </p>
+                          {confirming === contract.ticket_id ? (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setConfirming(null)}
+                                disabled={payingTicketId === contract.ticket_id}
+                              >
+                                Cancelar
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                disabled={payingTicketId === contract.ticket_id}
+                                onClick={async () => {
+                                  await onPayTransfer(contract.ticket_id);
+                                  setConfirming(null);
+                                }}
+                              >
+                                {payingTicketId === contract.ticket_id ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : null}
+                                Confirmar repasse
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={() => setConfirming(contract.ticket_id)}
+                            >
+                              Pagar prestador
+                            </Button>
+                          )}
                         </div>
                       </div>
 

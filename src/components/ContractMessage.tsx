@@ -7,7 +7,7 @@ import { formatRelativeTime } from "@/lib/utils";
 import { Step } from "@/lib/Interfaces";
 import { ContractStep } from "./ContractStep";
 import { useState, useEffect } from "react";
-import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
+import { SIGNATURE_STEP_TITLE, isSignatureContractStep } from "@/constants/contracts";
 
 export interface ContractMessageProps {
   contract: {
@@ -113,7 +113,7 @@ export function ContractMessage({
   };
   
   const totalPrice = steps
-    .filter((step) => step.title !== SIGNATURE_STEP_TITLE)
+    .filter((step) => !isSignatureContractStep(step))
     .reduce((sum, step) => sum + Number(step.price || 0), 0);
   const isContractSigned = status !== 'pending';
   const isContractRejected = status === 'rejected';

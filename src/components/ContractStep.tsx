@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Check, X, AlertCircle } from "lucide-react";
 import { Step, StepStatus } from "@/lib/Interfaces";
 import { formatPrice } from "@/lib/utils";
-import { SIGNATURE_STEP_TITLE } from "@/constants/contracts";
+import { isSignatureContractStep } from "@/constants/contracts";
 
 export interface ContractStepProps {
   step: Step;
@@ -34,7 +34,7 @@ export function ContractStep({
   const showProviderActions = isProvider && (isPending || isAwaitingConfirmation);
   const showClientActions = !isProvider && isAwaitingConfirmation;
 
-  const isSignatureStep = step.title === SIGNATURE_STEP_TITLE;
+  const isSignatureStep = isSignatureContractStep(step);
   return (
     <Card className={`mb-4 ${isActive ? 'border-2 border-primary' : ''}`}>
       <CardContent className="pt-4">

@@ -3,9 +3,11 @@ import {
   BriefcaseBusiness,
   Building2,
   ExternalLink,
-  Sparkles,
+  FileSignature,
+  MessageSquare,
   UserRound,
   Users,
+  Wallet,
 } from "lucide-react";
 import type { AdminConversationRow, AdminTab, DashboardData } from "../types";
 import { formatCurrency, formatDate, preferenceLabel } from "../utils";
@@ -32,81 +34,60 @@ export function AdminDashboardView({
     <>
       {activeTab === "dashboard" ? (
         <div className="mt-2 space-y-2">
-          <div className="grid gap-2 xl:grid-cols-5">
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8">
             <StatCard
-              label="Usuários cadastrados"
+              label="Usuários"
               value={dashboard.summary.filtered.users || 0}
-              helper={`${dashboard.summary.totals.users || 0} no total`}
+              helper={`${dashboard.summary.totals.users || 0} total`}
               icon={Users}
             />
             <StatCard
               label="Prestadores"
               value={dashboard.summary.filtered.providers || 0}
-              helper={`${dashboard.summary.totals.providers || 0} no total`}
+              helper={`${dashboard.summary.totals.providers || 0} total`}
               icon={Building2}
             />
             <StatCard
               label="Clientes"
               value={dashboard.summary.filtered.clients || 0}
-              helper={`${dashboard.summary.totals.clients || 0} no total`}
+              helper={`${dashboard.summary.totals.clients || 0} total`}
               icon={UserRound}
             />
             <StatCard
               label="Contratos"
               value={dashboard.summary.filtered.contracts || 0}
-              helper={`${dashboard.summary.totals.contracts || 0} ativos e históricos`}
+              helper={formatCurrency(dashboard.summary.monetary.contracts_volume)}
               icon={BriefcaseBusiness}
             />
             <StatCard
-              label="Pagamentos rodando"
+              label="Cobrando"
               value={dashboard.summary.filtered.running_payments || 0}
               helper={formatCurrency(dashboard.summary.monetary.running_payments_volume || 0)}
               icon={BadgeDollarSign}
             />
+            <StatCard
+              label="Em cobrança"
+              value={dashboard.summary.monetary.running_payments_volume || 0}
+              helper="valor aberto"
+              icon={Wallet}
+            />
+            <StatCard
+              label="Docs assinados"
+              value={dashboard.summary.filtered.signed_documents || 0}
+              helper="contratos OK"
+              icon={FileSignature}
+            />
+            <StatCard
+              label="Conversas"
+              value={dashboard.summary.filtered.conversations || 0}
+              helper="monitoradas"
+              icon={MessageSquare}
+            />
           </div>
 
-          <div className="grid gap-2 xl:grid-cols-[1fr_1fr]">
-            <SectionCard title="Insights rápidos" subtitle="Resumo direto da operação.">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Volume de contratos
-                  </p>
-                  <p className="mt-2 text-xl font-semibold text-slate-950">
-                    {formatCurrency(dashboard.summary.monetary.contracts_volume)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Documentos assinados
-                  </p>
-                  <p className="mt-2 text-xl font-semibold text-slate-950">
-                    {dashboard.summary.filtered.signed_documents}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Conversas monitoradas
-                  </p>
-                  <p className="mt-2 text-xl font-semibold text-slate-950">
-                    {dashboard.summary.filtered.conversations}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Valor em cobrança
-                  </p>
-                  <p className="mt-2 text-xl font-semibold text-slate-950">
-                    {formatCurrency(dashboard.summary.monetary.running_payments_volume)}
-                  </p>
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Mapa rápido" subtitle="Localização mais frequente do recorte atual.">
-              <TopLocationsPanel dashboard={dashboard} emptyStateSuffix="" />
-            </SectionCard>
-          </div>
+          <SectionCard title="Localização">
+            <TopLocationsPanel dashboard={dashboard} emptyStateSuffix="" />
+          </SectionCard>
         </div>
       ) : null}
 
@@ -316,35 +297,52 @@ function TopLocationsPanel({
   emptyStateSuffix,
   stacked = false,
 }: TopLocationsPanelProps) {
+  const states = dashboard.summary.top_locations.states;
+  const cities = dashboard.summary.top_locations.cities;
+  const maxStateValue = Math.max(1, ...states.map((s) => s.value));
+  const maxCityValue = Math.max(1, ...cities.map((c) => c.value));
+
   return (
-    <div className={`grid gap-3 md:grid-cols-2 ${stacked ? "xl:grid-cols-1" : ""}`}>
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-sm font-semibold text-slate-900">Estados</p>
-        <div className="mt-3 space-y-2">
-          {dashboard.summary.top_locations.states.length ? (
-            dashboard.summary.top_locations.states.map((entry) => (
-              <div key={entry.label} className="flex items-center justify-between text-sm text-slate-600">
-                <span>{entry.label}</span>
-                <span className="font-semibold text-slate-900">{entry.value}</span>
+    <div className={`grid gap-2 md:grid-cols-2 ${stacked ? "xl:grid-cols-1" : ""}`}>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Estados</p>
+        <div className="mt-1.5 space-y-1">
+          {states.length ? (
+            states.map((entry) => (
+              <div key={entry.label} className="flex items-center gap-2 text-xs">
+                <span className="w-8 font-medium text-slate-700">{entry.label}</span>
+                <div className="flex-1 h-1.5 rounded-full bg-slate-200">
+                  <div
+                    className="h-1.5 rounded-full bg-slate-700"
+                    style={{ width: `${(entry.value / maxStateValue) * 100}%` }}
+                  />
+                </div>
+                <span className="w-6 text-right font-semibold text-slate-900">{entry.value}</span>
               </div>
             ))
           ) : (
-            <p className="text-sm text-slate-500">Sem dados de estado{emptyStateSuffix}.</p>
+            <p className="text-xs text-slate-500">Sem dados{emptyStateSuffix}.</p>
           )}
         </div>
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-sm font-semibold text-slate-900">Cidades</p>
-        <div className="mt-3 space-y-2">
-          {dashboard.summary.top_locations.cities.length ? (
-            dashboard.summary.top_locations.cities.map((entry) => (
-              <div key={entry.label} className="flex items-center justify-between text-sm text-slate-600">
-                <span>{entry.label}</span>
-                <span className="font-semibold text-slate-900">{entry.value}</span>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cidades</p>
+        <div className="mt-1.5 space-y-1">
+          {cities.length ? (
+            cities.map((entry) => (
+              <div key={entry.label} className="flex items-center gap-2 text-xs">
+                <span className="flex-1 truncate font-medium text-slate-700">{entry.label}</span>
+                <div className="w-16 h-1.5 rounded-full bg-slate-200">
+                  <div
+                    className="h-1.5 rounded-full bg-slate-700"
+                    style={{ width: `${(entry.value / maxCityValue) * 100}%` }}
+                  />
+                </div>
+                <span className="w-6 text-right font-semibold text-slate-900">{entry.value}</span>
               </div>
             ))
           ) : (
-            <p className="text-sm text-slate-500">Sem dados de cidade{emptyStateSuffix}.</p>
+            <p className="text-xs text-slate-500">Sem dados{emptyStateSuffix}.</p>
           )}
         </div>
       </div>

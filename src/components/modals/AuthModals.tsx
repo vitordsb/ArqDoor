@@ -313,6 +313,36 @@ export const AuthModals: React.FC<{
     };
 
     async function handleLogin(data: LoginInterface) {
+      // Validação client-side antes de bater no backend.
+      // Evita roundtrip pra erros óbvios e dá feedback imediato.
+      const email = data.email?.trim() || "";
+      const password = data.password || "";
+      if (!email) {
+        toast({
+          title: "Email obrigatório",
+          description: "Informe seu email pra continuar.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Validação simples de formato — não substitui validação do backend
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast({
+          title: "Email inválido",
+          description: "Formato de email inválido. Ex: voce@exemplo.com",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!password) {
+        toast({
+          title: "Senha obrigatória",
+          description: "Informe sua senha pra continuar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setLoginLoading(true);
       try {
         const ok = await login(data);
@@ -614,21 +644,32 @@ export const AuthModals: React.FC<{
                     control={registerForm.control}
                     name="type"
                     render={({ field }) => (
-                      <FormItem className="flex items-center gap-3 rounded-xl border p-3">
-                        <FormControl>
-                          <Checkbox
-                            id="sou-prestador"
-                            checked={field.value === "prestador"}
-                            onCheckedChange={(checked) =>
-                              field.onChange(
-                                checked === true ? "prestador" : "contratante"
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <label htmlFor="sou-prestador" className="text-sm leading-none">
-                          Sou prestador
-                        </label>
+                      <FormItem className="rounded-xl border bg-orange-50/50 p-3 space-y-2">
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-semibold text-slate-900">
+                            Utilize a ArqDoor como profissional.
+                          </p>
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            Marque a opção "sou prestador" e utilize a ArqDoor para
+                            realizar o seu trabalho e receber propostas de clientes.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <FormControl>
+                            <Checkbox
+                              id="sou-prestador"
+                              checked={field.value === "prestador"}
+                              onCheckedChange={(checked) =>
+                                field.onChange(
+                                  checked === true ? "prestador" : "contratante"
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <label htmlFor="sou-prestador" className="text-sm leading-none font-medium">
+                            Sou prestador
+                          </label>
+                        </div>
                       </FormItem>
                     )}
                   />

@@ -3,14 +3,15 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import type { LandingPrimaryCta } from "@/components/landing/types";
 import { landingType } from "@/components/landing/typography";
+import { ARQDOOR_WHATSAPP_URL } from "@/lib/whatsapp";
 
 interface LandingHeaderProps {
   primaryCta: LandingPrimaryCta;
 }
 
 const navItems = [
-  { label: "Sobre nós", href: "#sobre" },
-  { label: "Fale com a equipe de vendas", href: "#contato-vendas" },
+  { label: "Sobre nós", href: "#sobre", external: false },
+  { label: "Fale com a equipe de vendas", href: ARQDOOR_WHATSAPP_URL, external: true },
 ];
 
 export default function LandingHeader({ primaryCta }: LandingHeaderProps) {
@@ -56,6 +57,8 @@ export default function LandingHeader({ primaryCta }: LandingHeaderProps) {
               <a
                 key={item.label}
                 href={item.href}
+                target={item.external ? "_blank" : undefined}
+                rel={item.external ? "noopener noreferrer" : undefined}
                 className={`${landingType.navLink} text-[#4A5565] transition-colors duration-300 hover:text-[#e85a0c]`}
               >
                 {item.label}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Menu, Home, Newspaper, Image, User, LogOut, MessageCircle, Link2, Users, LayoutDashboard } from "lucide-react";
@@ -21,39 +21,52 @@ import { useAuth } from "@/hooks/use-auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { getInitials } from "@/lib/utils";
 
-import logo from "../../public/images/arqdoorlogo.jpg";
+// Usa a mesma logo da landing pra ter consistência visual entre landing e app
+const logoSrc = "/images/landing/logo.png";
+
+type NavLinkProps = {
+  href: string;
+  location: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+};
+
+const NavLink = ({ href, location, icon: Icon, children }: NavLinkProps) => {
+  const isActive = location === href;
+  return (
+    <Link href={href}>
+      <div
+        aria-current={isActive ? "page" : undefined}
+        className={`flex items-center gap-1 text-sm transition-colors ${
+          isActive
+            ? "text-amber-600 font-semibold"
+            : "text-gray-700 hover:text-amber-500"
+        }`}
+      >
+        <Icon className="w-4 h-4" /> {children}
+      </div>
+    </Link>
+  );
+};
 
 const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
   const [location, navigate] = useLocation();
   const { user, isLoggedIn, logout } = useAuth();
   const unreadCount = useUnreadCount();
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
 
   const handleLogout = async () => {
     await logout();
     navigate("/auth");
   };
 
-  const isHomePage = location === "/";
-  const textColor = isHomePage && !isScrolled ? "text-black" : "text-gray-900";
-
   return (
     <nav className={`fixed top-0 w-full z-50 h-16 border-b border-zinc-200 bg-white/90 backdrop-blur shadow-sm transition-all`}>
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
         {/* Logo */}
         <Link href="/">
-          <div className="flex items-center gap-2">
-            <img src={logo} alt="ArqDoor Logo" className="h-8 w-auto" />
-            <span className={`text-lg font-bold ${textColor}`}>ArqDoor</span>
+          <div className="flex items-center">
+            {/* Logo já contém o nome "ArqDoor", texto extra removido */}
+            <img src={logoSrc} alt="ArqDoor" className="h-8 w-auto" />
           </div>
         </Link>
 
@@ -65,44 +78,22 @@ const Navbar = () => {
 
           {isLoggedIn && (
             <>
-              <Link href="/home">
-                <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <Home className="w-4 h-4" /> {user?.type === "prestador" ? "Painel" : "Início"}
-                </div>
-              </Link>
+              <NavLink href="/home" location={location} icon={Home}>
+                {user?.type === "prestador" ? "Painel" : "Início"}
+              </NavLink>
               {user?.type === "contratante" && (
-                <Link href="/services">
-                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                    <Newspaper className="w-4 h-4" /> Serviços
-                  </div>
-                </Link>
+                <NavLink href="/services" location={location} icon={Newspaper}>Serviços</NavLink>
               )}
               {user?.type === "contratante" && (
-                <Link href="/connections">
-                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                    <Users className="w-4 h-4" /> Conexões
-                  </div>
-                </Link>
+                <NavLink href="/connections" location={location} icon={Users}>Conexões</NavLink>
               )}
               {user?.type === "prestador" && (
-                <Link href="/demands">
-                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                    <Image className="w-4 h-4" /> Demandas
-                  </div>
-                </Link>
+                <NavLink href="/demands" location={location} icon={Image}>Demandas</NavLink>
               )}
               {user?.type === "prestador" && (
-                <Link href="/convites">
-                  <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                    <Link2 className="w-4 h-4" /> Convites
-                  </div>
-                </Link>
+                <NavLink href="/convites" location={location} icon={Link2}>Convites</NavLink>
               )}
-              <Link href="/kanban">
-                <div className="flex items-center gap-1 text-sm text-gray-700 hover:text-amber-500">
-                  <LayoutDashboard className="w-4 h-4" /> Kanban
-                </div>
-              </Link>
+              <NavLink href="/kanban" location={location} icon={LayoutDashboard}>Kanban</NavLink>
             </>
           )}
           {isLoggedIn && (
@@ -128,7 +119,7 @@ const Navbar = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={(user as any)?.perfil} className="object-cover" />
+                    <AvatarImage src={user?.perfil || undefined} className="object-cover" />
                     <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                   </Avatar>
                 </Button>

@@ -27,12 +27,7 @@ export default function LandingFooter() {
               <ul className="mt-1 space-y-1">
                 <li>
                   <a href="/termos-de-uso" className="text-[14px] opacity-80 hover:opacity-100 transition">
-                    Termos de Uso
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-[14px] opacity-80 hover:opacity-100 transition">
-                    Política de Privacidade
+                    Termos de Uso e Política de Privacidade
                   </a>
                 </li>
               </ul>

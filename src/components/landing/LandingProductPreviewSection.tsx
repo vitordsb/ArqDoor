@@ -81,7 +81,7 @@ export default function LandingProductPreviewSection() {
   const [startTyping, setStartTyping] = useState(false);
 
   const typedPrefix = "Organize o seu trabalho com ";
-  const typedHighlight = "Contratos Digitais Inteligentes";
+  const typedHighlight = "Gestão Inteligente de Contratos";
   const fullTypedText = `${typedPrefix}${typedHighlight}`;
 
   const typedText = useTypewriter(startTyping ? fullTypedText : "", 35);
@@ -125,11 +125,11 @@ export default function LandingProductPreviewSection() {
               <span className="invisible">
                 Organize o seu trabalho
                 <br />
-                com Contratos Digitais <br />
-                Inteligentes_
+                com Gestão Inteligente <br />
+                de Contratos_
               </span>
 
-              <span className="absolute left-0 top-0 w-full break-words font-semibold leading-tight text-justify">
+              <span className="absolute left-0 top-0 w-full break-words font-semibold leading-tight text-left">
                 {typedPrefixIsComplete ? (
                   <>
                     {typedPrefix}
@@ -157,7 +157,7 @@ export default function LandingProductPreviewSection() {
               viewport={{ once: true, amount: 0.3 }}
               transition={{ delay: 0.25 }}
             >
-              Na relação entre arquiteto e cliente, a falta de estrutura pode
+              Na relação entre profissional e cliente, a falta de estrutura pode
               gerar dúvidas sobre escopo, pagamentos e responsabilidades.
             </motion.p>
 
@@ -170,8 +170,8 @@ export default function LandingProductPreviewSection() {
               transition={{ delay: 0.38 }}
             >
               Por isso, garanta uma experiência Premium para o seu cliente
-              utilizando os nossos Contratos Digitais Inteligentes, e evite
-              atritos desnecessários.
+              utilizando o nosso sistema de Gestão Inteligente de Contratos,
+              e evite atritos desnecessários.
             </motion.p>
           </div>
 

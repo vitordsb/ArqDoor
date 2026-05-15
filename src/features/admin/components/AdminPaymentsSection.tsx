@@ -8,27 +8,27 @@ type AdminPaymentsSectionProps = {
 
 export function AdminPaymentsSection({ dashboard }: AdminPaymentsSectionProps) {
   return (
-    <div className="mt-6 space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
+    <div className="mt-2 space-y-2">
+      <div className="grid gap-2 grid-cols-3">
         <SectionCard title="Rodando" subtitle="Cobranças em aberto">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
             {dashboard.meta.pagination.payments.running_total}
           </p>
         </SectionCard>
         <SectionCard title="Pagos" subtitle="Pagamentos confirmados">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
             {dashboard.meta.pagination.payments.paid_total}
           </p>
         </SectionCard>
         <SectionCard title="Falharam" subtitle="Cobranças com problema">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
             {dashboard.meta.pagination.payments.failed_total}
           </p>
         </SectionCard>
       </div>
 
       {dashboard.payments.items.length ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {dashboard.payments.items.map((payment) => (
             <SectionCard
               key={payment.id}

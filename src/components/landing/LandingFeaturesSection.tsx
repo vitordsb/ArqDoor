@@ -5,7 +5,7 @@ import { landingType } from "@/components/landing/typography";
 
 const features = [
   {
-    title: "Contratos Digitais Inteligentes",
+    title: "Gestão Inteligente de Contratos",
     description:
       "Acelere a negociação enviando contratos através de um único link. Assinatura eletrônica, pagamento e visualização das fases em um único ato.",
     icon: (
@@ -21,7 +21,7 @@ const features = [
   {
     title: "Previsibilidade de Pagamento",
     description:
-      "Utilize a ArqDoor Escrow para intermediar os pagamentos. Anule a barreira de desconfiança com a nossa ferramenta e receba os seus honorários em dia.",
+      "Utilize a ArqDoor Escrow para intermediar os pagamentos. Anule a barreira de desconfiança com a nossa ferramenta e receba o valor do seu serviço em dia.",
     icon: <GiStrongbox className="h-[150px] w-[150px] text-white" />,
     tone:
       "bg-[#F05B10] text-white border border-transparent hover:border-[#ffb088]",

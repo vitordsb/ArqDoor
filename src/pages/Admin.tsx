@@ -4,6 +4,7 @@ import { AdminConversationsSection } from "@/features/admin/components/AdminConv
 import { AdminContractsSection } from "@/features/admin/components/AdminContractsSection";
 import { AdminDashboardView } from "@/features/admin/components/AdminOverviewSection";
 import { AdminDocumentsSection } from "@/features/admin/components/AdminDocumentsSection";
+import { AdminFeesSection } from "@/features/admin/components/AdminFeesSection";
 import { AdminFiltersModal } from "@/features/admin/components/AdminFiltersModal";
 import { AdminLoginView } from "@/features/admin/components/AdminLoginView";
 import { AdminPaymentsSection } from "@/features/admin/components/AdminPaymentsSection";
@@ -82,6 +83,12 @@ export default function Admin() {
     sendingMessage,
     adminMessageError,
     sendAdminMessage,
+    payTransfer,
+    payingTransferTicketId,
+    payTransferError,
+    verifyUser,
+    verifyingUserId,
+    verifyUserError,
     selectedConversationId,
     selectedConversationRow,
     conversationViewer,
@@ -124,85 +131,65 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <div className="mx-auto w-full px-1 py-1">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-1">
-          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Painel interno
-                </div>
-                <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">
-                  Administração da operação
-                </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  Visualize contratos, pagamentos, documentos e conversas sem expor dados
-                  sensíveis.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={logout}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sair
-                </button>
-              </div>
-            </div>
+      <div className="mx-auto w-full max-w-[1300px] px-3 sm:px-6 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-slate-500" />
+            <h1 className="text-sm font-semibold text-slate-900">Painel interno</h1>
+            <span className="text-[11px] text-slate-400">·</span>
+            <span className="text-[11px] text-slate-500">
+              Atualizado {formatDateTime(dashboard?.meta.generated_at)}
+            </span>
+            <span className="hidden sm:inline text-[11px] text-slate-400">·</span>
+            <span className="hidden sm:inline text-[11px] text-slate-500">LGPD ativo</span>
           </div>
-
-          <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-1">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition",
-                  activeTab === key
-                    ? "bg-slate-950 text-white"
-                    : "text-slate-600 hover:bg-white hover:text-slate-900"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowFilters(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Filtros
+              {appliedFilterCount ? (
+                <span className="rounded-full bg-slate-950 px-1.5 py-0.5 text-[10px] text-white">
+                  {appliedFilterCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              onClick={refreshDashboard}
+              title="Atualizar"
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-700 transition hover:bg-slate-50"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={logout}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sair
+            </button>
           </div>
+        </div>
 
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
-                Atualizado em {formatDateTime(dashboard?.meta.generated_at)}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
-                LGPD: CPF e senhas ocultos
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setShowFilters(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <Filter className="h-4 w-4" />
-                Filtros
-                {appliedFilterCount ? (
-                  <span className="rounded-full bg-slate-950 px-2 py-0.5 text-[11px] text-white">
-                    {appliedFilterCount}
-                  </span>
-                ) : null}
-              </button>
-              <button
-                onClick={refreshDashboard}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                Atualizar
-              </button>
-            </div>
-          </div>
+        <div className="mt-2 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1">
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
+                activeTab === key
+                  ? "bg-slate-950 text-white"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
 
           <AdminFiltersModal
             open={showFilters}
@@ -295,6 +282,9 @@ export default function Admin() {
                   sendingMessage={sendingMessage}
                   adminMessageError={adminMessageError}
                   onSendAdminMessage={sendAdminMessage}
+                  onVerifyUser={verifyUser}
+                  verifyingUserId={verifyingUserId}
+                  verifyUserError={verifyUserError}
                 />
               ) : null}
 
@@ -307,12 +297,19 @@ export default function Admin() {
               ) : null}
 
               {activeTab === "transferencias" ? (
-                <AdminTransfersSection transfers={dashboard.transfers} />
+                <AdminTransfersSection
+                  transfers={dashboard.transfers}
+                  onPayTransfer={payTransfer}
+                  payingTicketId={payingTransferTicketId}
+                  payTransferError={payTransferError}
+                />
               ) : null}
 
               {activeTab === "documentos" ? (
                 <AdminDocumentsSection documents={dashboard.documents} />
               ) : null}
+
+              {activeTab === "taxas" ? <AdminFeesSection /> : null}
 
               {activeTab === "conversas" ? (
                 <AdminConversationsSection
@@ -331,15 +328,14 @@ export default function Admin() {
             </>
           ) : null}
 
-          {!loading && !dashboard && !error ? (
-            <div className="mt-6">
-              <EmptyState
-                title="Sem dados para exibir"
-                description="Atualize o painel ou ajuste os filtros para reenquadrar a consulta administrativa."
-              />
-            </div>
-          ) : null}
-        </div>
+        {!loading && !dashboard && !error ? (
+          <div className="mt-4">
+            <EmptyState
+              title="Sem dados para exibir"
+              description="Atualize o painel ou ajuste os filtros para reenquadrar a consulta administrativa."
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

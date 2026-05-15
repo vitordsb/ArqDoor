@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import SocialFeed from "@/pages/SocialFeed";
 import ProviderHomeDashboard from "@/features/home/ProviderHomeDashboard";
+import SocialFeed from "@/pages/SocialFeed";
 
 export default function AppHome() {
   const { user, isInitialized } = useAuth();

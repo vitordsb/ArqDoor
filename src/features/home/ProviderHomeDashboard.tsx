@@ -7,12 +7,15 @@ import {
   CreditCard,
   Filter,
   Loader2,
+  MessageCircle,
   Users,
 } from "lucide-react";
 import ApplicationLayout from "@/components/layouts/ApplicationLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ARQDOOR_WHATSAPP_URL } from "@/lib/whatsapp";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Popover,
   PopoverContent,
@@ -136,6 +139,9 @@ const SectionHeader = ({
 );
 
 export default function ProviderHomeDashboard() {
+  const { user } = useAuth();
+  const isVerified = (user as any)?.is_verified === true;
+
   const [draftFilters, setDraftFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -194,11 +200,11 @@ export default function ProviderHomeDashboard() {
 
   return (
     <ApplicationLayout>
-      <div className="bg-white xl:h-[calc(100dvh-5.5rem)] xl:overflow-hidden">
+      <div className="bg-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 pb-0 pt-8">
           <div className="flex items-center justify-between gap-3 px-1 py-1">
             <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-              Dashboard do Arquiteto
+              Dashboard do Profissional
             </h1>
             <div className="flex items-center gap-3">
               <Popover>
@@ -273,6 +279,38 @@ export default function ProviderHomeDashboard() {
             </Card>
           ) : (
             <>
+              {/* Aviso laranja sobre verificação + atalho pro WhatsApp.
+                  Some quando admin já marcou a conta como verificada. */}
+              {!isVerified && (
+                <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 md:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm md:text-base font-semibold text-orange-900">
+                      Consiga novos clientes usando a ArqDoor
+                    </p>
+                    <p className="text-xs md:text-sm text-orange-800 leading-relaxed">
+                      Se ainda não verificou a sua conta, envie uma mensagem para o
+                      nosso WhatsApp e solicite a verificação para que o seu perfil
+                      esteja visível para novos clientes. Enquanto a sua conta é
+                      verificada, edite o seu perfil para aumentar as suas chances
+                      de receber novos clientes.
+                    </p>
+                  </div>
+                  <Button
+                    asChild
+                    className="bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap"
+                  >
+                    <a
+                      href={ARQDOOR_WHATSAPP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Entrar em contato
+                    </a>
+                  </Button>
+                </div>
+              )}
+
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <SummaryCard
                   icon={Users}
@@ -282,15 +320,15 @@ export default function ProviderHomeDashboard() {
                 />
                 <SummaryCard
                   icon={Briefcase}
-                  label="Contratos em aberto"
+                  label="Serviços em aberto"
                   value={dashboard.summary.open_contracts}
                   helper="Pendentes ou em andamento"
                 />
                 <SummaryCard
                   icon={CheckCircle2}
-                  label="Contratos finalizados"
+                  label="Serviços finalizados"
                   value={dashboard.summary.finished_contracts}
-                  helper="Contratos concluídos no período"
+                  helper="Serviços concluídos no período"
                 />
                 <SummaryCard
                   icon={CreditCard}
@@ -355,8 +393,8 @@ export default function ProviderHomeDashboard() {
                   <Card className="h-fit border-slate-200 shadow-sm">
                     <CardHeader className="p-5">
                       <SectionHeader
-                        title="Contratos recentes"
-                        description="Os contratos mais recentes ligados ao seu perfil."
+                        title="Serviços recentes"
+                        description="Os serviços mais recentes ligados ao seu perfil."
                         showMore={dashboard.recent_contracts.length > 2}
                         onShowMore={() => setHistoryModal("contracts")}
                       />
@@ -396,7 +434,7 @@ export default function ProviderHomeDashboard() {
                     <CardHeader className="p-5">
                       <SectionHeader
                         title="Pagamentos concluídos"
-                        description="Últimos pagamentos já confirmados para os seus contratos."
+                        description="Últimos pagamentos já confirmados para os seus serviços."
                         showMore={dashboard.recent_payments.length > 2}
                         onShowMore={() => setHistoryModal("payments")}
                       />

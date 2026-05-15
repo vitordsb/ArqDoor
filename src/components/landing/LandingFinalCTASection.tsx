@@ -29,7 +29,7 @@ export default function LandingFinalCTASection({ primaryCta }: LandingFinalCTASe
           viewport={{ once: true }}
         >
           <p className="mx-auto max-w-[650px] text-sm font-normal leading-relaxed text-[#ffe8da] sm:text-base md:text-xl">
-            A excelência na arquitetura não está apenas na entrega final, mas também na forma em que o projeto é conduzido!
+            A excelência não está apenas na entrega final, mas também na forma em que o projeto é conduzido!
           </p>
 
           <h2 className={`mt-6 text-white ${landingType.sectionTitle}`}>
@@ -48,7 +48,7 @@ export default function LandingFinalCTASection({ primaryCta }: LandingFinalCTASe
               className={`h-[54px] rounded-full bg-[#f1f1f1] px-8 text-[#cf5315] hover:bg-white md:h-[62px] md:px-14 transition-all duration-300 hover:scale-105 ${landingType.buttonText}`}
             >
               <Link href={primaryCta.href}>
-                Crie o seu primeiro contrato digital gratuitamente
+                Gere uma Proposta hoje mesmo
               </Link>
             </Button>
           </motion.div>

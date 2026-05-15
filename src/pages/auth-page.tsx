@@ -78,7 +78,7 @@ export default function AuthPage() {
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mr-3">
                   ✓
                 </div>
-                <p>Compare portfólios e escolha o melhor designer</p>
+                <p>Compare portfólios e escolha o melhor Profissional</p>
               </li>
               <li className="flex items-start">
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mr-3">

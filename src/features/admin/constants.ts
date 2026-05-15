@@ -5,6 +5,7 @@ import {
   FileSignature,
   Landmark,
   MessageSquareText,
+  Percent,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -16,6 +17,7 @@ export const TABS: AdminTabConfig[] = [
   { key: "pagamentos", label: "Pagamentos", icon: BadgeDollarSign },
   { key: "transferencias", label: "Transferências", icon: Landmark },
   { key: "documentos", label: "Documentos", icon: FileSignature },
+  { key: "taxas", label: "Taxas", icon: Percent },
   { key: "conversas", label: "Conversas", icon: MessageSquareText },
 ];
 
@@ -43,6 +45,7 @@ export const INITIAL_PAGES: Record<AdminTab, number> = {
   pagamentos: 1,
   transferencias: 1,
   documentos: 1,
+  taxas: 1,
   conversas: 1,
 };
 
@@ -54,6 +57,7 @@ export const PAGE_SIZE_BY_TAB: Record<AdminTab, number> = {
   pagamentos: 10,
   transferencias: 8,
   documentos: 9,
+  taxas: 10,
   conversas: 10,
 };
 
