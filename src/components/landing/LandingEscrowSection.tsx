@@ -80,7 +80,7 @@ export default function LandingEscrowSection() {
             variants={fadeUp}
             className="text-3xl font-normal tracking-tight sm:text-4xl lg:text-5xl"
           >
-            <span className="block whitespace-nowrap leading-[1.1]">
+            <span className="block leading-[1.1] lg:whitespace-nowrap">
               Cliente atrasando pagamento?
             </span>
             <span className="mt-3 block leading-[1.1]">

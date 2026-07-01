@@ -26,7 +26,7 @@ export default function LandingFooter() {
               </p>
               <ul className="mt-1 space-y-1">
                 <li>
-                  <a href="/termos-de-uso" className="text-[14px] opacity-80 hover:opacity-100 transition">
+                  <a href="/termos-de-uso" className="inline-flex min-h-[44px] items-center text-[14px] opacity-80 transition hover:opacity-100">
                     Termos de Uso e Política de Privacidade
                   </a>
                 </li>
@@ -39,7 +39,7 @@ export default function LandingFooter() {
               </p>
               <ul className="mt-2 space-y-2">
                 <li>
-                  <a href="#" className="text-[14px] opacity-80 hover:opacity-100 transition">
+                  <a href="#" className="inline-flex min-h-[44px] items-center text-[14px] opacity-80 transition hover:opacity-100">
                     Fale Conosco
                   </a>
                 </li>
@@ -56,7 +56,7 @@ export default function LandingFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
-                className="mt-2 inline-flex items-center justify-center rounded-md p-1 transition-all duration-300 hover:bg-white/20 hover:scale-105"
+                className="mt-2 inline-flex h-11 w-11 items-center justify-center rounded-md transition-all duration-300 hover:bg-white/20 hover:scale-105"
               >
                 <FaInstagram className="h-6 w-6 text-white" />
               </a>

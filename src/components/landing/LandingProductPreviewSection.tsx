@@ -94,10 +94,10 @@ export default function LandingProductPreviewSection() {
   const isTypingComplete = typedText.length === fullTypedText.length;
 
   return (
-    <section id="sobre" className="bg-[#f9fafb] py-24">
-      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 lg:flex-row lg:items-center lg:gap-10 xl:gap-16">
+    <section id="sobre" className="overflow-hidden bg-[#f9fafb] py-24">
+      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-6 lg:flex-row lg:items-center lg:gap-10 xl:gap-16">
         <motion.div
-          className="w-full lg:w-[50%]"
+          className="w-full min-w-0 lg:w-[50%]"
           variants={imageVariant}
           initial="hidden"
           whileInView="visible"
@@ -111,7 +111,7 @@ export default function LandingProductPreviewSection() {
         </motion.div>
 
         <motion.div
-          className="flex w-full flex-col justify-center lg:w-[42%] xl:w-[40%]"
+          className="flex w-full min-w-0 flex-col justify-center lg:w-[42%] xl:w-[40%]"
           variants={textVariant}
           initial="hidden"
           whileInView="visible"
@@ -150,7 +150,7 @@ export default function LandingProductPreviewSection() {
             </h2>
 
             <motion.p
-              className={`mt-14 text-justify text-[#636466] ${landingType.sectionBody}`}
+              className={`mt-14 text-left text-[#636466] ${landingType.sectionBody}`}
               variants={paragraphVariant}
               initial="hidden"
               whileInView="visible"
@@ -162,7 +162,7 @@ export default function LandingProductPreviewSection() {
             </motion.p>
 
             <motion.p
-              className={`mt-4 text-justify text-[#636466] ${landingType.sectionBody}`}
+              className={`mt-4 text-left text-[#636466] ${landingType.sectionBody}`}
               variants={paragraphVariant}
               initial="hidden"
               whileInView="visible"

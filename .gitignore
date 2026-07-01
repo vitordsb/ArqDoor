@@ -42,3 +42,8 @@ coverage/
 
 # Vercel
 .vercel
+
+# UX audit artifacts — never commit
+docs/ux-audit-*.md
+docs/qa-sweep-*.md
+.jez/screenshots/

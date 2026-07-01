@@ -123,7 +123,7 @@ export default function LandingFeaturesSection() {
               </motion.div>
 
               <motion.p
-                className="mt-8 text-justify text-lg font-normal leading-tight opacity-90 sm:text-lg"
+                className="mt-8 text-left text-lg font-normal leading-tight opacity-90 sm:text-lg"
                 initial={false}
                 whileHover={{ opacity: 1, y: -2 }}
                 transition={{ duration: 0.25 }}
