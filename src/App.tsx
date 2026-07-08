@@ -9,7 +9,7 @@ import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { setResumeRoute } from "@/lib/utils";
 
-const LANDING_ROUTES = ["/", "/auth", "/nova-senha"];
+const LANDING_ROUTES = ["/", "/auth", "/nova-senha", "/excluir-conta"];
 const ADMIN_ROUTES = ["/admin"];
 
 // Route-level code splitting: reduces the initial JS payload in production.
@@ -31,6 +31,7 @@ const Connections = lazy(() => import("@/pages/Connections"));
 const KanbanPage = lazy(() => import("@/pages/KanbanPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const TermsRedirect = lazy(() => import("@/pages/TermsRedirect"));
+const DeleteAccount = lazy(() => import("@/pages/DeleteAccount"));
 
 function RouteLoading() {
   return (
@@ -73,6 +74,7 @@ function Router() {
         <Route path="/kanban"><RouteBoundary><KanbanPage /></RouteBoundary></Route>
         <Route path="/nova-senha"><RouteBoundary><ResetPasswordPage /></RouteBoundary></Route>
         <Route path="/termos-de-uso"><RouteBoundary><TermsRedirect /></RouteBoundary></Route>
+        <Route path="/excluir-conta"><RouteBoundary><DeleteAccount /></RouteBoundary></Route>
         <Route><RouteBoundary><NotFound /></RouteBoundary></Route>
       </Switch>
     </Suspense>
