@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Barcode,
   Banknote,
@@ -18,12 +18,13 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatPrice } from "@/lib/utils";
 import type { PaymentDialogState, PaymentMethod } from "@/features/messages/types";
+import { CreditCardInstallmentPicker } from "@/features/messages/components/CreditCardInstallmentPicker";
 
 type StepPaymentDialogProps = {
   dialog: PaymentDialogState | null;
   onOpenChange: (open: boolean) => void;
   onChangeMethod: (method: PaymentMethod) => void;
-  onGeneratePayment: () => void;
+  onGeneratePayment: (installmentCount?: number) => void;
   onCopyPaymentCode: (value?: string, toastMessage?: string) => void;
 };
 
@@ -42,6 +43,12 @@ export function StepPaymentDialog({
   onCopyPaymentCode,
 }: StepPaymentDialogProps) {
   const isAdditionalPaymentDialog = dialog?.type === "additional";
+  const [installmentCount, setInstallmentCount] = useState<number | null>(null);
+  const isCreditCard = dialog?.method === "CREDIT_CARD";
+
+  useEffect(() => {
+    setInstallmentCount(null);
+  }, [dialog?.step?.id, dialog?.method]);
 
   return (
     <Dialog open={!!dialog} onOpenChange={onOpenChange}>
@@ -110,11 +117,17 @@ export function StepPaymentDialog({
                   );
                 })}
               </RadioGroup>
+              {isCreditCard ? (
+                <CreditCardInstallmentPicker
+                  amount={dialog.data?.amount ?? dialog.amount ?? dialog.step?.price}
+                  onChange={setInstallmentCount}
+                />
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  onClick={onGeneratePayment}
-                  disabled={dialog.loading}
+                  onClick={() => onGeneratePayment(installmentCount ?? undefined)}
+                  disabled={dialog.loading || (isCreditCard && installmentCount == null)}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
                   {dialog.loading ? (
@@ -249,6 +262,19 @@ export function StepPaymentDialog({
 
               return (
                 <div className="space-y-3">
+                  {paymentData?.credit_card_installment && (
+                    <div className="flex items-center justify-between rounded-md bg-orange-50 px-3 py-2 text-sm">
+                      <span className="font-medium text-orange-700">
+                        {paymentData.credit_card_installment.installment_count}x de {formatPrice(paymentData.credit_card_installment.installment_value)}
+                      </span>
+                      <span className="flex flex-col items-end text-xs text-gray-600">
+                        {paymentData.credit_card_installment.last_installment_value != null ? (
+                          <span>Última {formatPrice(paymentData.credit_card_installment.last_installment_value)}</span>
+                        ) : null}
+                        <span>Total {formatPrice(paymentData.credit_card_installment.total_amount)}</span>
+                      </span>
+                    </div>
+                  )}
                   <p className="text-sm text-gray-600">
                     Você será direcionado ao checkout seguro do Asaas para inserir os dados do cartão.
                   </p>

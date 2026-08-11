@@ -19,6 +19,19 @@ export interface UserApi {
   cnpj?: string;
 }
 
+export interface ProviderReceivingAccountApi {
+  id: number;
+  nickname: string;
+  bank_code?: string | null;
+  bank_name?: string | null;
+  bank_agency?: string | null;
+  bank_account?: string | null;
+  bank_document?: string | null;
+  pix_key?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Service {
   id_serviceFreelancer: number;
   id_provider: number;

@@ -34,6 +34,7 @@ coverage/
 .env
 .env.test
 .env.production
+.env.docker.local
 .env.local
 .env.development.local
 .env.test.local
@@ -41,3 +42,8 @@ coverage/
 
 # Vercel
 .vercel
+
+# UX audit artifacts — never commit
+docs/ux-audit-*.md
+docs/qa-sweep-*.md
+.jez/screenshots/

@@ -628,11 +628,11 @@ export const AuthModals: React.FC<{
                         <div className="space-y-1">
                           <p className="text-sm font-medium leading-none">
                             Declaro que li e aceito os {" "}
-                            <a href="/docs/usetermsprivacitypolices.pdf" target="_blank" rel="noopener noreferrer" className="text-amber-600 underline">
+                            <a href="/docs/usetermsprivacitypolices.html" target="_blank" rel="noopener noreferrer" className="text-amber-600 underline">
                               Termos de uso
                             </a>
                             {" e "}
-                            <a href="/docs/usetermsprivacitypolices.pdf" target="_blank" rel="noopener noreferrer" className="text-amber-600 underline">
+                            <a href="/docs/usetermsprivacitypolices.html" target="_blank" rel="noopener noreferrer" className="text-amber-600 underline">
                               Política de privacidade
                             </a>
                           </p>

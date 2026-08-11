@@ -47,9 +47,11 @@ export function useMessaging(initialPartnerId?: string | null) {
 
   const userIds = useMemo(() => {
     if (!conversationsData?.conversations || !user) return [];
-    return conversationsData.conversations.map((conv: any) =>
-      conv.user1_id === user.id ? conv.user2_id : conv.user1_id
-    );
+    return conversationsData.conversations
+      .filter((conv: any) => !conv.other_user && !conv.otherUser)
+      .map((conv: any) =>
+        conv.user1_id === user.id ? conv.user2_id : conv.user1_id
+      );
   }, [conversationsData, user]);
 
   const { data: usersData, isLoading: loadingUsers } = useQuery({
@@ -84,23 +86,23 @@ export function useMessaging(initialPartnerId?: string | null) {
   });
 
   const conversations: Conversation[] = useMemo(() => {
-    if (!conversationsData?.conversations || !user || !usersData) return [];
+    if (!conversationsData?.conversations || !user) return [];
     return conversationsData.conversations
       .map((conv: any) => {
         const otherUserId = conv.user1_id === user.id ? conv.user2_id : conv.user1_id;
-        const otherUser = usersData[otherUserId];
+        const otherUser = conv.other_user || conv.otherUser || usersData?.[otherUserId];
         const processed: Conversation = {
           id: conv.conversation_id,
           user1_id: conv.user1_id,
           user2_id: conv.user2_id,
-          isNegotiation: true,
+          isNegotiation: Boolean(conv.is_negotiation ?? conv.isNegotiation),
           created_at: conv.createdAt,
           updated_at: conv.updatedAt,
           otherUser:
             otherUser ||
             ({
               id: otherUserId,
-              name: "Usuário",
+              name: "Contato",
               email: "",
               type: "contratante" as const,
             } as any),

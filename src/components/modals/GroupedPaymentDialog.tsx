@@ -7,6 +7,7 @@ import {
   } from '@/components/ui/dialog';
   import { Button } from '@/components/ui/button';
   import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+  import { useEffect, useState } from 'react';
   import {
     QrCode,
     Copy,
@@ -17,6 +18,7 @@ import {
   } from 'lucide-react';
   import { Step } from '@/lib/Interfaces';
   import { formatPrice } from '@/lib/utils';
+  import { CreditCardInstallmentPicker } from '@/features/messages/components/CreditCardInstallmentPicker';
   
   type PaymentMethod = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'DEBIT_CARD';
   
@@ -28,7 +30,7 @@ import {
     method: PaymentMethod;
     loading: boolean;
     onMethodChange: (method: PaymentMethod) => void;
-    onGeneratePayment: () => void;
+    onGeneratePayment: (installmentCount?: number) => void;
     onCopyCode: (code?: string, label?: string) => void;
   };
   
@@ -51,6 +53,12 @@ import {
     onCopyCode,
   }: GroupedPaymentDialogProps) {
     const totalAmount = steps.reduce((acc, step) => acc + (step.price || 0), 0);
+    const [installmentCount, setInstallmentCount] = useState<number | null>(null);
+    const isCreditCard = method === 'CREDIT_CARD';
+
+    useEffect(() => {
+      setInstallmentCount(null);
+    }, [method, totalAmount]);
   
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -96,11 +104,14 @@ import {
                   );
                 })}
               </RadioGroup>
+              {isCreditCard ? (
+                <CreditCardInstallmentPicker amount={totalAmount} onChange={setInstallmentCount} />
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  onClick={onGeneratePayment}
-                  disabled={loading}
+                  onClick={() => onGeneratePayment(installmentCount ?? undefined)}
+                  disabled={loading || (isCreditCard && installmentCount == null)}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
                   {loading ? (
@@ -228,6 +239,19 @@ import {
   
               return (
                 <div className="space-y-3">
+                  {data?.credit_card_installment && (
+                    <div className="flex items-center justify-between rounded-md bg-orange-50 px-3 py-2 text-sm">
+                      <span className="font-medium text-orange-700">
+                        {data.credit_card_installment.installment_count}x de {formatPrice(data.credit_card_installment.installment_value)}
+                      </span>
+                      <span className="flex flex-col items-end text-xs text-gray-600">
+                        {data.credit_card_installment.last_installment_value != null ? (
+                          <span>Última {formatPrice(data.credit_card_installment.last_installment_value)}</span>
+                        ) : null}
+                        <span>Total {formatPrice(data.credit_card_installment.total_amount)}</span>
+                      </span>
+                    </div>
+                  )}
                   <p className="text-sm text-gray-600">
                     Você será direcionado ao checkout seguro do Asaas para inserir os dados do cartão.
                   </p>

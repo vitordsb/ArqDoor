@@ -1,651 +1,317 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
-
-type SectionPagination = {
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-};
-
-type PaymentsPagination = {
-  page: number;
-  page_size: number;
-  pending_total: number;
-  pending_total_pages: number;
-  paid_total: number;
-  paid_total_pages: number;
-};
-
-type DashboardMeta = {
-  section: "all" | "usuarios" | "contratos" | "pagamentos" | "conversas";
-  page: number;
-  page_size: number;
-  pagination: {
-    tickets: SectionPagination;
-    users: SectionPagination;
-    conversations: SectionPagination;
-    payments: PaymentsPagination;
-  };
-  partial_failures: Array<{
-    section: string;
-    message: string;
-  }>;
-};
-
-type DashboardData = {
-  tickets: any[];
-  users: any[];
-  conversations: any[];
-  payments: {
-    pending: any[];
-    paid: any[];
-  };
-  meta?: DashboardMeta;
-};
-
-type TabKey = "usuarios" | "contratos" | "pagamentos" | "conversas";
-
-const TAB_PAGE_SIZE: Record<TabKey, number> = {
-  usuarios: 20,
-  contratos: 18,
-  pagamentos: 20,
-  conversas: 12,
-};
-
-const badge = (text: string, variant: "green" | "red" | "amber" | "gray" = "gray") => {
-  const map: Record<string, string> = {
-    green: "bg-emerald-100 text-emerald-800",
-    red: "bg-rose-100 text-rose-700",
-    amber: "bg-amber-100 text-amber-800",
-    gray: "bg-slate-100 text-slate-700",
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${map[variant]}`}>
-      {text}
-    </span>
-  );
-};
+import { useState } from "react";
+import { Filter, Loader2, LogOut, Menu, RefreshCcw, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TABS } from "@/features/admin/constants";
+import { AdminAuditLogSection } from "@/features/admin/components/AdminAuditLogSection";
+import { AdminContractsSection } from "@/features/admin/components/AdminContractsSection";
+import { AdminConversationsSection } from "@/features/admin/components/AdminConversationsSection";
+import { AdminDocumentsSection } from "@/features/admin/components/AdminDocumentsSection";
+import { AdminFeesSection } from "@/features/admin/components/AdminFeesSection";
+import { AdminReferralsSection } from "@/features/admin/components/AdminReferralsSection";
+import { AdminFiltersModal } from "@/features/admin/components/AdminFiltersModal";
+import { AdminLoginView } from "@/features/admin/components/AdminLoginView";
+import { AdminDashboardView } from "@/features/admin/components/AdminOverviewSection";
+import { AdminPaymentsSection } from "@/features/admin/components/AdminPaymentsSection";
+import { PaginationControls } from "@/features/admin/components/AdminPrimitives";
+import { AdminTransfersSection } from "@/features/admin/components/AdminTransfersSection";
+import { AdminUsersSection } from "@/features/admin/components/AdminUsersSection";
+import { useAdminDashboard } from "@/features/admin/hooks/useAdminDashboard";
+import { useAdminPageMeta } from "@/features/admin/hooks/useAdminPageMeta";
+import { useAdminSession } from "@/features/admin/hooks/useAdminSession";
+import type { AdminTab } from "@/features/admin/types";
+import { cn, formatRelativeTime, openSecureFile } from "@/features/admin/utils";
+import { ADMIN_TOKENS } from "@/features/admin/tokens";
 
 export default function Admin() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authHeader, setAuthHeader] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("usuarios");
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [adminId, setAdminId] = useState<number | null>(null);
-  const [msgInput, setMsgInput] = useState("");
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [refreshFlag, setRefreshFlag] = useState(0);
-  const [ticketSearch, setTicketSearch] = useState("");
-  const [pageByTab, setPageByTab] = useState<Record<TabKey, number>>({
-    usuarios: 1,
-    contratos: 1,
-    pagamentos: 1,
-    conversas: 1,
+  useAdminPageMeta();
+
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const session = useAdminSession();
+  const admin = useAdminDashboard({
+    isAuthenticated: session.isAuthenticated,
+    onUnauthorized: session.expireSession,
   });
 
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const basic = btoa(`${email}:${password}`);
-    setAuthHeader(basic);
+  const selectTab = (tab: AdminTab) => {
+    admin.setActiveTab(tab);
+    setNavigationOpen(false);
   };
 
-  const loadConversation = async (userId: number) => {
-    if (!authHeader) return;
-    setLoadingMessages(true);
-    try {
-      const res = await apiRequest("GET", `/admin/messages/${userId}`, undefined, {
-        Authorization: `Basic ${authHeader}`,
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      setMessages(json.data.messages || []);
-      setAdminId(json.data.admin_id || null);
-      setSelectedUserId(userId);
-    } catch (err: any) {
-      alert(err?.message || "Erro ao carregar mensagens");
-      setMessages([]);
-      setSelectedUserId(null);
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
-
-  const contactUser = async (userId: number) => {
-    if (!authHeader) return;
-    const content = msgInput || prompt("Mensagem para o usuário:") || "";
-    if (!content || !content.trim()) return;
-    try {
-      const res = await apiRequest(
-        "POST",
-        "/admin/message",
-        { userId, content },
-        { Authorization: `Basic ${authHeader}`, "Content-Type": "application/json" }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      setMsgInput("");
-      await loadConversation(userId);
-      alert("Mensagem enviada como ArqDoor-ADM.");
-    } catch (err: any) {
-      alert(err?.message || "Falha ao enviar mensagem.");
-    }
-  };
-
-  const activePage = pageByTab[activeTab];
-
-  useEffect(() => {
-    setPageByTab((prev) => {
-      if (prev.contratos === 1) return prev;
-      return { ...prev, contratos: 1 };
-    });
-  }, [ticketSearch]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!authHeader) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams();
-        params.set("section", activeTab);
-        params.set("page", String(activePage));
-        params.set("pageSize", String(TAB_PAGE_SIZE[activeTab]));
-        if (activeTab === "contratos") {
-          const trimmedTicketId = ticketSearch.trim();
-          if (/^\d+$/.test(trimmedTicketId)) {
-            params.set("ticketId", trimmedTicketId);
-          }
-        }
-
-        const res = await apiRequest("GET", `/admin/dashboard?${params.toString()}`, undefined, {
-          Authorization: `Basic ${authHeader}`,
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        setData(json.data);
-      } catch (err: any) {
-        setError(err?.message || "Erro ao carregar dashboard");
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [authHeader, refreshFlag, activeTab, activePage, ticketSearch]);
-
-  const handleDeleteTicket = async (ticketId: number) => {
-    if (!authHeader) return;
-    const confirmPwd = prompt("Confirme a senha de administrador para excluir o ticket:");
-    if (!confirmPwd || !confirmPwd.trim()) return;
-    const basicHeader = btoa(`${email}:${confirmPwd}`);
-    try {
-      const res = await apiRequest(
-        "DELETE",
-        `/admin/contracts/${ticketId}`,
-        undefined,
-        { Authorization: `Basic ${basicHeader}` }
-      );
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || body?.success === false) {
-        throw new Error(body?.message || "Falha ao excluir o ticket");
-      }
-      alert("Ticket excluído com sucesso.");
-      setRefreshFlag((prev) => prev + 1);
-    } catch (err: any) {
-      alert(err?.message || "Erro ao excluir ticket.");
-    }
-  };
-
-  const sortedFilteredTickets = useMemo(() => {
-    const list = Array.isArray(data?.tickets) ? [...data.tickets] : [];
-    const sorted = list.sort((a, b) => a.id - b.id);
-    const term = ticketSearch.trim();
-    if (!term) return sorted;
-    if (/^\d+$/.test(term)) return sorted;
-    return sorted.filter((ticket) => String(ticket.id).includes(term));
-  }, [data?.tickets, ticketSearch]);
-
-  const ticketsPagination = data?.meta?.pagination?.tickets;
-  const usersPagination = data?.meta?.pagination?.users;
-  const conversationsPagination = data?.meta?.pagination?.conversations;
-  const paymentsPagination = data?.meta?.pagination?.payments;
-  const partialFailures = data?.meta?.partial_failures || [];
-
-  const totalPagesByTab: Record<TabKey, number> = {
-    contratos: ticketsPagination?.total_pages || 1,
-    usuarios: usersPagination?.total_pages || 1,
-    conversas: conversationsPagination?.total_pages || 1,
-    pagamentos: Math.max(
-      paymentsPagination?.pending_total_pages || 1,
-      paymentsPagination?.paid_total_pages || 1
-    ),
-  };
-
-  const goToPreviousPage = () => {
-    setPageByTab((prev) => {
-      const currentPage = prev[activeTab];
-      if (currentPage <= 1) return prev;
-      return {
-        ...prev,
-        [activeTab]: currentPage - 1,
-      };
-    });
-  };
-
-  const goToNextPage = () => {
-    setPageByTab((prev) => {
-      const currentPage = prev[activeTab];
-      const maxPage = totalPagesByTab[activeTab];
-      if (currentPage >= maxPage) return prev;
-      return {
-        ...prev,
-        [activeTab]: currentPage + 1,
-      };
-    });
-  };
-
-  if (!authHeader) {
+  if (!session.authChecked) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-6 border border-slate-200">
-          <h1 className="text-2xl font-bold mb-4 text-slate-900">Admin Login</h1>
-          <p className="text-sm text-slate-600 mb-4">Acesso restrito à equipe ArqDoor.</p>
-          <form className="space-y-4" onSubmit={login}>
-            <div className="space-y-1">
-              <label htmlFor="admin-email" className="text-sm font-medium text-slate-700">
-                Email
-              </label>
-              <input
-                id="admin-email"
-                className="w-full border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 px-3 py-2 rounded-lg outline-none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="arqdoor@admin.com.br"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="admin-password" className="text-sm font-medium text-slate-700">
-                Senha
-              </label>
-              <input
-                id="admin-password"
-                type="password"
-                className="w-full border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 px-3 py-2 rounded-lg outline-none"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="********"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-slate-900 text-white py-2 rounded-lg font-semibold hover:bg-slate-800 transition"
-            >
-              Entrar
-            </button>
-          </form>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-600">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Verificando sessão administrativa...
       </div>
     );
   }
 
+  if (!session.isAuthenticated) {
+    return (
+      <AdminLoginView
+        email={session.email}
+        password={session.password}
+        authSubmitting={session.authSubmitting}
+        authError={session.authError}
+        onEmailChange={session.setEmail}
+        onPasswordChange={session.setPassword}
+        onSubmit={session.login}
+      />
+    );
+  }
+
+  const dashboard = admin.dashboard;
+  const activeTab = TABS.find((tab) => tab.key === admin.activeTab);
+  const ActiveTabIcon = activeTab?.icon;
+  const showPagination = Boolean(
+    admin.activePagination &&
+      !["dashboard", "all", "taxas", "auditoria"].includes(admin.activeTab)
+  );
+
+  const renderActiveSection = () => {
+    if (!dashboard) return null;
+
+    switch (admin.activeTab) {
+      case "usuarios":
+        return (
+          <AdminUsersSection
+            users={dashboard.users}
+            selectedUserId={admin.selectedUserId}
+            selectedUser={admin.selectedUser}
+            onSelectUser={admin.selectUser}
+            detailTab={admin.userDetailTab}
+            onDetailTabChange={admin.setUserDetailTab}
+            userProfile={admin.userProfile}
+            loadingUserProfile={admin.loadingUserProfile}
+            userProfileError={admin.userProfileError}
+            savingUserProfile={admin.savingUserProfile}
+            saveUserProfileError={admin.saveUserProfileError}
+            onUpdateUserProfile={admin.updateUserProfile}
+            operationsOverview={admin.operationsOverview}
+            loadingOperationsOverview={admin.loadingOperationsOverview}
+            operationsOverviewError={admin.operationsOverviewError}
+            selectedOperationsConversationId={admin.selectedOperationsConversationId}
+            onSelectOperationsConversation={admin.selectOperationsConversation}
+            selectedOperationsTicketId={admin.selectedOperationsTicketId}
+            onSelectOperationsTicket={admin.selectOperationsTicket}
+            paginatedUserConversations={admin.paginatedUserConversations}
+            paginatedUserContracts={admin.paginatedUserContracts}
+            paginatedUserSteps={admin.paginatedUserSteps}
+            onPrevUserConversationsPage={admin.prevUserConversationsPage}
+            onNextUserConversationsPage={admin.nextUserConversationsPage}
+            onPrevUserContractsPage={admin.prevUserContractsPage}
+            onNextUserContractsPage={admin.nextUserContractsPage}
+            onPrevUserStepsPage={admin.prevUserStepsPage}
+            onNextUserStepsPage={admin.nextUserStepsPage}
+            directConversation={admin.directConversation}
+            loadingDirectConversation={admin.loadingDirectConversation}
+            directConversationError={admin.directConversationError}
+            paginatedAdminMessages={admin.paginatedAdminMessages}
+            onPrevAdminMessagesPage={admin.prevAdminMessagesPage}
+            onNextAdminMessagesPage={admin.nextAdminMessagesPage}
+            messageDraft={admin.messageDraft}
+            onMessageDraftChange={admin.setMessageDraft}
+            sendingMessage={admin.sendingMessage}
+            adminMessageError={admin.adminMessageError}
+            onSendAdminMessage={admin.sendAdminMessage}
+            onVerifyUser={admin.verifyUser}
+            verifyingUserId={admin.verifyingUserId}
+            verifyUserError={admin.verifyUserError}
+            onUpdateStepStatus={admin.updateStepStatus}
+            updatingStepId={admin.updatingStepId}
+            updateStepError={admin.updateStepError}
+            onSuspendUser={admin.suspendUser}
+            suspendingUserId={admin.suspendingUserId}
+            suspendUserError={admin.suspendUserError}
+            onDeleteEarlyUser={admin.deleteEarlyUser}
+            deletingUserId={admin.deletingUserId}
+            deleteUserError={admin.deleteUserError}
+          />
+        );
+      case "contratos":
+        return <AdminContractsSection tickets={dashboard.tickets} />;
+      case "pagamentos":
+        return <AdminPaymentsSection dashboard={dashboard} />;
+      case "transferencias":
+        return (
+          <AdminTransfersSection
+            transfers={dashboard.transfers}
+            onPayTransfer={admin.payTransfer}
+            payingTicketId={admin.payingTransferTicketId}
+            payTransferError={admin.payTransferError}
+          />
+        );
+      case "documentos":
+        return <AdminDocumentsSection documents={dashboard.documents} />;
+      case "taxas":
+        return <AdminFeesSection />;
+      case "indicacoes":
+        return <AdminReferralsSection />;
+      case "conversas":
+        return (
+          <AdminConversationsSection
+            conversations={dashboard.conversations}
+            selectedConversationId={admin.selectedConversationId}
+            selectedConversationRow={admin.selectedConversationRow}
+            conversationViewer={admin.conversationViewer}
+            loadingConversationViewer={admin.loadingConversationViewer}
+            conversationViewerError={admin.conversationViewerError}
+            paginatedConversationMessages={admin.paginatedConversationMessages}
+            onSelectConversation={admin.loadConversationViewer}
+            onPrevMessagesPage={admin.prevConversationMessagesPage}
+            onNextMessagesPage={admin.nextConversationMessagesPage}
+            onOpenTicket={() => selectTab("contratos")}
+          />
+        );
+      case "auditoria":
+        return <AdminAuditLogSection />;
+      default:
+        return (
+          <AdminDashboardView
+            activeTab={admin.activeTab}
+            dashboard={dashboard}
+            onOpenDocument={openSecureFile}
+            onOpenConversation={admin.loadConversationViewer}
+            onNavigateToTab={selectTab}
+          />
+        );
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="p-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">Painel de monitoramento</p>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard Admin</h1>
-        </div>
-        <button
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-white shadow-sm"
-          onClick={() => {
-            setAuthHeader(null);
-            setData(null);
-            setEmail("");
-            setPassword("");
-            setPageByTab({
-              usuarios: 1,
-              contratos: 1,
-              pagamentos: 1,
-              conversas: 1,
-            });
-          }}
-        >
-          Sair
-        </button>
-      </div>
+    <div className="min-h-screen bg-slate-100 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex min-h-16 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 lg:hidden"
+            onClick={() => setNavigationOpen((open) => !open)}
+            aria-label={navigationOpen ? "Fechar navegação" : "Abrir navegação"}
+            aria-expanded={navigationOpen}
+          >
+            {navigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
 
-      <div className="px-6">
-        {loading && <p className="text-slate-600">Carregando...</p>}
-        {error && <p className="text-red-600 font-semibold">{error}</p>}
-        {!error && partialFailures.length > 0 && (
-          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Alguns blocos do dashboard falharam ao carregar:{" "}
-            {partialFailures.map((failure) => failure.section).join(", ")}.
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-orange-700">ArqDoor</p>
+            <div className="flex min-w-0 items-center gap-2">
+              {ActiveTabIcon ? <ActiveTabIcon className="h-4 w-4 shrink-0 text-orange-600" /> : null}
+              <h1 className="truncate text-base font-semibold text-slate-950">
+                {activeTab?.label || "Painel administrativo"}
+              </h1>
+            </div>
           </div>
-        )}
-      </div>
 
-      {data && (
-        <div className="p-6">
-          <div className="flex gap-2 mb-4">
-            {(["usuarios", "contratos", "pagamentos", "conversas"] as const).map((tab) => (
+          <div className="hidden text-right text-xs text-slate-500 xl:block">
+            <p>Atualização automática a cada minuto</p>
+            <p>{dashboard?.meta.generated_at ? `Dados ${formatRelativeTime(dashboard.meta.generated_at)}` : "Carregando dados"}</p>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={admin.refreshDashboard}
+            disabled={admin.loading}
+            aria-label="Atualizar dados"
+            title="Atualizar dados"
+          >
+            {admin.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => admin.setShowFilters(true)}
+            className="gap-1.5"
+          >
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Filtros</span>
+            {admin.appliedFilterCount ? (
+              <span className="rounded-full bg-orange-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                {admin.appliedFilterCount}
+              </span>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void session.logout()}
+            className="gap-1.5"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline">Sair</span>
+          </Button>
+        </div>
+      </header>
+
+      <div className="mx-auto flex max-w-[1600px]">
+        <aside
+          className={cn(
+            "fixed inset-x-0 top-16 z-30 border-b border-slate-200 bg-white p-3 shadow-lg lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:w-56 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-4 lg:shadow-none",
+            navigationOpen ? "block" : "hidden"
+          )}
+        >
+          <nav className="grid gap-1 sm:grid-cols-2 lg:block" aria-label="Seções administrativas">
+            {TABS.map(({ key, label, icon: Icon }) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
-                  activeTab === tab
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-700 border-slate-200"
-                }`}
+                key={key}
+                type="button"
+                onClick={() => selectTab(key)}
+                className={cn(
+                  "flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition",
+                  admin.activeTab === key
+                    ? ADMIN_TOKENS.selectable.active
+                    : ADMIN_TOKENS.selectable.inactive
+                )}
               >
-                {tab === "usuarios" && "Usuários"}
-                {tab === "contratos" && "Contratos"}
-                {tab === "pagamentos" && "Pagamentos"}
-                {tab === "conversas" && "Conversas"}
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{label}</span>
               </button>
             ))}
-          </div>
+          </nav>
+        </aside>
 
-          {activeTab === "contratos" && (
-            <section className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  {ticketsPagination?.total ?? sortedFilteredTickets.length} ticket(s) encontrado(s) · página{" "}
-                  {activePage} de {totalPagesByTab.contratos}
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    value={ticketSearch}
-                    onChange={(e) => setTicketSearch(e.target.value)}
-                    placeholder="Pesquisar pelo ID do ticket"
-                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
-                  />
-                  {ticketSearch && (
-                    <button
-                      className="text-sm text-slate-500 hover:text-slate-700"
-                      onClick={() => setTicketSearch("")}
-                    >
-                      Limpar
-                    </button>
-                  )}
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToPreviousPage}
-                    disabled={activePage <= 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToNextPage}
-                    disabled={activePage >= totalPagesByTab.contratos}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                {sortedFilteredTickets.map((t: any) => (
-                  <div key={t.id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Ticket #{t.id}</span>
-                      {badge(t.status || "—", (t.status || "").toLowerCase() === "concluída" ? "green" : "amber")}
-                    </div>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Conv {t.conversation_id} · Provider {t.provider_id} · Etapas: {t.steps_count}
-                  </p>
-                  {t.has_pending_payment && (
-                    <div className="mt-1">{badge("Pagamento pendente", "red")}</div>
-                  )}
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      className="px-3 py-1 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
-                      onClick={async () => {
-                        if (!authHeader) return;
-                        try {
-                          const res = await apiRequest(
-                            "GET",
-                            `/admin/contracts/${t.id}/attachments`,
-                            undefined,
-                            { Authorization: `Basic ${authHeader}` }
-                          );
-                          if (!res.ok) throw new Error(await res.text());
-                          const json = await res.json();
-                          const att = (json.data || [])[0];
-                          if (!att?.pdf_path) {
-                            alert("Nenhum PDF anexado.");
-                            return;
-                          }
-                          const url = att.pdf_path.startsWith("http")
-                            ? att.pdf_path
-                            : `${API_BASE_URL}/${att.pdf_path.replace(/^\/+/, "")}`;
-                          window.open(url, "_blank");
-                        } catch (e: any) {
-                          alert(e?.message || "Erro ao abrir PDF.");
-                        }
-                      }}
-                    >
-                      Ver PDF do contrato
-                    </button>
-                    <button
-                      className="px-3 py-1 text-xs border border-rose-200 text-rose-700 rounded-lg hover:bg-rose-50"
-                      onClick={() => handleDeleteTicket(t.id)}
-                    >
-                      Excluir ticket
-                    </button>
-                  </div>
-                </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {activeTab === "usuarios" && (
-            <div className="grid gap-3 lg:grid-cols-[320px,1fr]">
-              <div className="border border-slate-200 rounded-xl bg-white shadow-sm">
-                <div className="p-3 border-b flex items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-900">
-                    Usuários ({usersPagination?.total ?? data.users.length})
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                      onClick={goToPreviousPage}
-                      disabled={activePage <= 1}
-                    >
-                      Anterior
-                    </button>
-                    <button
-                      className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                      onClick={goToNextPage}
-                      disabled={activePage >= totalPagesByTab.usuarios}
-                    >
-                      Próxima
-                    </button>
-                  </div>
-                </div>
-                <div className="max-h-[70vh] overflow-auto">
-                  {data.users.map((u: any) => (
-                    <button
-                      key={u.id}
-                      onClick={() => loadConversation(u.id)}
-                      className={`w-full text-left px-3 py-2 border-b border-slate-100 hover:bg-slate-50 ${
-                        selectedUserId === u.id ? "bg-slate-100" : ""
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold">{u.name}</span>
-                        {badge(u.type, u.type === "prestador" ? "green" : "gray")}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        Perfil completo: {u.perfil_completo ? "Sim" : "Não"} · ID: {u.id}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col">
-                <div className="p-3 border-b font-semibold text-slate-900">
-                  {selectedUserId ? `Conversa com usuário #${selectedUserId}` : "Selecione um usuário"}
-                </div>
-                <div className="flex-1 overflow-auto p-3 space-y-2 bg-slate-50">
-                  {loadingMessages && <p className="text-sm text-slate-600">Carregando mensagens...</p>}
-                  {!loadingMessages && messages.map((m) => (
-                    <div
-                      key={m.message_id}
-                      className={`max-w-[80%] p-2 rounded-lg text-sm ${
-                        m.sender_id === adminId
-                          ? "bg-slate-900 text-white ml-auto"
-                          : "bg-white border border-slate-200"
-                      }`}
-                    >
-                      {m.content}
-                      <div className="text-[10px] opacity-70 mt-1">{m.createdAt}</div>
-                    </div>
-                  ))}
-                </div>
-                {selectedUserId && (
-                  <form
-                    className="p-3 border-t flex gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      contactUser(selectedUserId);
-                    }}
-                  >
-                    <input
-                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                      placeholder="Digite sua mensagem como ArqDoor-ADM"
-                      value={msgInput}
-                      onChange={(e) => setMsgInput(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold"
-                    >
-                      Enviar
-                    </button>
-                  </form>
-                )}
-              </div>
+        <main className="min-w-0 flex-1 p-3 sm:p-5 lg:p-6">
+          {admin.error ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {admin.error}
             </div>
-          )}
+          ) : null}
 
-          {activeTab === "conversas" && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  {conversationsPagination?.total ?? data.conversations.length} conversa(s) · página{" "}
-                  {activePage} de {totalPagesByTab.conversas}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToPreviousPage}
-                    disabled={activePage <= 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToNextPage}
-                    disabled={activePage >= totalPagesByTab.conversas}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                {data.conversations.map((c: any) => (
-                  <div key={c.conversation_id} className="border border-slate-200 rounded-xl p-3 bg-white shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Conv #{c.conversation_id}</span>
-                      <span className="text-xs text-slate-600">{c.updatedAt}</span>
-                    </div>
-                    <div className="mt-2 space-y-2 text-xs text-slate-700">
-                      <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
-                        <p className="font-semibold text-slate-900">Usuário 1</p>
-                        <p>ID: {c.user1_id}</p>
-                        <p>Email: {c.user1_email || "-"}</p>
-                        {c.user1_provider_id ? <p>Prestador ID: {c.user1_provider_id}</p> : null}
-                        {c.user1_type ? <p>Tipo: {c.user1_type}</p> : null}
-                      </div>
-                      <div className="p-2 rounded-lg border border-slate-100 bg-slate-50">
-                        <p className="font-semibold text-slate-900">Usuário 2</p>
-                        <p>ID: {c.user2_id}</p>
-                        <p>Email: {c.user2_email || "-"}</p>
-                        {c.user2_provider_id ? <p>Prestador ID: {c.user2_provider_id}</p> : null}
-                        {c.user2_type ? <p>Tipo: {c.user2_type}</p> : null}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          {dashboard ? renderActiveSection() : null}
 
-          {activeTab === "pagamentos" && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-slate-600">
-                  Pendentes: {paymentsPagination?.pending_total ?? data.payments.pending.length} · Pagos:{" "}
-                  {paymentsPagination?.paid_total ?? data.payments.paid.length} · página {activePage} de{" "}
-                  {totalPagesByTab.pagamentos}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToPreviousPage}
-                    disabled={activePage <= 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    className="px-2 py-1 text-xs border border-slate-200 rounded-lg disabled:opacity-40"
-                    onClick={goToNextPage}
-                    disabled={activePage >= totalPagesByTab.pagamentos}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <p className="font-semibold text-amber-800">Pendentes</p>
-                    {badge(String(paymentsPagination?.pending_total ?? data.payments.pending.length), "amber")}
-                  </div>
-                  <div className="space-y-1 max-h-56 overflow-auto">
-                    {data.payments.pending.map((p: any) => (
-                      <div key={`p-${p.id}`} className="border border-amber-100 rounded-lg p-2 text-xs bg-white">
-                        #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <p className="font-semibold text-emerald-800">Pagos</p>
-                    {badge(String(paymentsPagination?.paid_total ?? data.payments.paid.length), "green")}
-                  </div>
-                  <div className="space-y-1 max-h-56 overflow-auto">
-                    {data.payments.paid.map((p: any) => (
-                      <div key={`paid-${p.id}`} className="border border-emerald-100 rounded-lg p-2 text-xs bg-white">
-                        #{p.id} · Ticket {p.ticket_id} · Step {p.step_id} · R$ {Number(p.amount || 0).toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-        </div>
-      )}
+          {!dashboard && admin.loading ? (
+            <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando painel...
+            </div>
+          ) : null}
+
+          {showPagination && admin.activePagination ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <PaginationControls
+                page={admin.activePagination.page}
+                totalPages={admin.activePagination.total_pages}
+                onPrevious={admin.goToPreviousPage}
+                onNext={admin.goToNextPage}
+              />
+            </div>
+          ) : null}
+        </main>
+      </div>
+
+      <AdminFiltersModal
+        open={admin.showFilters}
+        activeTab={admin.activeTab}
+        dashboard={dashboard}
+        draftFilters={admin.draftFilters}
+        onClose={() => admin.setShowFilters(false)}
+        onReset={admin.resetFilters}
+        onApply={admin.applyFilters}
+        onChange={admin.updateDraftFilter}
+      />
     </div>
   );
 }

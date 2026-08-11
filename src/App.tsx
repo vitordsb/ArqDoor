@@ -8,7 +8,7 @@ import CompleteProfileModal from "@/components/modals/CompleteProfileModal";
 import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const LANDING_ROUTES = ["/", "/auth", "/admin"];
+const LANDING_ROUTES = ["/", "/auth", "/admin", "/cadastro"];
 
 // Route-level code splitting: reduces the initial JS payload in production.
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -25,6 +25,7 @@ const Messages = lazy(() => import("@/pages/Messages"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Invites = lazy(() => import("@/pages/Invites"));
 const InvitePublic = lazy(() => import("@/pages/InvitePublic"));
+const ReferralLanding = lazy(() => import("@/pages/ReferralLanding"));
 
 function RouteLoading() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Switch>
         <Route path="/"><Home /></Route>
         <Route path="/auth"><AuthPage /></Route>
+        <Route path="/cadastro"><ReferralLanding /></Route>
         <Route path="/profile"><Profile /></Route>
         <Route path="/home"><SocialFeed /></Route>
         <Route path="/demands"><DemandsFeed /></Route>

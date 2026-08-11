@@ -132,7 +132,9 @@ export default function Messages() {
   } = useSignature(currentConversation?.id);
 
   const canCreateProposal = () =>
-    user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
+    user?.type === 'prestador' &&
+    currentConversation?.isNegotiation === true &&
+    currentConversation?.otherUser.type !== 'prestador';
 
   const ensureSignaturePasswordConfigured = useCallback(() => {
     if (user?.signature_password_set !== true) {
@@ -1201,7 +1203,7 @@ export default function Messages() {
   );
 
   const requestPayment = useCallback(
-    async (target: PaymentDialogState) => {
+    async (target: PaymentDialogState, installmentCount?: number) => {
       let endpoint: string;
       let description: string;
 
@@ -1220,6 +1222,7 @@ export default function Messages() {
       const response = await apiRequest("POST", endpoint, {
         description,
         method: target.method,
+        installment_count: target.method === "CREDIT_CARD" ? installmentCount : undefined,
       });
 
       let payload: any = {};
@@ -1239,7 +1242,7 @@ export default function Messages() {
   );
 
   const requestGroupedPayment = useCallback(
-    async (target: GroupedPaymentDialogState) => {
+    async (target: GroupedPaymentDialogState, installmentCount?: number) => {
       const stepIds = (target.steps || []).map((step) => step?.id).filter(Boolean);
       if (stepIds.length === 0) {
         throw new Error("Selecione ao menos uma etapa para pagamento.");
@@ -1253,6 +1256,7 @@ export default function Messages() {
          response = await apiRequest("POST", `/payments/groups/${groupId}`, {
           description: `Pagamento do Grupo ${groupId}`,
           method: target.method,
+          installment_count: target.method === "CREDIT_CARD" ? installmentCount : undefined,
         });
       } else {
         response = await apiRequest("POST", "/payments", {
@@ -1260,6 +1264,7 @@ export default function Messages() {
             ? `Pagamento agrupado do ticket #${ticketId}`
             : "Pagamento agrupado de etapas",
           method: target.method,
+          installment_count: target.method === "CREDIT_CARD" ? installmentCount : undefined,
           step_ids: stepIds,
         });
       }
@@ -1280,7 +1285,7 @@ export default function Messages() {
     []
   );
 
-  const handleGeneratePayment = useCallback(async () => {
+  const handleGeneratePayment = useCallback(async (installmentCount?: number) => {
     if (!paymentDialog) return;
     const current = paymentDialog;
     if (current.type === "additional") {
@@ -1293,7 +1298,7 @@ export default function Messages() {
     }
     setPaymentDialog({ ...current, loading: true });
     try {
-      const data = await requestPayment(current);
+      const data = await requestPayment(current, installmentCount);
       setPaymentDialog((prev) => (prev ? { ...prev, data, loading: false } : prev));
       toast({
         title: `${paymentMethodLabels[current.method]} gerado`,
@@ -1326,12 +1331,12 @@ export default function Messages() {
     setGroupedPaymentDialog((prev) => (prev ? { ...prev, method, data: null } : prev));
   }, []);
 
-  const handleGenerateGroupedPayment = useCallback(async () => {
+  const handleGenerateGroupedPayment = useCallback(async (installmentCount?: number) => {
     if (!groupedPaymentDialog) return;
     const current = groupedPaymentDialog;
     setGroupedPaymentDialog({ ...current, loading: true });
     try {
-      const data = await requestGroupedPayment(current);
+      const data = await requestGroupedPayment(current, installmentCount);
       setGroupedPaymentDialog((prev) => (prev ? { ...prev, data, loading: false } : prev));
       toast({
         title: `${paymentMethodLabels[current.method]} gerado`,
@@ -2189,6 +2194,13 @@ export default function Messages() {
   const handleViewProfile = useCallback(async () => {
     if (!currentConversation?.otherUser) return;
     const target = currentConversation.otherUser as any;
+    if (target.is_hidden) {
+      toast({
+        title: "Perfil indisponível",
+        description: "Este perfil está oculto no momento.",
+      });
+      return;
+    }
     try {
       if (target.type === "prestador") {
         let providerId = target.provider_id;
@@ -2211,7 +2223,7 @@ export default function Messages() {
     } catch {
       setLocation(`/user/${target.id}`);
     }
-  }, [currentConversation?.otherUser, setLocation]);
+  }, [currentConversation?.otherUser, setLocation, toast]);
 
   return (
     <MessagesLayout>
@@ -2233,6 +2245,7 @@ export default function Messages() {
               <ConversationHeader
                 conversation={processedCurrentConversation}
                 canCreateProposal={canCreateProposal()}
+                canViewProfile={!processedCurrentConversation.otherUser.is_hidden}
                 onOpenProposal={() => setShowProposalModal(true)}
                 onViewProfile={handleViewProfile}
                 onBack={() => {

@@ -74,6 +74,8 @@ export interface Conversation {
     perfil?: string | null;
     avatar?: string | null;
     banner?: string | null;
+    is_hidden?: boolean;
+    is_active?: boolean;
   };
   lastMessage?: {
     id: number;

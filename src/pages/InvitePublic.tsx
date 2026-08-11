@@ -195,19 +195,17 @@ export default function InvitePublic() {
         throw new Error(body?.message || "Erro ao aceitar convite.");
       }
       toast({
-        title: "Contrato assinado!",
-        description: "Você já pode conversar com o prestador.",
+        title: "Proposta adicionada!",
+        description: "Revise o contrato e assine para iniciar o projeto.",
       });
       if (body?.data?.provider_user_id) {
-        const depositParam =
-          invite?.payment_preference === "at_end" ? "&deposit=1" : "";
         navigate(
-          `/messages/${body.data.provider_user_id}?ticket=${body.data.ticket_id}&view=contract${depositParam}`
+          `/messages/${body.data.provider_user_id}?ticket=${body.data.ticket_id}&view=contract`
         );
       }
     } catch (error: any) {
       toast({
-        title: "Falha ao assinar",
+        title: "Falha ao adicionar proposta",
         description: error?.message || "Tente novamente.",
         variant: "destructive",
       });
@@ -392,7 +390,7 @@ export default function InvitePublic() {
         )}
 
         <div className="rounded-3xl border bg-white shadow-sm p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Assinatura</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Adicionar aos contratos</h2>
 
           {inviteUnavailable ? (
             <p className="text-sm text-muted-foreground">
@@ -407,7 +405,7 @@ export default function InvitePublic() {
           ) : !isLoggedIn ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Faça login ou cadastro (Google ou e-mail) para assinar o contrato.
+                Faça login ou cadastro (Google ou e-mail) para adicionar esta proposta aos seus contratos.
               </p>
               <Button
                 onClick={() => {
@@ -416,13 +414,13 @@ export default function InvitePublic() {
                 }}
                 className="bg-orange-600 hover:bg-orange-700"
               >
-                Criar conta para assinar
+                Criar conta para continuar
               </Button>
             </>
           ) : needsCpf ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Informe seu CPF para continuar com a assinatura.
+                Informe seu CPF para adicionar a proposta aos seus contratos.
               </p>
               <div className="flex flex-col md:flex-row gap-3">
                 <Input
@@ -437,7 +435,7 @@ export default function InvitePublic() {
             </div>
           ) : (
             <Button onClick={handleAccept} disabled={accepting} className="bg-orange-600 hover:bg-orange-700">
-              {accepting ? "Assinando..." : "Assinar contrato"}
+              {accepting ? "Adicionando..." : "Adicionar aos meus contratos"}
             </Button>
           )}
         </div>
