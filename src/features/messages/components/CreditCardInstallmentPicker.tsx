@@ -52,9 +52,16 @@ export function CreditCardInstallmentPicker({
         if (cancelled) return;
 
         setOptions(nextOptions);
-        const firstCount = Number(nextOptions[0].installment_count);
-        setSelectedCount(firstCount);
-        onChange(firstCount, nextOptions[0]);
+        /**
+         * NAO pre-seleciona nada de proposito.
+         *
+         * Antes a primeira opcao (1x) ja vinha marcada e o formulario de cartao aparecia
+         * junto, entao dava para digitar o cartao inteiro sem nunca ter olhado para o
+         * parcelamento — e o cliente pagava a vista achando que ia parcelar. Agora a
+         * escolha e um passo consciente: os campos do cartao so aparecem depois dela.
+         */
+        setSelectedCount(null);
+        onChange(null, null);
       } catch {
         if (!cancelled) {
           setOptions([]);
@@ -74,8 +81,12 @@ export function CreditCardInstallmentPicker({
 
   return (
     <div className="rounded-md border border-orange-100 bg-orange-50/40 p-3">
-      <p className="text-sm font-medium text-gray-900">Parcelamento no cartão</p>
-      <p className="mb-3 text-xs text-gray-600">Valores finais para pagamento no cartão</p>
+      <p className="text-sm font-medium text-gray-900">Em quantas vezes você quer pagar?</p>
+      <p className="mb-3 text-xs text-gray-600">
+        {selectedCount == null
+          ? "Escolha o parcelamento para continuar. Os valores abaixo já são os finais."
+          : "Valores finais para pagamento no cartão."}
+      </p>
 
       {loading ? (
         <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-orange-600" /></div>

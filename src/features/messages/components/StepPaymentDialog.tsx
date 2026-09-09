@@ -187,7 +187,7 @@ export function StepPaymentDialog({
               {/* Cartao: formulario proprio. E o unico caminho que divide o valor com o
                   prestador. O token e de uso unico, entao cada tentativa pede os dados
                   de novo. */}
-              {isCreditCard && podeTokenizar && !cobrancaDeCartaoEmPe ? (
+              {isCreditCard && podeTokenizar && !cobrancaDeCartaoEmPe && installmentOption != null ? (
                 <div className="rounded-md border p-3">
                   <CardForm
                     // O total da PARCELA escolhida, nao o valor base: no cartao o cliente

@@ -154,7 +154,7 @@ import {
                 </div>
               ) : null}
 
-              {isCreditCard && podeTokenizar && !cobrancaDeCartaoEmPe ? (
+              {isCreditCard && podeTokenizar && !cobrancaDeCartaoEmPe && installmentOption != null ? (
                 <div className="rounded-md border p-3">
                   <CardForm
                     total={installmentOption?.total_amount ?? totalAmount}
