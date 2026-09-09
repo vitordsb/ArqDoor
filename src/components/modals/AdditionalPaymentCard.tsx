@@ -14,6 +14,8 @@ import { formatPrice, formatDate } from "@/lib/utils";
 import { CheckCircle, XCircle, Clock, DollarSign, Loader2, RefreshCcw } from "lucide-react";
 import type { AdditionalPayment } from "@/lib/Interfaces";
 import type { PaymentMethod } from "@/features/messages/types";
+import { CardForm } from "@/features/payments/components/CardForm";
+import { cartaoDisponivel } from "@/lib/pagarme";
 
 const PAID_PAYMENT_STATUSES = [
   "PAID",
@@ -31,7 +33,12 @@ const isPaidPaymentStatus = (status?: string) =>
 type AdditionalPaymentCardProps = {
   payment: AdditionalPayment;
   userType?: "prestador" | "contratante";
-  onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
+  /**
+   * `cardToken` vem do CardForm e e obrigatorio quando o metodo e cartao: o backend
+   * recusa cartao sem token, porque sem ele a cobranca cai no checkout hospedado, que
+   * ignora a divisao com o profissional em silencio.
+   */
+  onAccept?: (id: number, method: PaymentMethod, cardToken?: string) => Promise<void>;
   onRefuse?: (id: number, reason: string) => Promise<void>;
   onResume?: (payment: AdditionalPayment) => Promise<void>;
   onRefreshStatus?: (id: number) => Promise<void>;
@@ -105,8 +112,8 @@ export function AdditionalPaymentCard({
     setRefuseReason("");
   };
 
-  const handleAccept = async () => {
-    await onAccept?.(payment.id, selectedMethod);
+  const handleAccept = async (cardToken?: string) => {
+    await onAccept?.(payment.id, selectedMethod, cardToken);
     setShowAcceptModal(false);
   };
 
@@ -261,11 +268,12 @@ export function AdditionalPaymentCard({
             <div className="space-y-2">
               <Label>Forma de pagamento</Label>
               <div className="grid gap-2">
+                {/* Boleto saiu em 2026-09-09, por decisão do Vitor. Débito nunca chegou
+                    a funcionar: a Pagar.me, gateway desde 2026-09-09, não trabalha com
+                    ele, e a opção só produzia uma recusa depois da escolha. */}
                 {[
                   { value: "PIX", label: "PIX" },
-                  { value: "BOLETO", label: "Boleto" },
                   { value: "CREDIT_CARD", label: "Cartão de Crédito" },
-                  { value: "DEBIT_CARD", label: "Cartão de Débito" },
                 ].map((method) => (
                   <label
                     key={method.value}
@@ -287,6 +295,37 @@ export function AdditionalPaymentCard({
               </div>
             </div>
 
+            {/* Cartão: o aceite JÁ gera a cobrança, então os dados precisam vir aqui.
+                Quem dispara é o formulário, depois de tokenizar. Nunca o botão comum. */}
+            {selectedMethod === "CREDIT_CARD" && cartaoDisponivel() ? (
+              <div className="rounded-md border p-3">
+                <CardForm
+                  total={Number(payment.amount || 0)}
+                  enviando={isProcessing}
+                  onToken={(cartao) => void handleAccept(cartao.token)}
+                  onUsarPix={() => setSelectedMethod("PIX")}
+                />
+              </div>
+            ) : null}
+
+            {selectedMethod === "CREDIT_CARD" && !cartaoDisponivel() ? (
+              <div className="space-y-2 rounded-md bg-red-50 px-3 py-2">
+                <p className="text-xs leading-relaxed text-red-700">
+                  O pagamento com cartão está indisponível nesta versão do site. Use PIX
+                  para concluir agora.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedMethod("PIX")}
+                  className="border-red-200 text-red-700 hover:bg-red-100"
+                >
+                  Pagar com PIX
+                </Button>
+              </div>
+            ) : null}
+
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
@@ -294,20 +333,22 @@ export function AdditionalPaymentCard({
               >
                 Cancelar
               </Button>
-              <Button
-                onClick={handleAccept}
-                disabled={isProcessing}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processando...
-                  </>
-                ) : (
-                  "Aceitar e Gerar Pagamento"
-                )}
-              </Button>
+              {selectedMethod === "CREDIT_CARD" ? null : (
+                <Button
+                  onClick={() => void handleAccept()}
+                  disabled={isProcessing}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    "Aceitar e Gerar Pagamento"
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>

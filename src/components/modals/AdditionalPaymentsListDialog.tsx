@@ -27,7 +27,7 @@ type AdditionalPaymentsListDialogProps = {
   ticketStatus?: string;
   payments: AdditionalPayment[];
   userType?: "prestador" | "contratante";
-  onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
+  onAccept?: (id: number, method: PaymentMethod, cardToken?: string) => Promise<void>;
   onRefuse?: (id: number, reason: string) => Promise<void>;
   onResume?: (payment: AdditionalPayment) => Promise<void>;
   onRefreshStatus?: (id: number) => Promise<void>;
@@ -64,7 +64,7 @@ export function AdditionalPaymentsListDialog({
           <DialogTitle>Pagamentos Adicionais</DialogTitle>
           <DialogDescription>
             {isClient
-              ? "Selecione a proposta para visualizar cobranças e escolher PIX, boleto ou cartão (ASAAS)."
+              ? "Selecione a proposta para visualizar cobranças e escolher PIX ou cartão."
               : "Selecione a proposta para visualizar e responder cobranças adicionais."}
           </DialogDescription>
         </DialogHeader>

@@ -8,7 +8,7 @@ type AdditionalPaymentListProps = {
   payments: AdditionalPayment[];
   userType?: "prestador" | "contratante";
   ticketStatus?: string;
-  onAccept?: (id: number, method: PaymentMethod) => Promise<void>;
+  onAccept?: (id: number, method: PaymentMethod, cardToken?: string) => Promise<void>;
   onRefuse?: (id: number, reason: string) => Promise<void>;
   onResume?: (payment: AdditionalPayment) => Promise<void>;
   onRefreshStatus?: (id: number) => Promise<void>;

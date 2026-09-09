@@ -7,16 +7,23 @@ import {
   } from '@/components/ui/dialog';
   import { Button } from '@/components/ui/button';
   import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+  import { useCallback, useEffect, useState } from 'react';
   import {
     QrCode,
     Copy,
     CreditCard,
-    Banknote,
     Barcode,
     Loader2,
   } from 'lucide-react';
   import { Step } from '@/lib/Interfaces';
   import { formatPrice } from '@/lib/utils';
+  import {
+    CreditCardInstallmentPicker,
+    type InstallmentOption,
+  } from '@/features/messages/components/CreditCardInstallmentPicker';
+  import { CardForm } from '@/features/payments/components/CardForm';
+  import { cobrancaRecusada } from '@/features/payments/statusDaCobranca';
+  import { cartaoDisponivel } from '@/lib/pagarme';
   
   type PaymentMethod = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'DEBIT_CARD';
   
@@ -28,15 +35,19 @@ import {
     method: PaymentMethod;
     loading: boolean;
     onMethodChange: (method: PaymentMethod) => void;
-    onGeneratePayment: () => void;
+    onGeneratePayment: (installmentCount?: number, cardToken?: string) => void;
     onCopyCode: (code?: string, label?: string) => void;
   };
   
+  // Boleto saiu em 2026-09-09, por decisão do Vitor: não é mais oferecido em lugar nenhum.
+  // O bloco que EXIBE um boleto continua mais abaixo, e é de propósito: produção tem
+  // cobranças antigas em boleto, e quem abrir uma delas ainda precisa da linha digitável.
+  //
+  // Débito também não é oferecido: a Pagar.me, gateway desde 2026-09-09, não trabalha com
+  // débito. Ele ficava na tela e falhava depois de o cliente escolher.
   const paymentMethodOptions = [
     { value: "PIX", title: "PIX", description: "QR Code e copia e cola", icon: QrCode },
-    { value: "BOLETO", title: "Boleto", description: "Linha digitável e PDF", icon: Barcode },
-    { value: "CREDIT_CARD", title: "Crédito", description: "Checkout seguro Asaas", icon: CreditCard },
-    { value: "DEBIT_CARD", title: "Débito", description: "Checkout seguro Asaas", icon: Banknote },
+    { value: "CREDIT_CARD", title: "Crédito", description: "Em até 12x", icon: CreditCard },
   ];
   
   export function GroupedPaymentDialog({
@@ -51,6 +62,31 @@ import {
     onCopyCode,
   }: GroupedPaymentDialogProps) {
     const totalAmount = steps.reduce((acc, step) => acc + (step.price || 0), 0);
+    const [installmentCount, setInstallmentCount] = useState<number | null>(null);
+    const [installmentOption, setInstallmentOption] = useState<InstallmentOption | null>(null);
+    const isCreditCard = method === 'CREDIT_CARD';
+    const podeTokenizar = cartaoDisponivel();
+
+    useEffect(() => {
+      setInstallmentCount(null);
+      setInstallmentOption(null);
+    }, [method, totalAmount]);
+
+    const escolherParcela = useCallback(
+      (contagem: number | null, opcao: InstallmentOption | null) => {
+        setInstallmentCount(contagem);
+        setInstallmentOption(opcao);
+      },
+      []
+    );
+
+    // Recusada volta ao formulario: o token e de uso unico, entao retentar exige os
+    // dados de novo. Aprovada ou em analise, nao: refazer geraria cobranca dobrada.
+    const cobrancaDeCartaoEmPe = isCreditCard && !!data && !cobrancaRecusada(data);
+
+    // O botão comum NUNCA dispara cartão: sem token a cobrança cai no checkout hospedado,
+    // que ignora a divisão com o profissional em silêncio. Quem dispara cartão é o CardForm.
+    const mostrarBotaoGerar = !isCreditCard;
   
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -96,32 +132,65 @@ import {
                   );
                 })}
               </RadioGroup>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  onClick={onGeneratePayment}
-                  disabled={loading}
-                  className="bg-orange-600 hover:bg-orange-700"
-                >
-                  {loading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <QrCode className="mr-2 h-4 w-4" />
-                  )}
-                  {data ? "Atualizar cobrança" : "Gerar cobrança"}
-                </Button>
-                {data?.invoice_url && (
-                  <Button asChild variant="outline">
-                    <a
-                      href={data.invoice_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Abrir no Asaas
-                    </a>
+              {isCreditCard ? (
+                <CreditCardInstallmentPicker amount={totalAmount} onChange={escolherParcela} />
+              ) : null}
+
+              {isCreditCard && !podeTokenizar ? (
+                <div className="space-y-2 rounded-md bg-red-50 px-3 py-2">
+                  <p className="text-xs leading-relaxed text-red-700">
+                    O pagamento com cartão está indisponível nesta versão do site. Use PIX
+                    para concluir agora.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onMethodChange("PIX")}
+                    className="border-red-200 text-red-700 hover:bg-red-100"
+                  >
+                    Pagar com PIX
                   </Button>
-                )}
-              </div>
+                </div>
+              ) : null}
+
+              {isCreditCard && podeTokenizar && !cobrancaDeCartaoEmPe ? (
+                <div className="rounded-md border p-3">
+                  <CardForm
+                    total={installmentOption?.total_amount ?? totalAmount}
+                    enviando={loading}
+                    onToken={(cartao) =>
+                      onGeneratePayment(installmentCount ?? undefined, cartao.token)
+                    }
+                    onUsarPix={() => onMethodChange("PIX")}
+                  />
+                </div>
+              ) : null}
+
+              {mostrarBotaoGerar ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => onGeneratePayment(installmentCount ?? undefined)}
+                    disabled={loading}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    {loading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="mr-2 h-4 w-4" />
+                    )}
+                    {data ? "Atualizar cobrança" : "Gerar cobrança"}
+                  </Button>
+                  {data?.invoice_url && (
+                    <Button asChild variant="outline">
+                      <a href={data.invoice_url} target="_blank" rel="noreferrer">
+                        Abrir cobrança
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              ) : null}
             </div>
   
             {(() => {
@@ -171,7 +240,7 @@ import {
                         {data?.invoice_url && (
                           <Button asChild size="sm" variant="outline">
                             <a href={data.invoice_url} target="_blank" rel="noreferrer">
-                              <QrCode className="h-3.5 w-3.5 mr-1" /> Abrir no Asaas
+                              <QrCode className="h-3.5 w-3.5 mr-1" /> Abrir cobrança
                             </a>
                           </Button>
                         )}
@@ -228,14 +297,30 @@ import {
   
               return (
                 <div className="space-y-3">
+                  {data?.credit_card_installment && (
+                    <div className="flex items-center justify-between rounded-md bg-orange-50 px-3 py-2 text-sm">
+                      <span className="font-medium text-orange-700">
+                        {data.credit_card_installment.installment_count}x de {formatPrice(data.credit_card_installment.installment_value)}
+                      </span>
+                      <span className="flex flex-col items-end text-xs text-gray-600">
+                        {data.credit_card_installment.last_installment_value != null ? (
+                          <span>Última {formatPrice(data.credit_card_installment.last_installment_value)}</span>
+                        ) : null}
+                        <span>Total {formatPrice(data.credit_card_installment.total_amount)}</span>
+                      </span>
+                    </div>
+                  )}
                   <p className="text-sm text-gray-600">
-                    Você será direcionado ao checkout seguro do Asaas para inserir os dados do cartão.
+                    Cobrança no cartão registrada. O resultado aparece assim que a operadora
+                    responder.
                   </p>
+                  {/* Link do checkout hospedado só para cobranças ANTIGAS, nascidas por
+                      aquele caminho. Cobrança nova é feita aqui, com token. */}
                   {checkoutUrl && (
                     <Button asChild className="bg-orange-600 hover:bg-orange-700">
                       <a href={checkoutUrl} target="_blank" rel="noreferrer">
                         <CreditCard className="h-4 w-4 mr-2" />
-                        Abrir checkout do cartão
+                        Abrir cobrança
                       </a>
                     </Button>
                   )}

@@ -117,7 +117,7 @@ export function PaymentPreferenceCard({
                 </ul>
               ) : (
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Ao aceitar/assinar o contrato já emitimos a cobrança (Asaas) do valor total para depósito em garantia.</li>
+                  <li>Ao aceitar/assinar o contrato já emitimos a cobrança do valor total para depósito em garantia.</li>
                   <li>O valor fica com a ArqDoor e as liberações acontecem conforme as fases são finalizadas e validadas, mantendo o saldo protegido.</li>
                   <li>O projeto fica em "aguardando pagamento" e o prazo começa a contar após a confirmação do depósito.</li>
                   <li>No fim, o prestador marca o projeto como concluído e o cliente aceita ou pede ajustes; só após a aceitação liberamos o pagamento ao prestador.</li>
