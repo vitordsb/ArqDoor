@@ -82,11 +82,15 @@ export default function ServicesFeed() {
       const services = servicesData.servicesFreelancer;
 
       // Deduplica user IDs para não buscar o mesmo usuário duas vezes
+      // Array.from em vez de espalhar o Set: o `target` do tsconfig e menor que es2015
+      // e o spread de Set nao compila (TS2802). Mesmo resultado, sem mexer no target.
       const uniqueUserIds = [
-        ...new Set(
-          services
-            .map((s: any) => s.ServiceProvider?.user_id)
-            .filter((id: any) => id != null && id !== currentUser?.id)
+        ...Array.from(
+          new Set(
+            services
+              .map((s: any) => s.ServiceProvider?.user_id)
+              .filter((id: any) => id != null && id !== currentUser?.id)
+          )
         ),
       ] as number[];
 
