@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Shield, Loader2, AlertTriangle } from 'lucide-react'
 import { useLocation } from 'wouter'
+import { useEffect, useState } from 'react'
 
 interface SignatureDialogProps {
   open: boolean
@@ -22,10 +23,18 @@ interface SignatureDialogProps {
   agreeLabel?: string
   passwordPlaceholder?: string
   requireAck?: boolean
-  /** Se false, mostra aviso ao invés do input de senha. */
+  /**
+   * Tem senha cadastrada SÓ para assinatura, separada da de login?
+   *
+   * Só importa para conta Google: ela não tem senha de login utilizável (nasce com uma
+   * aleatória que o usuário nunca vê), então sem uma senha própria não há o que digitar.
+   * Conta com e-mail e senha assina com a de login e não depende disto.
+   */
   signaturePasswordConfigured?: boolean
-  /** Para mostrar mensagem específica para contas Google. */
+  /** Conta criada pelo Google: ganha a escolha de assinar sem senha. */
   isGoogleAccount?: boolean
+  /** Assina pela própria conta Google, sem senha. Obrigatório quando `isGoogleAccount`. */
+  onConfirmWithGoogle?: () => void
 }
 
 export function SignatureDialog({
@@ -47,9 +56,36 @@ export function SignatureDialog({
   requireAck = true,
   signaturePasswordConfigured = true,
   isGoogleAccount = false,
+  onConfirmWithGoogle,
 }: SignatureDialogProps) {
   const [, navigate] = useLocation()
-  const blocked = !signaturePasswordConfigured
+
+  /**
+   * Conta Google escolhe COMO confirmar antes de qualquer campo aparecer.
+   *
+   * 'escolha'  -> os três botões
+   * 'senha'    -> campo de senha (só faz sentido com senha própria cadastrada)
+   * 'cadastrar'-> aviso de que falta cadastrar, com caminho para o perfil
+   *
+   * Conta com e-mail e senha nunca entra aqui: ela tem senha que o dono conhece, e
+   * continua confirmando com ela como sempre fez.
+   */
+  type Etapa = 'escolha' | 'senha' | 'cadastrar'
+  const [etapa, setEtapa] = useState<Etapa>(isGoogleAccount ? 'escolha' : 'senha')
+
+  // Reabrir o diálogo tem que recomeçar a escolha; senão o segundo contrato assinado
+  // pula direto para o campo de senha do primeiro.
+  useEffect(() => {
+    if (open) setEtapa(isGoogleAccount ? 'escolha' : 'senha')
+  }, [open, isGoogleAccount])
+
+  /**
+   * Conta com e-mail e senha assina com a senha de LOGIN por padrão, então ela nunca é
+   * bloqueada por não ter senha própria de assinatura. O bloqueio antigo usava
+   * `signature_password_set`, que o backend liga sozinho em todo login: ele nunca
+   * significou "definiu senha de assinatura" e travava conta Google sem saída.
+   */
+  const blocked = isGoogleAccount && etapa === 'cadastrar'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,14 +102,13 @@ export function SignatureDialog({
               <div className="text-sm text-amber-900">
                 <p className="font-semibold">Você ainda não tem senha de assinatura.</p>
                 <p className="mt-1">
-                  {isGoogleAccount
-                    ? "Como sua conta entrou pelo Google, precisamos de uma senha específica para assinar contratos com segurança."
-                    : "Para assinar contratos com segurança, defina uma senha de assinatura no seu perfil."}
+                  Cadastre uma senha de assinatura antes de usar essa opção. Ela é só para
+                  assinar contratos e não altera a forma como você entra na plataforma.
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" className="flex-1" onClick={() => setEtapa('escolha')}>
                 Voltar
               </Button>
               <Button
@@ -86,6 +121,49 @@ export function SignatureDialog({
                 Ir para o perfil
               </Button>
             </div>
+          </div>
+        ) : isGoogleAccount && etapa === 'escolha' ? (
+          <div className="space-y-4">
+            {requireAck && (
+              <div className="flex items-center gap-2">
+                <Checkbox checked={ackChecked} onCheckedChange={c => setAckChecked(!!c)} id="ack-google" />
+                <label htmlFor="ack-google" className="text-sm">
+                  Eu aceito os{' '}
+                  <a href="/termos-de-uso" className="underline cursor-pointer">
+                    Termos de uso
+                  </a>{' '}
+                  da plataforma
+                </label>
+              </div>
+            )}
+
+            <p className="text-sm text-slate-600">Escolha como você quer confirmar.</p>
+
+            <Button
+              className="w-full bg-purple-600 hover:bg-purple-700"
+              disabled={(requireAck && !ackChecked) || signingDocument}
+              onClick={() => onConfirmWithGoogle?.()}
+            >
+              {signingDocument ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Shield className="h-4 w-4 mr-1" />
+              )}
+              Confirmar com minha conta Google
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full border-purple-300 text-purple-700 hover:bg-purple-50"
+              disabled={requireAck && !ackChecked}
+              onClick={() => setEtapa(signaturePasswordConfigured ? 'senha' : 'cadastrar')}
+            >
+              Confirmar com senha
+            </Button>
+
+            <Button variant="ghost" className="w-full" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">

@@ -38,7 +38,19 @@ export interface User {
   type: "contratante" | "prestador";
   termos_aceitos: boolean;
   perfil_completo?: boolean;
+  /**
+   * NAO significa "definiu uma senha de assinatura".
+   * O backend liga esta flag em QUALQUER login quando ela esta nula, entao na pratica ela
+   * quer dizer "tem senha de login". Use `signature_password_configured` para saber se
+   * existe senha SO de assinatura.
+   */
   signature_password_set?: boolean | null;
+  /**
+   * Tem senha cadastrada so para assinar, separada da de login?
+   * Importa para conta Google, que nao tem senha de login utilizavel: sem esta, o unico
+   * caminho e assinar pela propria conta Google.
+   */
+  signature_password_configured?: boolean | null;
   perfil?: string;
   banner?: string | null;
   avatar?: string | null;
@@ -74,6 +86,8 @@ export interface Conversation {
     perfil?: string | null;
     avatar?: string | null;
     banner?: string | null;
+    is_hidden?: boolean;
+    is_active?: boolean;
   };
   lastMessage?: {
     id: number;
@@ -216,7 +230,18 @@ export interface Ticket {
   status?: string;
   payment_preference?: "per_step" | "at_end" | "custom";
   paymentPreference?: "per_step" | "at_end" | "custom";
+  /**
+   * Quando o pagamento acontece, e nao como ele e fatiado.
+   *
+   * escrow: o cliente paga ANTES e o valor fica retido ate a conclusao.
+   * standard: o cliente paga DEPOIS da entrega.
+   *
+   * Campo diferente de `payment_preference`, e confundir os dois trava o contrato: a
+   * guarda de "so inicia depois de pago" lia a preferencia, que vale "custom" em toda
+   * proposta, e assim bloqueava tambem o standard, onde pagar depende de concluir.
+   */
   provider_receiving_method?: "escrow" | "standard";
+  providerReceivingMethod?: "escrow" | "standard";
   provider_receiving_account_id?: number | null;
   provider_receiving_account_label?: string | null;
   provider_bank_name?: string | null;

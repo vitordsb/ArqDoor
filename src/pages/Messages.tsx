@@ -135,25 +135,26 @@ export default function Messages() {
   } = useSignature(currentConversation?.id);
 
   const canCreateProposal = () =>
-    user?.type === 'prestador' && currentConversation?.otherUser.type !== 'prestador';
+    user?.type === 'prestador' &&
+    currentConversation?.isNegotiation === true &&
+    currentConversation?.otherUser.type !== 'prestador';
 
-  const ensureSignaturePasswordConfigured = useCallback(() => {
-    if (user?.signature_password_set !== true) {
-      const isGoogle = (user as any)?.provider === "google";
-      toast({
-        title: "Senha de assinatura não configurada",
-        description: isGoogle
-          ? "Como você entrou pelo Google, precisa criar uma senha de assinatura no seu perfil antes de assinar contratos."
-          : "Você ainda não definiu sua senha de assinatura. Vá em Perfil → Segurança para criar uma.",
-        variant: "destructive",
-      });
-      return false;
-    }
-    return true;
-  }, [toast, user?.signature_password_set, (user as any)?.provider]);
+  /**
+   * Nao existe mais guard de "senha de assinatura configurada" antes de abrir o dialogo.
+   *
+   * O antigo bloqueava quem tivesse `signature_password_set !== true` e mandava para o
+   * perfil. Duas coisas erradas: essa flag e ligada pelo backend em QUALQUER login, entao
+   * nunca significou "definiu senha de assinatura"; e conta Google nao tem senha alguma
+   * para digitar (nasce com uma aleatoria que o usuario nunca ve). Na pratica, conta
+   * Google ficava sem conseguir assinar, sem saida.
+   * Quem decide o caminho agora e o proprio dialogo: conta Google escolhe entre confirmar
+   * pela conta ou por uma senha de assinatura; conta local usa a senha de login.
+   */
+  const isGoogleAccount = (user as any)?.provider === "google";
 
-  const signaturePasswordHint =
-    "Use a senha do login (contas com e-mail/senha) ou a senha de assinatura do perfil (contas Google).";
+  const signaturePasswordHint = isGoogleAccount
+    ? "Sua conta entrou pelo Google: confirme pela própria conta, ou cadastre uma senha de assinatura no perfil."
+    : "Use a sua senha de login, ou a senha de assinatura, se você tiver cadastrado uma no perfil.";
 
   // ---------- state ----------
   const [showProposalModal, setShowProposalModal] = useState(false);
@@ -823,14 +824,18 @@ export default function Messages() {
     }
   }, [loadAdditionalPayments, toast]);
 
-  const handleAcceptAdditionalPayment = useCallback(async (id: number, method: string) => {
+  const handleAcceptAdditionalPayment = useCallback(async (id: number, method: string, cardToken?: string) => {
     const normalizedId = Number(id);
     setProcessingAdditionalPaymentId(normalizedId);
     try {
       const normalizedMethod = (method || "PIX").toUpperCase() as PaymentMethod;
+      // O aceite JA gera a cobranca. Sem `card_token` a de cartao cai no checkout
+      // hospedado, que aceita o campo de divisao e o ignora calado: o cliente pagaria e
+      // a parte do profissional ficaria retida. O backend recusa, e e assim que deve ser.
       const response = await apiRequest("PATCH", `/additional-payments/${id}/respond`, {
         action: "accept",
         method: normalizedMethod,
+        card_token: normalizedMethod === "CREDIT_CARD" ? cardToken : undefined,
       });
       if (!response.ok) {
         const error = await response.json();
@@ -1183,11 +1188,25 @@ export default function Messages() {
     stepId: number,
     password: string,
     ticketId: number,
-  ) => markStepCompleted(stepId, password, ticketId);
+    signatureMethod?: 'google',
+  ) => markStepCompleted(stepId, password, ticketId, signatureMethod);
 
   const handleStartPhase = async (stepId: number) => {
     const step = selectedTicketSteps.find((s: any) => s.id === stepId);
+    const ticket = tickets.find(
+      (t: any) => t.id === (step as any)?.ticket_id
+    );
+    // No modo `standard` o cliente paga DEPOIS da entrega, e a cobrança só é liberada
+    // com o projeto concluído. Exigir pagamento para iniciar fecha o ciclo em si mesmo:
+    // sem pagar não começa, sem concluir não paga. Espelha `requiresPaymentBeforeWork`
+    // do backend (services/payment/paymentTimingService), que olha SÓ o modo de
+    // recebimento — não a preferência de parcelamento.
+    const recebimento =
+      ticket?.provider_receiving_method || ticket?.providerReceivingMethod;
+    const pagaAntes = recebimento !== "standard";
+
     if (
+      pagaAntes &&
       step &&
       !step.is_financially_cleared &&
       !step.paid &&
@@ -1279,7 +1298,7 @@ export default function Messages() {
   };
 
   // Cliente ACEITA step (precisa da senha vinda do Dialog)
-  const handleAcceptStep = async (step: any, password: string) => {
+  const handleAcceptStep = async (step: any, password: string, signatureMethod?: 'google') => {
     if (!step?.confirm_freelancer) {
       toast({
         title: 'Aguardando prestador',
@@ -1289,7 +1308,7 @@ export default function Messages() {
       return false;
     }
     try {
-      const ok = await acceptStep(step.id, password);
+      const ok = await acceptStep(step.id, password, signatureMethod);
       if (ok) {
         const updated = await getStepsWithPayment(step.ticket_id);
         setSelectedTicketSteps(updated);
@@ -1359,8 +1378,15 @@ export default function Messages() {
     [lastPaymentMethod]
   );
 
+  /**
+   * `cardToken` NAO e opcional na pratica quando o metodo e cartao: o backend recusa
+   * (CARD_TOKEN_REQUIRED) cobranca de cartao sem token, porque sem ele a cobranca cai no
+   * checkout hospedado, que aceita o campo de divisao e o IGNORA em silencio. Seria o
+   * cliente pagando, a tela confirmando, e o profissional recebendo zero.
+   * Quem produz o token e o CardForm, no proprio dialogo.
+   */
   const requestPayment = useCallback(
-    async (target: PaymentDialogState) => {
+    async (target: PaymentDialogState, installmentCount?: number, cardToken?: string) => {
       let endpoint: string;
       let description: string;
 
@@ -1379,6 +1405,8 @@ export default function Messages() {
       const response = await apiRequest("POST", endpoint, {
         description,
         method: target.method,
+        installment_count: target.method === "CREDIT_CARD" ? installmentCount : undefined,
+        card_token: target.method === "CREDIT_CARD" ? cardToken : undefined,
       });
 
       let payload: any = {};
@@ -1398,7 +1426,7 @@ export default function Messages() {
   );
 
   const requestGroupedPayment = useCallback(
-    async (target: GroupedPaymentDialogState) => {
+    async (target: GroupedPaymentDialogState, installmentCount?: number, cardToken?: string) => {
       const stepIds = (target.steps || []).map((step) => step?.id).filter(Boolean);
       if (stepIds.length === 0) {
         throw new Error("Selecione ao menos uma etapa para pagamento.");
@@ -1412,6 +1440,8 @@ export default function Messages() {
          response = await apiRequest("POST", `/payments/groups/${groupId}`, {
           description: `Pagamento do Grupo ${groupId}`,
           method: target.method,
+          installment_count: target.method === "CREDIT_CARD" ? installmentCount : undefined,
+          card_token: target.method === "CREDIT_CARD" ? cardToken : undefined,
         });
       } else {
         response = await apiRequest("POST", "/payments", {
@@ -1419,6 +1449,8 @@ export default function Messages() {
             ? `Pagamento agrupado do ticket #${ticketId}`
             : "Pagamento agrupado de etapas",
           method: target.method,
+          installment_count: target.method === "CREDIT_CARD" ? installmentCount : undefined,
+          card_token: target.method === "CREDIT_CARD" ? cardToken : undefined,
           step_ids: stepIds,
         });
       }
@@ -1439,7 +1471,7 @@ export default function Messages() {
     []
   );
 
-  const handleGeneratePayment = useCallback(async () => {
+  const handleGeneratePayment = useCallback(async (installmentCount?: number, cardToken?: string) => {
     if (!paymentDialog) return;
     const current = paymentDialog;
     if (current.type === "additional") {
@@ -1452,7 +1484,7 @@ export default function Messages() {
     }
     setPaymentDialog({ ...current, loading: true });
     try {
-      const data = await requestPayment(current);
+      const data = await requestPayment(current, installmentCount, cardToken);
       setPaymentDialog((prev) => (prev ? { ...prev, data, loading: false } : prev));
       toast({
         title: `${paymentMethodLabels[current.method]} gerado`,
@@ -1485,12 +1517,12 @@ export default function Messages() {
     setGroupedPaymentDialog((prev) => (prev ? { ...prev, method, data: null } : prev));
   }, []);
 
-  const handleGenerateGroupedPayment = useCallback(async () => {
+  const handleGenerateGroupedPayment = useCallback(async (installmentCount?: number, cardToken?: string) => {
     if (!groupedPaymentDialog) return;
     const current = groupedPaymentDialog;
     setGroupedPaymentDialog({ ...current, loading: true });
     try {
-      const data = await requestGroupedPayment(current);
+      const data = await requestGroupedPayment(current, installmentCount, cardToken);
       setGroupedPaymentDialog((prev) => (prev ? { ...prev, data, loading: false } : prev));
       toast({
         title: `${paymentMethodLabels[current.method]} gerado`,
@@ -1896,7 +1928,6 @@ export default function Messages() {
   };
 
   const openContractSignatureDialog = (ticket: any) => {
-    if (!ensureSignaturePasswordConfigured()) return;
     if (!ticket) return;
     resetSignatureDialogState();
     setSelectedTicketForSignature(ticket);
@@ -1917,7 +1948,6 @@ export default function Messages() {
   };
 
   const openFreelancerStepSignature = (stepId: number, ticketId: number) => {
-    if (!ensureSignaturePasswordConfigured()) return;
     resetSignatureDialogState();
     setSignatureFlow({
       type: 'step-complete',
@@ -1938,7 +1968,6 @@ export default function Messages() {
   const openClientStepSignature = (
     step: any,
   ) => {
-    if (!ensureSignaturePasswordConfigured()) return;
     resetSignatureDialogState();
     setSignatureFlow({
       type: 'step-accept',
@@ -1956,7 +1985,6 @@ export default function Messages() {
   };
 
   const openProposalSignatureDialog = () => {
-    if (!ensureSignaturePasswordConfigured()) return;
     resetSignatureDialogState();
     setSignatureFlow({
       type: 'proposal-first-step',
@@ -2008,12 +2036,18 @@ export default function Messages() {
     }
     setShowPasswordField(true);
   };
-  const handleConfirmSignature = async () => {
+  /**
+   * `metodo: 'google'` confirma sem senha, e por isso a checagem de senha obrigatoria
+   * abaixo e pulada nesse caminho. O servidor confere o `provider` do usuario, entao
+   * conta local nao consegue usar isso para assinar sem provar nada.
+   */
+  const handleConfirmSignature = async (metodo?: 'google') => {
     if (!signatureFlow) return;
 
     const requireAck =
       signatureFlow.requireAck ?? (signatureFlow.type === 'contract');
     const password = signaturePassword.trim();
+    const semSenha = metodo === 'google';
 
     if (requireAck && !ackChecked) {
       toast({
@@ -2024,7 +2058,7 @@ export default function Messages() {
       return;
     }
 
-    if (!password) {
+    if (!semSenha && !password) {
       toast({
         title: 'Senha obrigatória',
         description: 'Digite sua senha para continuar.',
@@ -2081,6 +2115,7 @@ export default function Messages() {
         const ticketId = selectedTicketForSignature!.id as number;
         const ok = await signContract(ticketId, password, {
           setStatus: true,
+          signatureMethod: metodo,
         });
         if (!ok) return;
 
@@ -2099,6 +2134,7 @@ export default function Messages() {
           signatureFlow.stepId,
           password,
           signatureFlow.ticketId,
+          metodo,
         );
         if (ok === false) return;
         setShowSignatureModal(false);
@@ -2107,7 +2143,7 @@ export default function Messages() {
       }
 
       if (signatureFlow.type === 'step-accept') {
-        const ok = await handleAcceptStep(signatureFlow.step, password);
+        const ok = await handleAcceptStep(signatureFlow.step, password, metodo);
         if (ok === false) return;
         setShowSignatureModal(false);
         resetSignatureDialogState();
@@ -2146,6 +2182,13 @@ export default function Messages() {
   const handleViewProfile = useCallback(async () => {
     if (!currentConversation?.otherUser) return;
     const target = currentConversation.otherUser as any;
+    if (target.is_hidden) {
+      toast({
+        title: "Perfil indisponível",
+        description: "Este perfil está oculto no momento.",
+      });
+      return;
+    }
     try {
       if (target.type === "prestador") {
         let providerId = target.provider_id;
@@ -2168,7 +2211,7 @@ export default function Messages() {
     } catch {
       setLocation(`/user/${target.id}`);
     }
-  }, [currentConversation?.otherUser, setLocation]);
+  }, [currentConversation?.otherUser, setLocation, toast]);
 
   return (
     <MessagesLayout>
@@ -2190,6 +2233,7 @@ export default function Messages() {
               <ConversationHeader
                 conversation={processedCurrentConversation}
                 canCreateProposal={canCreateProposal()}
+                canViewProfile={!processedCurrentConversation.otherUser.is_hidden}
                 onOpenProposal={() => setShowProposalModal(true)}
                 onViewProfile={handleViewProfile}
                 onBack={() => {
@@ -2456,8 +2500,9 @@ export default function Messages() {
         agreeLabel={signatureFlow?.agreeLabel}
         passwordPlaceholder={signatureFlow?.passwordPlaceholder}
         requireAck={signatureRequiresAck}
-        signaturePasswordConfigured={user?.signature_password_set === true}
-        isGoogleAccount={(user as any)?.provider === "google"}
+        signaturePasswordConfigured={(user as any)?.signature_password_configured === true}
+        isGoogleAccount={isGoogleAccount}
+        onConfirmWithGoogle={() => handleConfirmSignature('google')}
       />
 
       <GroupedPaymentDialog

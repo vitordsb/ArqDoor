@@ -1,14 +1,11 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { stampPdfWithName } from '@/lib/stampPdfWithName';
 import { API_BASE_URL } from '@/lib/queryClient';
 import { findSignatureContractStep } from '@/constants/contracts';
 
 export function useSignature(conversationId?: number) {
-  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -55,33 +52,6 @@ export function useSignature(conversationId?: number) {
     [conversationId, queryClient]
   );
 
-  // Upload de PDF
-  const uploadPDF = useCallback(
-    async (ticketId: number, file: File | Blob) => {
-      const fd = new FormData();
-      fd.append('file', file, (file as File).name || `ticket-${ticketId}.pdf`);
-      const res = await apiRequest('POST', `/upload/pdf/${ticketId}`, fd);
-      if (!res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const body = await res.json();
-          throw new Error(body.message || "Erro ao enviar contrato PDF");
-        } else {
-          const text = await res.text();
-          if (text.includes("ENOENT")) {
-            throw new Error("Erro interno: Diretório de uploads não encontrado no servidor.");
-          }
-          throw new Error(`Erro no upload: ${res.status} ${res.statusText}`);
-        }
-      }
-      const json = await res.json();
-      queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
-      toast({ title: 'Contrato enviado', description: 'Contrato PDF enviado com sucesso!' });
-      return json;
-    },
-    [conversationId, queryClient, toast]
-  );
-
   const buscarPDF = useCallback(async (ticketId: number) => {
     const listRes = await apiRequest('GET', `/attchment/ticket/${ticketId}`);
     if (!listRes.ok) throw new Error(await listRes.text());
@@ -119,12 +89,19 @@ export function useSignature(conversationId?: number) {
   const signContract = async (
     ticketId: number,
     password: string,
-    opts?: { setStatus?: boolean }
+    opts?: { setStatus?: boolean; signatureMethod?: 'google' }
   ) => {
     try {
+      /**
+       * `signatureMethod: 'google'` assina pela própria sessão, sem senha: conta criada
+       * pelo Google nasce com senha aleatória que o usuário nunca vê. O servidor confere
+       * o `provider` no banco e recusa conta local que tente este caminho.
+       */
       const res = await apiRequest('PATCH', `/attchment/ticket/${ticketId}`, {
         signature: true,
-        password,
+        ...(opts?.signatureMethod
+          ? { signature_method: opts.signatureMethod }
+          : { password }),
       });
       if (!res.ok) throw new Error(await res.text());
 
@@ -158,35 +135,20 @@ export function useSignature(conversationId?: number) {
         console.warn('Assinou, mas falhou ao sincronizar step/ticket:', e);
       }
 
-      try {
-        const now = new Date();
-        const pdf = await buscarPDF(ticketId);
-        if (pdf && pdf.blob) {
-          const role: 'cliente' | 'prestador' =
-            user?.type === 'prestador' ? 'prestador' : 'cliente';
-
-          const signedBlob = await stampPdfWithName(
-            await pdf.blob.arrayBuffer(),
-            user?.name || 'Cliente',
-            {
-              role,
-              when: now, // garante que a data/hora atual seja exibida
-              page: 'all', // garante assinatura em todas as páginas do documento
-              ticketId,
-            }
-          );
-
-          await uploadPDF(ticketId, signedBlob);
-          await sendSystemMessage(
-            `🖊️ Contrato do Ticket #${ticketId} assinado por ${user?.name || 'Cliente'} em ${now.toLocaleString('pt-BR')}.`,
-            'text',
-            { ticket_id: ticketId, action: 'contract_stamped' }
-          );
-        }
-      } catch (e) {
-        console.warn('Falhou ao carimbar/reanexar contrato:', e);
-      }
-
+      /**
+       * Quem carimba o contrato e o SERVIDOR, nao o navegador.
+       *
+       * Aqui existia um bloco que baixava o PDF, carimbava no cliente com
+       * `stampPdfWithName` e reenviava como anexo novo. Tres problemas:
+       *   1. A prova da assinatura era produzida na maquina de quem assina.
+       *   2. O reenvio criava um SEGUNDO anexo. Como a tela mostra o mais recente e o
+       *      backend marcava o mais antigo como assinado, o documento exibido nao era o
+       *      documento assinado. Aconteceu em 5 contratos de producao.
+       *   3. A falha caia num `console.warn`: carimbo que nao rolava ainda mostrava
+       *      "assinado" na tela.
+       * Desde 09/09/2026 `PATCH /attchment/ticket/:id` gera o PDF assinado no servidor,
+       * com rodape, pagina de declaracao e hash que cobre o conteudo do documento.
+       */
       queryClient.invalidateQueries({ queryKey: ['tickets', conversationId] });
       return true;
     } catch (err: any) {
@@ -200,11 +162,11 @@ export function useSignature(conversationId?: number) {
     }
   };
 
-  const signStepContract = async (stepId: number, password: string) => {
+  const signStepContract = async (stepId: number, password: string, signatureMethod?: 'google') => {
     try {
       const res = await apiRequest('PATCH', `/step/signature/${stepId}`, {
         signature: true,
-        password,
+        ...(signatureMethod ? { signature_method: signatureMethod } : { password }),
       });
       if (!res.ok) throw new Error(await res.text());
       return true;
@@ -220,8 +182,8 @@ export function useSignature(conversationId?: number) {
   };
 
   const acceptStep = useCallback(
-    async (stepId: number, password: string) => {
-      const ok = await signStepContract(stepId, password);
+    async (stepId: number, password: string, signatureMethod?: 'google') => {
+      const ok = await signStepContract(stepId, password, signatureMethod);
       if (ok) {
         await sendSystemMessage(
           `✅ Cliente aceitou/assinou a etapa ${stepId}.`,
@@ -235,7 +197,7 @@ export function useSignature(conversationId?: number) {
     [signStepContract, sendSystemMessage, queryClient, conversationId]
   );
 
-  return { signContract, signStepContract, acceptStep, uploadPDF, buscarPDF };
+  return { signContract, signStepContract, acceptStep, buscarPDF };
 }
 
 export default useSignature;

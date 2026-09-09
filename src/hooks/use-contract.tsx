@@ -324,12 +324,18 @@ export function useContract(conversationId?: number) {
 
   // prestador marca etapa como concluída (libera aceite do cliente)
   const markStepCompleted = useCallback(
-    async (stepId: number, password: string, ticketId?: number) => {
+    /**
+     * `signatureMethod: 'google'` confirma pela própria sessão, sem senha. Conta criada
+     * pelo Google nasce com senha aleatória que o usuário nunca vê, então pedir "sua
+     * senha" a ela é pedir algo que ela não tem. O servidor não confia neste campo:
+     * confere o `provider` gravado no usuário.
+     */
+    async (stepId: number, password: string, ticketId?: number, signatureMethod?: 'google') => {
       try {
         const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
           confirm_freelancer: true,
           confirmFreelancer: true,
-          password,
+          ...(signatureMethod ? { signature_method: signatureMethod } : { password }),
         });
         if (!res.ok) throw new Error(await res.text());
 
@@ -373,12 +379,12 @@ export function useContract(conversationId?: number) {
   );
 
   const confirmFreelancerStep = useCallback(
-    async (stepId: number, password: string) => {
+    async (stepId: number, password: string, signatureMethod?: 'google') => {
       try {
         const res = await apiRequest("PATCH", `/step/confirmfreelancer/${stepId}`, {
           confirmFreelancer: true,
           confirm_freelancer: true,
-          password,
+          ...(signatureMethod ? { signature_method: signatureMethod } : { password }),
         });
         if (!res.ok) throw new Error(await res.text());
 
@@ -915,21 +921,6 @@ export function useContract(conversationId?: number) {
     async (stepId: number, ticketId: number, indexInTicket: number) => {
       try {
         await updateStep(stepId, { status: "Recusado" } as any);
-        const steps = await getStepsForTicket(ticketId);
-        if (indexInTicket > 1) {
-          const prev = steps[indexInTicket - 1];
-          await updateStep(prev.id, {
-            status: "Pendente",
-            confirm_freelancer: false,
-            confirm_contractor: false,
-          } as any);
-        } else if (indexInTicket === 1) {
-          await updateStep(stepId, {
-            status: "Pendente",
-            confirm_freelancer: false,
-            confirm_contractor: false,
-          } as any);
-        }
 
         queryClient.invalidateQueries({ queryKey: ["tickets", conversationId] });
         return true;

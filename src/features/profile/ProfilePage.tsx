@@ -518,6 +518,16 @@ export default function ProfilePage() {
       });
       return;
     }
+    // O backend recusa acima de 50; sem isto a tela deixava digitar e so o servidor
+    // reclamava, depois de o usuario ja ter preenchido as duas vezes.
+    if (trimmedPassword.length > 50) {
+      toast({
+        title: "Senha inválida",
+        description: "A senha pode ter no máximo 50 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (trimmedPassword !== trimmedConfirm) {
       toast({
         title: "Senhas não conferem",
@@ -529,20 +539,29 @@ export default function ProfilePage() {
 
     setSavingSignaturePassword(true);
     try {
-      const res = await apiRequest("PUT", `/users/${user.id}`, {
+      /**
+       * Endpoint DEDICADO. Nao use `PUT /users/:id { password }` aqui.
+       *
+       * Era exatamente isso que esta funcao fazia ate 2026-09-09, e `updateUserService`
+       * grava esse campo em `user.password` — a senha de LOGIN. Quem tinha login
+       * funcionando definia uma "senha de assinatura" diferente e perdia o acesso a
+       * conta, com este mesmo toast dizendo "definida com sucesso". Atingia os 38
+       * usuarios locais de producao.
+       */
+      const res = await apiRequest("PUT", "/users/me/signature-password", {
         password: trimmedPassword,
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body?.success === false) {
-        throw new Error(body?.message || "Não foi possível atualizar a senha.");
+        throw new Error(body?.message || "Não foi possível salvar a senha de assinatura.");
       }
 
       setSignaturePassword("");
       setSignaturePasswordConfirm("");
-      updateUserLocal({ signature_password_set: true });
+      updateUserLocal({ signature_password_configured: true } as any);
       toast({
-        title: "Senha atualizada",
-        description: "Sua senha de assinatura foi definida com sucesso.",
+        title: "Senha de assinatura criada",
+        description: "Sua senha de login não foi alterada.",
       });
     } catch (error: any) {
       toast({
@@ -1119,10 +1138,16 @@ export default function ProfilePage() {
                   <CardTitle>Senha de assinatura</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {/* O texto antigo dizia "para contas com e-mail/senha, ela e a mesma
+                      do login" — e o formulario, ao salvar, TROCAVA a senha de login.
+                      Agora sao coisas separadas de verdade, e o texto precisa deixar
+                      isso claro antes de a pessoa digitar. */}
                   <p className="text-sm text-slate-600">
-                    Use esta senha para assinar contratos e confirmar etapas. Para
-                    contas com e-mail/senha, ela é a mesma do login. Se entrou
-                    com Google, defina aqui.
+                    Uma senha separada, usada só para assinar contratos e confirmar etapas.
+                    Ela <strong>não altera a sua senha de login</strong>. Enquanto você não
+                    cadastrar uma, seus contratos são assinados com a senha de login. Se
+                    você entrou pelo Google, sua conta não tem senha de login, então
+                    cadastre uma aqui ou assine usando a própria conta Google.
                   </p>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Nova senha</label>
@@ -1131,6 +1156,7 @@ export default function ProfilePage() {
                       value={signaturePassword}
                       onChange={(e) => setSignaturePassword(e.target.value)}
                       placeholder="Mínimo 6 caracteres"
+                      maxLength={50}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1140,6 +1166,7 @@ export default function ProfilePage() {
                       value={signaturePasswordConfirm}
                       onChange={(e) => setSignaturePasswordConfirm(e.target.value)}
                       placeholder="Repita a senha"
+                      maxLength={50}
                     />
                   </div>
                   <div className="flex justify-end">
