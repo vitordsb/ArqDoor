@@ -43,7 +43,21 @@ coverage/
 # Vercel
 .vercel
 
+# Claude / contexto do projeto (regra global Vitor) — nunca commitar
+CLAUDE.md
+AVISOS.md
+AVISOS_arquivados.md
+ARCHITECTURE.md
+.claude/
+_memoria/
+
 # UX audit artifacts — never commit
 docs/ux-audit-*.md
 docs/qa-sweep-*.md
 .jez/screenshots/
+
+# Artefato de build, 7.6 MB — nao entra no repo
+frontend-landing-*.tar.gz
+
+# Checkpoint automatico de ferramenta, sem conteudo de projeto
+.planning/

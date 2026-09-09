@@ -19,6 +19,11 @@ jobs:
       # Public values (embedded into the frontend build). Prefer GitHub Variables; Secrets also work.
       VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID || vars.VITE_GOOGLE_CLIENT_ID }}
       VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN || vars.VITE_SENTRY_DSN }}
+      # Chave PUBLICA da Pagar.me (pk_...). E ela que permite tokenizar o cartao no
+      # navegador; sem ela o site esconde o cartao e oferece PIX, em vez de mandar o
+      # cliente para o checkout hospedado, que nao repassa a parte do profissional.
+      # NUNCA colocar aqui uma chave sk_: tudo neste bloco vai embutido no bundle.
+      VITE_PAGARME_PUBLIC_KEY: ${{ secrets.VITE_PAGARME_PUBLIC_KEY || vars.VITE_PAGARME_PUBLIC_KEY }}
     steps:
       - name: Valida secrets do deploy
         id: deploy_guard
