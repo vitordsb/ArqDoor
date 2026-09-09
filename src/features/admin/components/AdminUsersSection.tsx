@@ -5,12 +5,16 @@ import type {
   AdminOperationalStep,
   AdminOperationalTicket,
   AdminUserOperationsOverview,
+  AdminUserProfile,
+  AdminUserProfileUpdate,
   AdminUserRow,
   ClientPagination,
   UserDetailTab,
 } from "../types";
 import {
+  buildWhatsappUrl,
   formatCurrency,
+  formatPhoneBr,
   formatDateTime,
   participantRoleLabel,
   participantSubtitle,
@@ -22,7 +26,8 @@ import {
   cn,
 } from "../utils";
 import { EmptyState, PaginationControls, SectionCard, StatusBadge } from "./AdminPrimitives";
-import { BadgeCheck, Check, Loader2, SendHorizontal, ShieldOff } from "lucide-react";
+import { AdminUserEditorPanel } from "./AdminUserEditorPanel";
+import { BadgeCheck, Check, Loader2, Mail, MessageCircle, Pencil, Phone, SendHorizontal, ShieldOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,6 +43,12 @@ type AdminUsersSectionProps = {
   onSelectUser: (userId: number) => void | Promise<void>;
   detailTab: UserDetailTab;
   onDetailTabChange: (tab: UserDetailTab) => void;
+  userProfile: AdminUserProfile | null;
+  loadingUserProfile: boolean;
+  userProfileError: string | null;
+  savingUserProfile: boolean;
+  saveUserProfileError: string | null;
+  onUpdateUserProfile: (data: AdminUserProfileUpdate) => Promise<boolean | void> | boolean | void;
   operationsOverview: AdminUserOperationsOverview | null;
   loadingOperationsOverview: boolean;
   operationsOverviewError: string | null;
@@ -68,9 +79,19 @@ type AdminUsersSectionProps = {
   onVerifyUser: (userId: number, verified: boolean) => void | Promise<void>;
   verifyingUserId: number | null;
   verifyUserError: string | null;
+  onUpdateStepStatus: (stepId: number, status: string, reason?: string) => Promise<boolean | void> | void;
+  updatingStepId: number | null;
+  updateStepError: string | null;
+  onSuspendUser: (userId: number, suspended: boolean, reason?: string) => Promise<boolean | void> | void;
+  suspendingUserId: number | null;
+  suspendUserError: string | null;
+  onDeleteEarlyUser: (userId: number) => Promise<boolean | void> | boolean | void;
+  deletingUserId: number | null;
+  deleteUserError: string | null;
 };
 
 const USER_DETAIL_TABS: Array<{ key: UserDetailTab; label: string }> = [
+  { key: "cadastro", label: "Cadastro" },
   { key: "perfil", label: "Perfil" },
   { key: "conversas", label: "Conversas" },
   { key: "contratos", label: "Contratos" },
@@ -85,6 +106,12 @@ export function AdminUsersSection({
   onSelectUser,
   detailTab,
   onDetailTabChange,
+  userProfile,
+  loadingUserProfile,
+  userProfileError,
+  savingUserProfile,
+  saveUserProfileError,
+  onUpdateUserProfile,
   operationsOverview,
   loadingOperationsOverview,
   operationsOverviewError,
@@ -115,6 +142,15 @@ export function AdminUsersSection({
   onVerifyUser,
   verifyingUserId,
   verifyUserError,
+  onUpdateStepStatus,
+  updatingStepId,
+  updateStepError,
+  onSuspendUser,
+  suspendingUserId,
+  suspendUserError,
+  onDeleteEarlyUser,
+  deletingUserId,
+  deleteUserError,
 }: AdminUsersSectionProps) {
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -146,7 +182,9 @@ export function AdminUsersSection({
                     ) : null}
                   </div>
                   <p className="truncate text-[11px] text-slate-500">
-                    {user.masked_email || "—"} · #{user.id}
+                    {user.email || user.masked_email || "—"}
+                    {user.phone ? ` · ${formatPhoneBr(user.phone)}` : " · sem tel"}
+                    {" · #"}{user.id}
                   </p>
                 </div>
                 <StatusBadge
@@ -181,9 +219,49 @@ export function AdminUsersSection({
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
               <div>
                 <p className="text-base font-semibold text-slate-900">{selectedUser.name}</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedUser.masked_email || "Email mascarado"}
-                </p>
+                {/* Dados de contato completos (decisão 2026-05-18) — só admin vê,
+                    pra conseguir contatar via WhatsApp ou email quando precisar. */}
+                <div className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
+                  {selectedUser.email ? (
+                    <a
+                      href={`mailto:${selectedUser.email}`}
+                      className="inline-flex items-center gap-1.5 hover:text-orange-700"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="font-mono text-xs">{selectedUser.email}</span>
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-slate-500">
+                      <Mail className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="text-xs">{selectedUser.masked_email || "—"}</span>
+                    </span>
+                  )}
+                  {selectedUser.phone ? (
+                    <span className="inline-flex items-center gap-2 text-slate-700">
+                      <Phone className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="font-mono text-xs">{formatPhoneBr(selectedUser.phone)}</span>
+                      {(() => {
+                        const url = buildWhatsappUrl(selectedUser.phone);
+                        return url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-200"
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                            WhatsApp
+                          </a>
+                        ) : null;
+                      })()}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-rose-700">
+                      <Phone className="h-3.5 w-3.5 text-rose-400" />
+                      <span className="text-xs italic">Sem telefone cadastrado</span>
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge
@@ -198,6 +276,16 @@ export function AdminUsersSection({
                 {selectedUser.is_verified ? (
                   <StatusBadge label="Verificado" tone="emerald" />
                 ) : null}
+                {selectedUser.suspended ? (
+                  <StatusBadge label="Suspenso" tone="rose" />
+                ) : null}
+                {selectedUser.is_hidden ? (
+                  <StatusBadge label="Oculto no app" tone="slate" />
+                ) : null}
+                <Button size="sm" variant="outline" onClick={() => onDetailTabChange("cadastro")}>
+                  <Pencil className="mr-1 h-3 w-3" />
+                  Editar cadastro
+                </Button>
                 <Button
                   size="sm"
                   variant={selectedUser.is_verified ? "outline" : "default"}
@@ -220,6 +308,44 @@ export function AdminUsersSection({
                   )}
                   {selectedUser.is_verified ? "Remover verificação" : "Verificar conta"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant={selectedUser.suspended ? "outline" : "destructive"}
+                  disabled={suspendingUserId === selectedUser.id}
+                  onClick={() => {
+                    if (selectedUser.suspended) {
+                      void onSuspendUser(selectedUser.id, false);
+                    } else {
+                      const reason = window.prompt(
+                        `Suspender conta de ${selectedUser.name}?\n\nMotivo (opcional, fica visível para o usuário no login):`,
+                        ""
+                      );
+                      if (reason === null) return;
+                      void onSuspendUser(selectedUser.id, true, reason || undefined);
+                    }
+                  }}
+                >
+                  {suspendingUserId === selectedUser.id ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : null}
+                  {selectedUser.suspended ? "Reativar conta" : "Suspender conta"}
+                </Button>
+                {selectedUser.deletion_eligible ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                    disabled={deletingUserId === selectedUser.id}
+                    onClick={() => {
+                      if (window.confirm(`Remover permanentemente a conta de ${selectedUser.name}? Essa opção só existe nas primeiras 48 horas e não pode ser desfeita.`)) {
+                        void onDeleteEarlyUser(selectedUser.id);
+                      }
+                    }}
+                  >
+                    {deletingUserId === selectedUser.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Trash2 className="mr-1 h-3 w-3" />}
+                    Remover conta
+                  </Button>
+                ) : null}
               </div>
             </div>
             {verifyUserError && (
@@ -227,6 +353,21 @@ export function AdminUsersSection({
                 {verifyUserError}
               </div>
             )}
+            {suspendUserError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {suspendUserError}
+              </div>
+            )}
+            {deleteUserError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {deleteUserError}
+              </div>
+            )}
+            {selectedUser.suspended && selectedUser.suspended_reason ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <span className="font-semibold">Motivo da suspensão:</span> {selectedUser.suspended_reason}
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1">
               {USER_DETAIL_TABS.map((tab) => (
@@ -236,8 +377,8 @@ export function AdminUsersSection({
                   className={cn(
                     "rounded-xl px-3 py-2 text-sm font-semibold transition",
                     detailTab === tab.key
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      ? "bg-orange-600 text-white"
+                      : "text-slate-600 hover:bg-orange-50 hover:text-orange-700"
                   )}
                 >
                   {tab.label}
@@ -249,6 +390,17 @@ export function AdminUsersSection({
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {operationsOverviewError}
               </div>
+            ) : null}
+
+            {detailTab === "cadastro" ? (
+              <AdminUserEditorPanel
+                profile={userProfile}
+                loading={loadingUserProfile}
+                error={userProfileError}
+                saving={savingUserProfile}
+                saveError={saveUserProfileError}
+                onSave={onUpdateUserProfile}
+              />
             ) : null}
 
             {detailTab === "perfil" ? (
@@ -300,6 +452,9 @@ export function AdminUsersSection({
                 pagination={paginatedUserSteps}
                 onPrevious={onPrevUserStepsPage}
                 onNext={onNextUserStepsPage}
+                onUpdateStepStatus={onUpdateStepStatus}
+                updatingStepId={updatingStepId}
+                updateStepError={updateStepError}
               />
             ) : null}
 
@@ -547,14 +702,26 @@ type StepListPanelProps = {
   >;
   onPrevious: () => void;
   onNext: () => void;
+  onUpdateStepStatus: (stepId: number, status: string, reason?: string) => Promise<boolean | void> | void;
+  updatingStepId: number | null;
+  updateStepError: string | null;
 };
+
+const STEP_STATUS_OPTIONS = ["Pendente", "Em Andamento", "Concluido", "Recusado"] as const;
 
 function StepListPanel({
   loading,
   pagination,
   onPrevious,
   onNext,
+  onUpdateStepStatus,
+  updatingStepId,
+  updateStepError,
 }: StepListPanelProps) {
+  const [editingStepId, setEditingStepId] = useState<number | null>(null);
+  const [draftStatus, setDraftStatus] = useState<string>("Pendente");
+  const [draftReason, setDraftReason] = useState<string>("");
+
   if (loading) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
@@ -572,33 +739,120 @@ function StepListPanel({
     );
   }
 
+  const startEdit = (step: { id: number; status: string }) => {
+    setEditingStepId(step.id);
+    setDraftStatus(step.status);
+    setDraftReason("");
+  };
+
+  const cancelEdit = () => {
+    setEditingStepId(null);
+    setDraftReason("");
+  };
+
+  const applyEdit = async (stepId: number, currentStatus: string) => {
+    if (draftStatus === currentStatus) {
+      cancelEdit();
+      return;
+    }
+    const ok = await onUpdateStepStatus(stepId, draftStatus, draftReason);
+    if (ok !== false) cancelEdit();
+  };
+
   return (
     <div className="space-y-3">
+      {updateStepError ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {updateStepError}
+        </div>
+      ) : null}
       <div className="space-y-2">
-        {pagination.items.map((step) => (
-          <div key={step.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{step.title}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Contrato #{step.ticket_id} • {step.group_label}
-                </p>
+        {pagination.items.map((step) => {
+          const isEditing = editingStepId === step.id;
+          const isUpdating = updatingStepId === step.id;
+          return (
+            <div key={step.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">{step.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Contrato #{step.ticket_id} • {step.group_label}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-950">{formatCurrency(step.price)}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{step.payout_reason}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-slate-950">{formatCurrency(step.price)}</p>
-                <p className="mt-1 text-[11px] text-slate-500">{step.payout_reason}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <StatusBadge label={step.status} tone={stepStatusTone(step.status)} />
+                <StatusBadge
+                  label={stepPaymentLabel(step)}
+                  tone={step.is_financially_cleared ? "emerald" : paymentBucketTone(step.payment_status_bucket)}
+                />
+                {step.payout_ready ? <StatusBadge label="Pode pagar prestador" tone="sky" /> : null}
+                {!isEditing ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto"
+                    onClick={() => startEdit(step)}
+                  >
+                    Alterar status
+                  </Button>
+                ) : null}
               </div>
+              {isEditing ? (
+                <div className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Novo status
+                    </label>
+                    <select
+                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                      value={draftStatus}
+                      onChange={(e) => setDraftStatus(e.target.value)}
+                      disabled={isUpdating}
+                    >
+                      {STEP_STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Motivo (opcional, fica no log)"
+                    className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm"
+                    value={draftReason}
+                    onChange={(e) => setDraftReason(e.target.value)}
+                    disabled={isUpdating}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={cancelEdit}
+                      disabled={isUpdating}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void applyEdit(step.id, step.status)}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        "Aplicar"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <StatusBadge label={step.status} tone={stepStatusTone(step.status)} />
-              <StatusBadge
-                label={stepPaymentLabel(step)}
-                tone={step.is_financially_cleared ? "emerald" : paymentBucketTone(step.payment_status_bucket)}
-              />
-              {step.payout_ready ? <StatusBadge label="Pode pagar prestador" tone="sky" /> : null}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <PaginationControls
         page={pagination.page}

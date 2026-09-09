@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.arqdoor.app",
+      "sha256_cert_fingerprints": [
+        "D5:69:A7:22:76:CF:A1:EE:E6:A4:D4:A7:87:0E:32:D7:71:3F:C8:06:4D:EA:73:1B:27:E0:60:71:B1:57:08:75"
+      ]
+    }
+  }
+]

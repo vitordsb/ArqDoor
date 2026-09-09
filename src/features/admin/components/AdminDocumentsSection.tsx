@@ -31,18 +31,23 @@ export function AdminDocumentsSection({ documents }: AdminDocumentsSectionProps)
                 <StatusBadge label={document.contract_status || "Sem status"} tone="slate" />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[document.contractor, document.provider].map((participant) => (
-                  <div
-                    key={`${document.id}-${participant?.id || participant?.name || "sem-vinculo"}`}
-                    className="rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {participant?.name || "Sem vínculo"}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">{participantSubtitle(participant)}</p>
-                  </div>
-                ))}
+              <div className="grid gap-3 sm:grid-cols-2 min-w-0">
+                {[document.contractor, document.provider].map((participant) => {
+                  const subtitle = participantSubtitle(participant);
+                  return (
+                    <div
+                      key={`${document.id}-${participant?.id || participant?.name || "sem-vinculo"}`}
+                      className="min-w-0 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3"
+                    >
+                      <p className="text-sm font-semibold text-slate-900 truncate" title={participant?.name || ""}>
+                        {participant?.name || "Sem vínculo"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500 truncate" title={subtitle}>
+                        {subtitle}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="rounded-[22px] bg-slate-50/80 p-4">

@@ -7,6 +7,7 @@ import type {
 import {
   cn,
   formatDateTime,
+  formatRelativeTime,
   participantRoleLabel,
   participantSubtitle,
   participantTone,
@@ -30,6 +31,64 @@ type AdminConversationsSectionProps = {
   onSelectConversation: (conversationId: number) => void | Promise<void>;
   onPrevMessagesPage: () => void;
   onNextMessagesPage: () => void;
+  /**
+   * Callback opcional: quando o admin clica num "Ticket #N" embutido na
+   * mensagem, fecha o modal e navega pra aba Contratos.
+   */
+  onOpenTicket?: (ticketId: number) => void;
+};
+
+/**
+ * Renderiza o conteúdo de uma mensagem destacando referências a "Ticket #N"
+ * como botões clicáveis. Útil para mensagens automáticas de proposta.
+ */
+const MessageContent = ({
+  content,
+  onOpenTicket,
+}: {
+  content: string;
+  onOpenTicket?: (ticketId: number) => void;
+}) => {
+  if (!onOpenTicket) {
+    return <p className="mt-1 whitespace-pre-wrap leading-5">{content}</p>;
+  }
+  const regex = /Ticket\s*#(\d+)/g;
+  const parts: Array<string | { ticketId: number; label: string }> = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+    parts.push({ ticketId: Number(match[1]), label: match[0] });
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < content.length) parts.push(content.slice(lastIndex));
+  if (parts.length === 1 && typeof parts[0] === "string") {
+    return <p className="mt-1 whitespace-pre-wrap leading-5">{content}</p>;
+  }
+  return (
+    <p className="mt-1 whitespace-pre-wrap leading-5">
+      {parts.map((part, idx) =>
+        typeof part === "string" ? (
+          <span key={idx}>{part}</span>
+        ) : (
+          <button
+            key={idx}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenTicket(part.ticketId);
+            }}
+            className="inline-flex items-center rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-mono font-semibold text-slate-700 transition hover:border-slate-500 hover:bg-slate-100"
+            title="Abrir o contrato"
+          >
+            {part.label} →
+          </button>
+        )
+      )}
+    </p>
+  );
 };
 
 export function AdminConversationsSection({
@@ -43,15 +102,63 @@ export function AdminConversationsSection({
   onSelectConversation,
   onPrevMessagesPage,
   onNextMessagesPage,
+  onOpenTicket,
 }: AdminConversationsSectionProps) {
   const [detailOpen, setDetailOpen] = useState(false);
+  const [kindFilter, setKindFilter] = useState<"all" | "admin" | "negotiation" | "direct">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredConversations = conversations.filter((c) => {
+    if (kindFilter === "admin" && !c.is_admin_thread) return false;
+    if (kindFilter === "negotiation" && !c.is_negotiation) return false;
+    if (kindFilter === "direct" && (c.is_admin_thread || c.is_negotiation)) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const haystack = c.participants
+        .map((p) => `${p.name} ${(p as any).masked_email || ""}`.toLowerCase())
+        .join(" ");
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
 
   return (
-    <div className="mt-2">
+    <div className="mt-2 space-y-2">
+      <SectionCard title="Filtros">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+            {(["all", "admin", "negotiation", "direct"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setKindFilter(k)}
+                className={
+                  "rounded-md px-2 py-1 text-xs font-semibold transition " +
+                  (kindFilter === k
+                    ? "bg-orange-600 text-white"
+                    : "text-slate-600 hover:bg-white hover:text-orange-700")
+                }
+              >
+                {k === "all" ? "Todas" : k === "admin" ? "Admin" : k === "negotiation" ? "Negociação" : "Diretas"}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar por nome do participante..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 min-w-[200px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+          />
+          <span className="text-xs text-slate-500">
+            {filteredConversations.length} de {conversations.length}
+          </span>
+        </div>
+      </SectionCard>
+
       <SectionCard title="Conversas">
-        {conversations.length ? (
+        {filteredConversations.length ? (
           <div className="divide-y divide-slate-100">
-            {conversations.map((conversation) => (
+            {filteredConversations.map((conversation) => (
               <button
                 key={conversation.conversation_id}
                 onClick={() => {
@@ -78,8 +185,11 @@ export function AdminConversationsSection({
                 ) : (
                   <StatusBadge label="Direta" tone="slate" />
                 )}
-                <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                  {formatDateTime(conversation.last_message_at)}
+                <span
+                  className="text-[10px] text-slate-400 whitespace-nowrap"
+                  title={formatDateTime(conversation.last_message_at)}
+                >
+                  {formatRelativeTime(conversation.last_message_at)}
                 </span>
               </button>
             ))}
@@ -175,7 +285,17 @@ export function AdminConversationsSection({
                           <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
                             {sender?.name || `Usuário ${message.sender_id}`}
                           </p>
-                          <p className="mt-1 whitespace-pre-wrap leading-5">{message.content}</p>
+                          <MessageContent
+                            content={message.content}
+                            onOpenTicket={
+                              onOpenTicket
+                                ? (id) => {
+                                    setDetailOpen(false);
+                                    onOpenTicket(id);
+                                  }
+                                : undefined
+                            }
+                          />
                           <p className="mt-1 text-[10px] opacity-60">{formatDateTime(message.createdAt)}</p>
                         </div>
                       );

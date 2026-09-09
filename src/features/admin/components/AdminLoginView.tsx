@@ -68,7 +68,7 @@ export function AdminLoginView({
             <button
               type="submit"
               disabled={authSubmitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
             >
               {authSubmitting ? "Entrando..." : "Entrar no painel"}
             </button>

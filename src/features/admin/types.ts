@@ -9,7 +9,9 @@ export type AdminTab =
   | "transferencias"
   | "documentos"
   | "taxas"
-  | "conversas";
+  | "indicacoes"
+  | "conversas"
+  | "auditoria";
 
 export type DashboardSection =
   | "all"
@@ -19,9 +21,12 @@ export type DashboardSection =
   | "transferencias"
   | "documentos"
   | "taxas"
-  | "conversas";
+  | "indicacoes"
+  | "conversas"
+  | "auditoria";
 
 export type UserDetailTab =
+  | "cadastro"
   | "perfil"
   | "conversas"
   | "contratos"
@@ -34,13 +39,19 @@ export type Participant = {
   id: number;
   name: string;
   masked_email: string | null;
+  /** Email completo — disponível só pra admin. */
+  email?: string | null;
+  /** Telefone em dígitos (10/11). Formatar com formatPhoneBr antes de exibir. */
+  phone?: string | null;
   type: "prestador" | "contratante";
   is_admin: boolean;
   perfil_completo: boolean;
+  is_hidden?: boolean;
   city: string | null;
   state: string | null;
   perfil: string | null;
   banner: string | null;
+  deletion_eligible?: boolean;
   provider_id: number | null;
   profession: string | null;
 };
@@ -49,10 +60,18 @@ export type AdminUserRow = {
   id: number;
   name: string;
   masked_email: string | null;
+  /** Email completo — só exposto pra admin (LGPD interno). */
+  email?: string | null;
+  /** Telefone em dígitos (10 ou 11). Formatação BR aplicada na UI. */
+  phone?: string | null;
   type: "prestador" | "contratante";
   perfil_completo: boolean;
   is_verified: boolean;
   is_verified_at: string | null;
+  suspended?: boolean;
+  suspended_at?: string | null;
+  suspended_reason?: string | null;
+  is_hidden?: boolean;
   city: string | null;
   state: string | null;
   created_at: string | null;
@@ -63,6 +82,7 @@ export type AdminUserRow = {
   running_payments_count: number;
   profile_image: string | null;
   banner: string | null;
+  deletion_eligible?: boolean;
 };
 
 export type ContractDocument = {
@@ -403,6 +423,80 @@ export type AdminUserOperationsOverview = {
   };
   conversations: AdminOperationalConversation[];
   generated_at: string;
+};
+
+export type AdminUserProfile = {
+  account: {
+    id: number;
+    name: string;
+    email: string;
+    phone: string | null;
+    birth: string | null;
+    gender: "Masculino" | "Feminino" | "Prefiro não dizer";
+    cpf: string | null;
+    cnpj: string | null;
+    type: "prestador" | "contratante";
+    auth_provider: "local" | "google" | string;
+    password_configured: boolean;
+    perfil_completo: boolean;
+    is_active: boolean;
+    is_hidden: boolean;
+    is_email_verified: boolean;
+    is_verified: boolean;
+    suspended: boolean;
+    created_at: string | null;
+    updated_at: string | null;
+  };
+  provider: {
+    provider_id: number;
+    profession: string;
+    about: string | null;
+    payment_preference: "per_step" | "at_end" | "custom";
+  } | null;
+  location: {
+    cep: string | null;
+    state: string | null;
+    city: string | null;
+    neighborhood: string | null;
+    street: string | null;
+    number: string | null;
+    typeLocation: "Residencial" | "Comercial";
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
+};
+
+export type AdminUserProfileUpdate = {
+  account?: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
+    birth?: string;
+    gender?: "Masculino" | "Feminino" | "Prefiro não dizer";
+    cpf?: string | null;
+    cnpj?: string | null;
+    perfil_completo?: boolean;
+    is_active?: boolean;
+    is_hidden?: boolean;
+    is_email_verified?: boolean;
+    password?: string;
+  };
+  provider?: {
+    profession?: string;
+    about?: string | null;
+    payment_preference?: "per_step" | "at_end" | "custom";
+  };
+  location?: {
+    cep?: string | null;
+    state?: string | null;
+    city?: string | null;
+    neighborhood?: string | null;
+    street?: string | null;
+    number?: string | null;
+    typeLocation?: "Residencial" | "Comercial";
+    latitude?: number | null;
+    longitude?: number | null;
+  };
 };
 
 export type ConversationViewer = {

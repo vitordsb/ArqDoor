@@ -42,13 +42,13 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
         <motion.div
           className="max-w-[580px] text-center lg:text-left"
           variants={fadeLeft}
-          initial="hidden"
+          initial={false}
           animate="visible"
         >
           <motion.h1
             className={landingType.heroTitle}
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             transition={{ delay: 0.1 }}
           >
@@ -61,7 +61,7 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
           <motion.p
             className={`mx-auto mt-6 max-w-[700px] lg:mx-0 lg:max-w-[550px] ${landingType.heroBody}`}
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             transition={{ delay: 0.25 }}
           >
@@ -72,7 +72,7 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
           <motion.div
             className="mt-6 flex flex-col items-center gap-5 lg:items-start"
             variants={fadeUp}
-            initial="hidden"
+            initial={false}
             animate="visible"
             transition={{ delay: 0.4 }}
           >
@@ -104,7 +104,7 @@ export default function LandingHeroSection({ primaryCta }: LandingHeroSectionPro
         <motion.div
           className="relative mt-2 w-full lg:mt-0 lg:justify-self-end"
           variants={fadeRight}
-          initial="hidden"
+          initial={false}
           animate="visible"
           transition={{ delay: 0.2 }}
         >

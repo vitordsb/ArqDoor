@@ -22,6 +22,22 @@ type StatCardProps = {
   value: number;
   helper: string;
   icon: ComponentType<{ className?: string }>;
+  /**
+   * Quando definido, o card vira clicável (botão) e ganha hover + cursor pointer.
+   * Use para cards que representam "trabalho a fazer" (transferências prontas,
+   * cobranças com problema, etc.).
+   */
+  onClick?: () => void;
+  /**
+   * "alert" pinta o card em amber (chama atenção). "danger" em rose.
+   * "default" é o neutro de sempre.
+   */
+  tone?: "default" | "alert" | "danger";
+  /**
+   * Como formatar o valor (default: número formatado compacto).
+   * "currency" usa formatação BRL.
+   */
+  valueFormat?: "compact" | "currency";
 };
 
 type EmptyStateProps = {
@@ -66,7 +82,7 @@ export function SectionCard({
   className,
 }: SectionCardProps) {
   return (
-    <section className={cn("rounded-xl border border-slate-200 bg-white", className)}>
+    <section className={cn("rounded-2xl border border-slate-200 bg-white", className)}>
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-3 py-2">
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-700">{title}</h2>
@@ -79,23 +95,84 @@ export function SectionCard({
   );
 }
 
-export function StatCard({ label, value, helper, icon: Icon }: StatCardProps) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
-            {formatCompact(value)}
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-500 truncate">{helper}</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-600">
-          <Icon className="h-3.5 w-3.5" />
-        </div>
+const STAT_CARD_TONES: Record<NonNullable<StatCardProps["tone"]>, string> = {
+  // default mantém slate neutro pra cards de contexto (métricas frias)
+  default: "border-slate-200 bg-white",
+  // alert = cor de marca ArqDoor — sinaliza "tem trabalho a fazer"
+  alert: "border-orange-300 bg-orange-50",
+  // danger = ações que precisam de atenção imediata
+  danger: "border-rose-300 bg-rose-50",
+};
+
+const STAT_CARD_ICON_TONES: Record<NonNullable<StatCardProps["tone"]>, string> = {
+  default: "border-slate-200 bg-slate-50 text-slate-600",
+  alert: "border-orange-200 bg-orange-100 text-orange-700",
+  danger: "border-rose-200 bg-rose-100 text-rose-700",
+};
+
+const STAT_CARD_LABEL_TONES: Record<NonNullable<StatCardProps["tone"]>, string> = {
+  default: "text-slate-500",
+  alert: "text-orange-700",
+  danger: "text-rose-700",
+};
+
+const formatStatValue = (value: number, format?: StatCardProps["valueFormat"]) => {
+  if (format === "currency") {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  }
+  return formatCompact(value);
+};
+
+export function StatCard({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  onClick,
+  tone = "default",
+  valueFormat,
+}: StatCardProps) {
+  const isInteractive = typeof onClick === "function";
+  const body = (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p
+          className={cn(
+            "text-[11px] font-medium uppercase tracking-wide",
+            STAT_CARD_LABEL_TONES[tone]
+          )}
+        >
+          {label}
+        </p>
+        <p className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
+          {formatStatValue(value, valueFormat)}
+        </p>
+        <p className="mt-0.5 text-[11px] text-slate-500 truncate">{helper}</p>
+      </div>
+      <div className={cn("rounded-lg border p-1.5", STAT_CARD_ICON_TONES[tone])}>
+        <Icon className="h-3.5 w-3.5" />
       </div>
     </div>
   );
+
+  const baseClasses = cn(
+    "rounded-xl border p-2.5 transition",
+    STAT_CARD_TONES[tone],
+    isInteractive && "cursor-pointer hover:shadow-sm hover:-translate-y-0.5 text-left w-full"
+  );
+
+  if (isInteractive) {
+    return (
+      <button type="button" onClick={onClick} className={baseClasses}>
+        {body}
+      </button>
+    );
+  }
+
+  return <div className={baseClasses}>{body}</div>;
 }
 
 export function EmptyState({ title, description }: EmptyStateProps) {

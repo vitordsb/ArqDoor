@@ -306,7 +306,7 @@ export function AdminFiltersModal({
             </button>
             <button
               onClick={onApply}
-              className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-2xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
             >
               <Filter className="h-4 w-4" />
               Aplicar filtros

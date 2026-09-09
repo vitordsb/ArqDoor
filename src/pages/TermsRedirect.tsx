@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 
-// Termos de uso e política de privacidade: redireciona pro PDF estático em public/docs.
+// Página pública estática para uso no navegador e na ficha da loja de aplicativos.
 export default function TermsRedirect() {
   useEffect(() => {
-    window.location.replace("/docs/usetermsprivacitypolices.pdf");
+    window.location.replace("/docs/usetermsprivacitypolices.html");
   }, []);
   return null;
 }

@@ -87,7 +87,12 @@ export function AdminPaymentsSection({ dashboard }: AdminPaymentsSectionProps) {
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   <InfoBox label="Método" value={payment.method || "—"} />
-                  <InfoBox label="Vencimento" value={formatDate(payment.due_date)} />
+                  {/* PIX é instantâneo, não tem vencimento — mostra só pra boleto/outros */}
+                  {String(payment.method || "").toUpperCase() === "PIX" ? (
+                    <InfoBox label="Tipo" value="Instantâneo" />
+                  ) : (
+                    <InfoBox label="Vencimento" value={formatDate(payment.due_date)} />
+                  )}
                   <InfoBox label="Pago em" value={formatDate(payment.paid_at)} />
                 </div>
               </div>

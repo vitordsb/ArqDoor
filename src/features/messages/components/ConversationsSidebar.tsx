@@ -67,7 +67,7 @@ export function ConversationsSidebar({
               >
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="" />
+                    <AvatarImage src={conversation.otherUser.avatar || conversation.otherUser.perfil || undefined} />
                     <AvatarFallback className="bg-orange-100 text-orange-700">
                       {getInitials(conversation.otherUser.name)}
                     </AvatarFallback>

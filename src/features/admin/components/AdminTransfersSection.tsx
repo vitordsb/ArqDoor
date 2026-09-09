@@ -6,6 +6,7 @@ import type { AdminTransferRow, DashboardData } from "../types";
 import {
   formatCurrency,
   formatDateTime,
+  formatRelativeTime,
   participantSubtitle,
   receivingMethodLabel,
 } from "../utils";
@@ -135,8 +136,8 @@ export function AdminTransfersSection({
                           <p className="mt-2 text-sm text-slate-500">
                             Cliente: {contract.contractor?.name || "Não identificado"}
                           </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Atualizado em {formatDateTime(contract.updated_at)}
+                          <p className="mt-1 text-sm text-slate-500" title={formatDateTime(contract.updated_at)}>
+                            Atualizado {formatRelativeTime(contract.updated_at)}
                           </p>
                         </div>
 
@@ -207,8 +208,8 @@ export function AdminTransfersSection({
                                   <p className="text-sm font-semibold text-slate-900">
                                     {formatCurrency(step.price)}
                                   </p>
-                                  <p className="text-xs text-slate-500">
-                                    {formatDateTime(step.updated_at)}
+                                  <p className="text-xs text-slate-500" title={formatDateTime(step.updated_at)}>
+                                    {formatRelativeTime(step.updated_at)}
                                   </p>
                                 </div>
                               </div>

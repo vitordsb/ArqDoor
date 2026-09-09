@@ -8,6 +8,7 @@ import { getInitials } from '@/lib/utils';
 interface ConversationHeaderProps {
   conversation: Conversation;
   canCreateProposal: boolean;
+  canViewProfile?: boolean;
   onOpenProposal: () => void;
   onViewProfile: () => void;
   onBack?: () => void;
@@ -16,6 +17,7 @@ interface ConversationHeaderProps {
 export function ConversationHeader({
   conversation,
   canCreateProposal,
+  canViewProfile = true,
   onOpenProposal,
   onViewProfile,
   onBack,
@@ -34,7 +36,7 @@ export function ConversationHeader({
           </Button>
         )}
         <Avatar className="h-10 w-10">
-          <AvatarImage src="" />
+          <AvatarImage src={conversation.otherUser.avatar || conversation.otherUser.perfil || undefined} />
           <AvatarFallback className="bg-orange-100 text-orange-700">
             {getInitials(conversation.otherUser.name)}
           </AvatarFallback>
@@ -58,9 +60,11 @@ export function ConversationHeader({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={onViewProfile}>
-          Ver perfil
-        </Button>
+        {canViewProfile && (
+          <Button variant="outline" onClick={onViewProfile}>
+            Ver perfil
+          </Button>
+        )}
         {canCreateProposal && (
           <Button
             onClick={onOpenProposal}

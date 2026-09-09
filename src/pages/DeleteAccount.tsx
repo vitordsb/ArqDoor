@@ -1,4 +1,4 @@
-const SUPPORT_EMAIL = "arqdoorofc@gmail.com";
+const SUPPORT_EMAIL = "arqdoor@arqdoor.com";
 
 /**
  * Página pública de exclusão de conta e dados (exigida pela política de
@@ -102,7 +102,7 @@ export default function DeleteAccount() {
           </a>
           . Consulte também a nossa{" "}
           <a
-            href="/docs/usetermsprivacitypolices.pdf"
+            href="/docs/usetermsprivacitypolices.html"
             className="font-semibold text-[#e75812] underline"
             target="_blank"
             rel="noopener noreferrer"

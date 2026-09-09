@@ -9,7 +9,7 @@ import CookieConsent from "@/components/CookieConsent";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { setResumeRoute } from "@/lib/utils";
 
-const LANDING_ROUTES = ["/", "/auth", "/nova-senha", "/excluir-conta"];
+const LANDING_ROUTES = ["/", "/auth", "/nova-senha", "/excluir-conta", "/cadastro"];
 const ADMIN_ROUTES = ["/admin"];
 
 // Route-level code splitting: reduces the initial JS payload in production.
@@ -32,6 +32,7 @@ const KanbanPage = lazy(() => import("@/pages/KanbanPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const TermsRedirect = lazy(() => import("@/pages/TermsRedirect"));
 const DeleteAccount = lazy(() => import("@/pages/DeleteAccount"));
+const ReferralLanding = lazy(() => import("@/pages/ReferralLanding"));
 
 function RouteLoading() {
   return (
@@ -59,6 +60,7 @@ function Router() {
       <Switch>
         <Route path="/"><RouteBoundary><Home /></RouteBoundary></Route>
         <Route path="/auth"><RouteBoundary><AuthPage /></RouteBoundary></Route>
+        <Route path="/cadastro"><RouteBoundary><ReferralLanding /></RouteBoundary></Route>
         <Route path="/profile"><RouteBoundary><Profile /></RouteBoundary></Route>
         <Route path="/home"><RouteBoundary><AppHome /></RouteBoundary></Route>
         <Route path="/demands"><RouteBoundary><DemandsFeed /></RouteBoundary></Route>

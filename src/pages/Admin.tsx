@@ -1,342 +1,317 @@
-import { Filter, LogOut, RefreshCcw, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { Filter, Loader2, LogOut, Menu, RefreshCcw, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { TABS } from "@/features/admin/constants";
-import { AdminConversationsSection } from "@/features/admin/components/AdminConversationsSection";
+import { AdminAuditLogSection } from "@/features/admin/components/AdminAuditLogSection";
 import { AdminContractsSection } from "@/features/admin/components/AdminContractsSection";
-import { AdminDashboardView } from "@/features/admin/components/AdminOverviewSection";
+import { AdminConversationsSection } from "@/features/admin/components/AdminConversationsSection";
 import { AdminDocumentsSection } from "@/features/admin/components/AdminDocumentsSection";
 import { AdminFeesSection } from "@/features/admin/components/AdminFeesSection";
+import { AdminReferralsSection } from "@/features/admin/components/AdminReferralsSection";
 import { AdminFiltersModal } from "@/features/admin/components/AdminFiltersModal";
 import { AdminLoginView } from "@/features/admin/components/AdminLoginView";
+import { AdminDashboardView } from "@/features/admin/components/AdminOverviewSection";
 import { AdminPaymentsSection } from "@/features/admin/components/AdminPaymentsSection";
-import { EmptyState, PaginationControls } from "@/features/admin/components/AdminPrimitives";
+import { PaginationControls } from "@/features/admin/components/AdminPrimitives";
 import { AdminTransfersSection } from "@/features/admin/components/AdminTransfersSection";
 import { AdminUsersSection } from "@/features/admin/components/AdminUsersSection";
 import { useAdminDashboard } from "@/features/admin/hooks/useAdminDashboard";
 import { useAdminPageMeta } from "@/features/admin/hooks/useAdminPageMeta";
 import { useAdminSession } from "@/features/admin/hooks/useAdminSession";
-import { cn, formatDateTime, openSecureFile } from "@/features/admin/utils";
+import type { AdminTab } from "@/features/admin/types";
+import { cn, formatRelativeTime, openSecureFile } from "@/features/admin/utils";
+import { ADMIN_TOKENS } from "@/features/admin/tokens";
 
 export default function Admin() {
   useAdminPageMeta();
 
-  const {
-    email,
-    password,
-    isAuthenticated,
-    authChecked,
-    authSubmitting,
-    authError,
-    setEmail,
-    setPassword,
-    login,
-    logout,
-    expireSession,
-  } = useAdminSession();
-
-  const {
-    dashboard,
-    loading,
-    error,
-    activeTab,
-    setActiveTab,
-    showFilters,
-    setShowFilters,
-    draftFilters,
-    appliedFilterCount,
-    activePagination,
-    refreshDashboard,
-    applyFilters,
-    resetFilters,
-    updateDraftFilter,
-    goToPreviousPage,
-    goToNextPage,
-    openConversationFromOverview,
-    selectedUserId,
-    selectedUser,
-    userDetailTab,
-    setUserDetailTab,
-    selectUser,
-    operationsOverview,
-    loadingOperationsOverview,
-    operationsOverviewError,
-    selectedOperationsConversationId,
-    selectOperationsConversation,
-    selectedOperationsTicketId,
-    selectOperationsTicket,
-    paginatedUserConversations,
-    paginatedUserContracts,
-    paginatedUserSteps,
-    prevUserConversationsPage,
-    nextUserConversationsPage,
-    prevUserContractsPage,
-    nextUserContractsPage,
-    prevUserStepsPage,
-    nextUserStepsPage,
-    directConversation,
-    loadingDirectConversation,
-    directConversationError,
-    paginatedAdminMessages,
-    prevAdminMessagesPage,
-    nextAdminMessagesPage,
-    messageDraft,
-    setMessageDraft,
-    sendingMessage,
-    adminMessageError,
-    sendAdminMessage,
-    payTransfer,
-    payingTransferTicketId,
-    payTransferError,
-    verifyUser,
-    verifyingUserId,
-    verifyUserError,
-    selectedConversationId,
-    selectedConversationRow,
-    conversationViewer,
-    loadingConversationViewer,
-    conversationViewerError,
-    paginatedConversationMessages,
-    loadConversationViewer,
-    prevConversationMessagesPage,
-    nextConversationMessagesPage,
-  } = useAdminDashboard({
-    isAuthenticated,
-    onUnauthorized: expireSession,
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const session = useAdminSession();
+  const admin = useAdminDashboard({
+    isAuthenticated: session.isAuthenticated,
+    onUnauthorized: session.expireSession,
   });
 
-  if (!authChecked) {
+  const selectTab = (tab: AdminTab) => {
+    admin.setActiveTab(tab);
+    setNavigationOpen(false);
+  };
+
+  if (!session.authChecked) {
     return (
-      <div className="min-h-screen bg-slate-100">
-        <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-6 py-10">
-          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 text-sm text-slate-600">
-            Validando sessão administrativa...
-          </div>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-600">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Verificando sessão administrativa...
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!session.isAuthenticated) {
     return (
       <AdminLoginView
-        email={email}
-        password={password}
-        authSubmitting={authSubmitting}
-        authError={authError}
-        onEmailChange={setEmail}
-        onPasswordChange={setPassword}
-        onSubmit={login}
+        email={session.email}
+        password={session.password}
+        authSubmitting={session.authSubmitting}
+        authError={session.authError}
+        onEmailChange={session.setEmail}
+        onPasswordChange={session.setPassword}
+        onSubmit={session.login}
       />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-100">
-      <div className="mx-auto w-full max-w-[1300px] px-3 sm:px-6 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-slate-500" />
-            <h1 className="text-sm font-semibold text-slate-900">Painel interno</h1>
-            <span className="text-[11px] text-slate-400">·</span>
-            <span className="text-[11px] text-slate-500">
-              Atualizado {formatDateTime(dashboard?.meta.generated_at)}
-            </span>
-            <span className="hidden sm:inline text-[11px] text-slate-400">·</span>
-            <span className="hidden sm:inline text-[11px] text-slate-500">LGPD ativo</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setShowFilters(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <Filter className="h-3.5 w-3.5" />
-              Filtros
-              {appliedFilterCount ? (
-                <span className="rounded-full bg-slate-950 px-1.5 py-0.5 text-[10px] text-white">
-                  {appliedFilterCount}
-                </span>
-              ) : null}
-            </button>
-            <button
-              onClick={refreshDashboard}
-              title="Atualizar"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-700 transition hover:bg-slate-50"
-            >
-              <RefreshCcw className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={logout}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              Sair
-            </button>
-          </div>
-        </div>
+  const dashboard = admin.dashboard;
+  const activeTab = TABS.find((tab) => tab.key === admin.activeTab);
+  const ActiveTabIcon = activeTab?.icon;
+  const showPagination = Boolean(
+    admin.activePagination &&
+      !["dashboard", "all", "taxas", "auditoria"].includes(admin.activeTab)
+  );
 
-        <div className="mt-2 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1">
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
-                activeTab === key
-                  ? "bg-slate-950 text-white"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
+  const renderActiveSection = () => {
+    if (!dashboard) return null;
 
-          <AdminFiltersModal
-            open={showFilters}
-            activeTab={activeTab}
-            dashboard={dashboard}
-            draftFilters={draftFilters}
-            onClose={() => setShowFilters(false)}
-            onReset={resetFilters}
-            onApply={applyFilters}
-            onChange={updateDraftFilter}
+    switch (admin.activeTab) {
+      case "usuarios":
+        return (
+          <AdminUsersSection
+            users={dashboard.users}
+            selectedUserId={admin.selectedUserId}
+            selectedUser={admin.selectedUser}
+            onSelectUser={admin.selectUser}
+            detailTab={admin.userDetailTab}
+            onDetailTabChange={admin.setUserDetailTab}
+            userProfile={admin.userProfile}
+            loadingUserProfile={admin.loadingUserProfile}
+            userProfileError={admin.userProfileError}
+            savingUserProfile={admin.savingUserProfile}
+            saveUserProfileError={admin.saveUserProfileError}
+            onUpdateUserProfile={admin.updateUserProfile}
+            operationsOverview={admin.operationsOverview}
+            loadingOperationsOverview={admin.loadingOperationsOverview}
+            operationsOverviewError={admin.operationsOverviewError}
+            selectedOperationsConversationId={admin.selectedOperationsConversationId}
+            onSelectOperationsConversation={admin.selectOperationsConversation}
+            selectedOperationsTicketId={admin.selectedOperationsTicketId}
+            onSelectOperationsTicket={admin.selectOperationsTicket}
+            paginatedUserConversations={admin.paginatedUserConversations}
+            paginatedUserContracts={admin.paginatedUserContracts}
+            paginatedUserSteps={admin.paginatedUserSteps}
+            onPrevUserConversationsPage={admin.prevUserConversationsPage}
+            onNextUserConversationsPage={admin.nextUserConversationsPage}
+            onPrevUserContractsPage={admin.prevUserContractsPage}
+            onNextUserContractsPage={admin.nextUserContractsPage}
+            onPrevUserStepsPage={admin.prevUserStepsPage}
+            onNextUserStepsPage={admin.nextUserStepsPage}
+            directConversation={admin.directConversation}
+            loadingDirectConversation={admin.loadingDirectConversation}
+            directConversationError={admin.directConversationError}
+            paginatedAdminMessages={admin.paginatedAdminMessages}
+            onPrevAdminMessagesPage={admin.prevAdminMessagesPage}
+            onNextAdminMessagesPage={admin.nextAdminMessagesPage}
+            messageDraft={admin.messageDraft}
+            onMessageDraftChange={admin.setMessageDraft}
+            sendingMessage={admin.sendingMessage}
+            adminMessageError={admin.adminMessageError}
+            onSendAdminMessage={admin.sendAdminMessage}
+            onVerifyUser={admin.verifyUser}
+            verifyingUserId={admin.verifyingUserId}
+            verifyUserError={admin.verifyUserError}
+            onUpdateStepStatus={admin.updateStepStatus}
+            updatingStepId={admin.updatingStepId}
+            updateStepError={admin.updateStepError}
+            onSuspendUser={admin.suspendUser}
+            suspendingUserId={admin.suspendingUserId}
+            suspendUserError={admin.suspendUserError}
+            onDeleteEarlyUser={admin.deleteEarlyUser}
+            deletingUserId={admin.deletingUserId}
+            deleteUserError={admin.deleteUserError}
           />
+        );
+      case "contratos":
+        return <AdminContractsSection tickets={dashboard.tickets} />;
+      case "pagamentos":
+        return <AdminPaymentsSection dashboard={dashboard} />;
+      case "transferencias":
+        return (
+          <AdminTransfersSection
+            transfers={dashboard.transfers}
+            onPayTransfer={admin.payTransfer}
+            payingTicketId={admin.payingTransferTicketId}
+            payTransferError={admin.payTransferError}
+          />
+        );
+      case "documentos":
+        return <AdminDocumentsSection documents={dashboard.documents} />;
+      case "taxas":
+        return <AdminFeesSection />;
+      case "indicacoes":
+        return <AdminReferralsSection />;
+      case "conversas":
+        return (
+          <AdminConversationsSection
+            conversations={dashboard.conversations}
+            selectedConversationId={admin.selectedConversationId}
+            selectedConversationRow={admin.selectedConversationRow}
+            conversationViewer={admin.conversationViewer}
+            loadingConversationViewer={admin.loadingConversationViewer}
+            conversationViewerError={admin.conversationViewerError}
+            paginatedConversationMessages={admin.paginatedConversationMessages}
+            onSelectConversation={admin.loadConversationViewer}
+            onPrevMessagesPage={admin.prevConversationMessagesPage}
+            onNextMessagesPage={admin.nextConversationMessagesPage}
+            onOpenTicket={() => selectTab("contratos")}
+          />
+        );
+      case "auditoria":
+        return <AdminAuditLogSection />;
+      default:
+        return (
+          <AdminDashboardView
+            activeTab={admin.activeTab}
+            dashboard={dashboard}
+            onOpenDocument={openSecureFile}
+            onOpenConversation={admin.loadConversationViewer}
+            onNavigateToTab={selectTab}
+          />
+        );
+    }
+  };
 
-          {error ? (
-            <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex min-h-16 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 lg:hidden"
+            onClick={() => setNavigationOpen((open) => !open)}
+            aria-label={navigationOpen ? "Fechar navegação" : "Abrir navegação"}
+            aria-expanded={navigationOpen}
+          >
+            {navigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-orange-700">ArqDoor</p>
+            <div className="flex min-w-0 items-center gap-2">
+              {ActiveTabIcon ? <ActiveTabIcon className="h-4 w-4 shrink-0 text-orange-600" /> : null}
+              <h1 className="truncate text-base font-semibold text-slate-950">
+                {activeTab?.label || "Painel administrativo"}
+              </h1>
             </div>
-          ) : null}
-
-          {dashboard?.meta.partial_failures.length ? (
-            <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Alguns blocos retornaram aviso:{" "}
-              {dashboard.meta.partial_failures.map((failure) => failure.section).join(", ")}.
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div className="mt-6 rounded-[30px] border border-slate-200/80 bg-white/90 px-6 py-16 text-center shadow-[0_18px_60px_-36px_rgba(15,23,42,0.28)]">
-              <p className="text-base font-semibold text-slate-900">
-                Atualizando visão administrativa...
-              </p>
-              <p className="mt-2 text-sm text-slate-500">
-                Carregando métricas, listas e contexto operacional.
-              </p>
-            </div>
-          ) : null}
-
-          {!loading && dashboard ? (
-            <>
-              {activeTab !== "all" && activePagination ? (
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm text-slate-500">{activePagination.total} registro(s)</div>
-                  <PaginationControls
-                    page={activePagination.page}
-                    totalPages={activePagination.total_pages}
-                    onPrevious={goToPreviousPage}
-                    onNext={goToNextPage}
-                  />
-                </div>
-              ) : null}
-
-              <AdminDashboardView
-                activeTab={activeTab}
-                dashboard={dashboard}
-                onOpenDocument={openSecureFile}
-                onOpenConversation={openConversationFromOverview}
-              />
-
-              {activeTab === "usuarios" ? (
-                <AdminUsersSection
-                  users={dashboard.users}
-                  selectedUserId={selectedUserId}
-                  selectedUser={selectedUser}
-                  onSelectUser={selectUser}
-                  detailTab={userDetailTab}
-                  onDetailTabChange={setUserDetailTab}
-                  operationsOverview={operationsOverview}
-                  loadingOperationsOverview={loadingOperationsOverview}
-                  operationsOverviewError={operationsOverviewError}
-                  selectedOperationsConversationId={selectedOperationsConversationId}
-                  onSelectOperationsConversation={selectOperationsConversation}
-                  selectedOperationsTicketId={selectedOperationsTicketId}
-                  onSelectOperationsTicket={selectOperationsTicket}
-                  paginatedUserConversations={paginatedUserConversations}
-                  paginatedUserContracts={paginatedUserContracts}
-                  paginatedUserSteps={paginatedUserSteps}
-                  onPrevUserConversationsPage={prevUserConversationsPage}
-                  onNextUserConversationsPage={nextUserConversationsPage}
-                  onPrevUserContractsPage={prevUserContractsPage}
-                  onNextUserContractsPage={nextUserContractsPage}
-                  onPrevUserStepsPage={prevUserStepsPage}
-                  onNextUserStepsPage={nextUserStepsPage}
-                  directConversation={directConversation}
-                  loadingDirectConversation={loadingDirectConversation}
-                  directConversationError={directConversationError}
-                  paginatedAdminMessages={paginatedAdminMessages}
-                  onPrevAdminMessagesPage={prevAdminMessagesPage}
-                  onNextAdminMessagesPage={nextAdminMessagesPage}
-                  messageDraft={messageDraft}
-                  onMessageDraftChange={setMessageDraft}
-                  sendingMessage={sendingMessage}
-                  adminMessageError={adminMessageError}
-                  onSendAdminMessage={sendAdminMessage}
-                  onVerifyUser={verifyUser}
-                  verifyingUserId={verifyingUserId}
-                  verifyUserError={verifyUserError}
-                />
-              ) : null}
-
-              {activeTab === "contratos" ? (
-                <AdminContractsSection tickets={dashboard.tickets} />
-              ) : null}
-
-              {activeTab === "pagamentos" ? (
-                <AdminPaymentsSection dashboard={dashboard} />
-              ) : null}
-
-              {activeTab === "transferencias" ? (
-                <AdminTransfersSection
-                  transfers={dashboard.transfers}
-                  onPayTransfer={payTransfer}
-                  payingTicketId={payingTransferTicketId}
-                  payTransferError={payTransferError}
-                />
-              ) : null}
-
-              {activeTab === "documentos" ? (
-                <AdminDocumentsSection documents={dashboard.documents} />
-              ) : null}
-
-              {activeTab === "taxas" ? <AdminFeesSection /> : null}
-
-              {activeTab === "conversas" ? (
-                <AdminConversationsSection
-                  conversations={dashboard.conversations}
-                  selectedConversationId={selectedConversationId}
-                  selectedConversationRow={selectedConversationRow}
-                  conversationViewer={conversationViewer}
-                  loadingConversationViewer={loadingConversationViewer}
-                  conversationViewerError={conversationViewerError}
-                  paginatedConversationMessages={paginatedConversationMessages}
-                  onSelectConversation={loadConversationViewer}
-                  onPrevMessagesPage={prevConversationMessagesPage}
-                  onNextMessagesPage={nextConversationMessagesPage}
-                />
-              ) : null}
-            </>
-          ) : null}
-
-        {!loading && !dashboard && !error ? (
-          <div className="mt-4">
-            <EmptyState
-              title="Sem dados para exibir"
-              description="Atualize o painel ou ajuste os filtros para reenquadrar a consulta administrativa."
-            />
           </div>
-        ) : null}
+
+          <div className="hidden text-right text-xs text-slate-500 xl:block">
+            <p>Atualização automática a cada minuto</p>
+            <p>{dashboard?.meta.generated_at ? `Dados ${formatRelativeTime(dashboard.meta.generated_at)}` : "Carregando dados"}</p>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={admin.refreshDashboard}
+            disabled={admin.loading}
+            aria-label="Atualizar dados"
+            title="Atualizar dados"
+          >
+            {admin.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => admin.setShowFilters(true)}
+            className="gap-1.5"
+          >
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Filtros</span>
+            {admin.appliedFilterCount ? (
+              <span className="rounded-full bg-orange-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                {admin.appliedFilterCount}
+              </span>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void session.logout()}
+            className="gap-1.5"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline">Sair</span>
+          </Button>
+        </div>
+      </header>
+
+      <div className="mx-auto flex max-w-[1600px]">
+        <aside
+          className={cn(
+            "fixed inset-x-0 top-16 z-30 border-b border-slate-200 bg-white p-3 shadow-lg lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:w-56 lg:shrink-0 lg:border-b-0 lg:border-r lg:p-4 lg:shadow-none",
+            navigationOpen ? "block" : "hidden"
+          )}
+        >
+          <nav className="grid gap-1 sm:grid-cols-2 lg:block" aria-label="Seções administrativas">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => selectTab(key)}
+                className={cn(
+                  "flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition",
+                  admin.activeTab === key
+                    ? ADMIN_TOKENS.selectable.active
+                    : ADMIN_TOKENS.selectable.inactive
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="min-w-0 flex-1 p-3 sm:p-5 lg:p-6">
+          {admin.error ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {admin.error}
+            </div>
+          ) : null}
+
+          {dashboard ? renderActiveSection() : null}
+
+          {!dashboard && admin.loading ? (
+            <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando painel...
+            </div>
+          ) : null}
+
+          {showPagination && admin.activePagination ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <PaginationControls
+                page={admin.activePagination.page}
+                totalPages={admin.activePagination.total_pages}
+                onPrevious={admin.goToPreviousPage}
+                onNext={admin.goToNextPage}
+              />
+            </div>
+          ) : null}
+        </main>
       </div>
+
+      <AdminFiltersModal
+        open={admin.showFilters}
+        activeTab={admin.activeTab}
+        dashboard={dashboard}
+        draftFilters={admin.draftFilters}
+        onClose={() => admin.setShowFilters(false)}
+        onReset={admin.resetFilters}
+        onApply={admin.applyFilters}
+        onChange={admin.updateDraftFilter}
+      />
     </div>
   );
 }

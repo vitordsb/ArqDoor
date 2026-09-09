@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Loader2, Save, TrendingUp } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "../utils";
 import { EmptyState, SectionCard, StatusBadge } from "./AdminPrimitives";
@@ -23,7 +23,14 @@ type FeesReport = {
   monthly_histogram: Array<{ month: string; total_fee: number; steps_count: number }>;
   fee_rate: number;
   fee_cap: number;
+  referral_fee_share_percent?: number;
   generated_at: string;
+};
+
+type PlatformSettings = {
+  platform_fee_percent: number;
+  platform_fee_cap: number;
+  referral_fee_share_percent: number;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -52,6 +59,10 @@ export function AdminFeesSection() {
   const [report, setReport] = useState<FeesReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<PlatformSettings | null>(null);
+  const [draft, setDraft] = useState({ platform_fee_percent: "5", platform_fee_cap: "1500", referral_fee_share_percent: "30" });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +88,59 @@ export function AdminFeesSection() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSettings = async () => {
+      try {
+        const res = await apiRequest("GET", "/admin/platform-settings");
+        if (!res.ok) throw new Error(await res.text());
+        const body = await res.json();
+        const next = body?.data as PlatformSettings;
+        if (!next || cancelled) return;
+        setSettings(next);
+        setDraft({
+          platform_fee_percent: String(next.platform_fee_percent),
+          platform_fee_cap: String(next.platform_fee_cap),
+          referral_fee_share_percent: String(next.referral_fee_share_percent),
+        });
+      } catch (loadError) {
+        if (!cancelled) setSettingsError("Não foi possível carregar as configurações de taxa.");
+      }
+    };
+    void loadSettings();
+    return () => { cancelled = true; };
+  }, []);
+
+  const saveSettings = async () => {
+    const payload = {
+      platform_fee_percent: Number(draft.platform_fee_percent),
+      platform_fee_cap: Number(draft.platform_fee_cap.replace(",", ".")),
+      referral_fee_share_percent: Number(draft.referral_fee_share_percent),
+    };
+    if (!Number.isFinite(payload.platform_fee_percent) || !Number.isFinite(payload.platform_fee_cap) || !Number.isFinite(payload.referral_fee_share_percent)) {
+      setSettingsError("Preencha valores numéricos válidos.");
+      return;
+    }
+    setSavingSettings(true);
+    setSettingsError(null);
+    try {
+      const res = await apiRequest("PUT", "/admin/platform-settings", payload);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || "Não foi possível salvar as configurações.");
+      const next = body?.data as PlatformSettings;
+      setSettings(next);
+      setDraft({
+        platform_fee_percent: String(next.platform_fee_percent),
+        platform_fee_cap: String(next.platform_fee_cap),
+        referral_fee_share_percent: String(next.referral_fee_share_percent),
+      });
+    } catch (saveError) {
+      setSettingsError(saveError instanceof Error ? saveError.message : "Não foi possível salvar as configurações.");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -114,6 +178,16 @@ export function AdminFeesSection() {
 
   return (
     <div className="mt-2 space-y-2">
+      <SectionCard title="Configuração comercial" subtitle="Aplicada às novas propostas e cobranças adicionais">
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="block text-sm font-medium text-slate-700">Taxa ArqDoor (%)<input value={draft.platform_fee_percent} onChange={(event) => setDraft((prev) => ({ ...prev, platform_fee_percent: event.target.value }))} inputMode="decimal" className="mt-1 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100" /></label>
+          <label className="block text-sm font-medium text-slate-700">Teto da taxa (R$)<input value={draft.platform_fee_cap} onChange={(event) => setDraft((prev) => ({ ...prev, platform_fee_cap: event.target.value }))} inputMode="decimal" className="mt-1 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100" /></label>
+          <label className="block text-sm font-medium text-slate-700">Indicação: parte da taxa (%)<input value={draft.referral_fee_share_percent} onChange={(event) => setDraft((prev) => ({ ...prev, referral_fee_share_percent: event.target.value }))} inputMode="decimal" className="mt-1 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100" /></label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">A indicação recebe esse percentual da taxa do primeiro contrato pago do indicado. O pagamento é registrado manualmente na aba Indicações.</p><button type="button" onClick={() => void saveSettings()} disabled={savingSettings} className="inline-flex h-10 items-center gap-2 rounded-lg bg-orange-600 px-3 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">{savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Salvar</button></div>
+        {settingsError ? <p className="mt-2 text-xs text-rose-700">{settingsError}</p> : null}
+        {settings ? <p className="mt-2 text-xs text-slate-500">Vigente: {settings.platform_fee_percent}% até {formatCurrency(settings.platform_fee_cap)}; indicação de {settings.referral_fee_share_percent}%.</p> : null}
+      </SectionCard>
       {/* Resumo principal */}
       <div className="grid gap-2 md:grid-cols-3">
         <SectionCard title="Total acumulado" subtitle="Taxas em etapas + adicionais">
