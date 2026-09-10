@@ -8,6 +8,7 @@ export type AdminTab =
   | "pagamentos"
   | "transferencias"
   | "documentos"
+  | "verificacao"
   | "taxas"
   | "indicacoes"
   | "conversas"

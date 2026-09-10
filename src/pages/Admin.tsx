@@ -6,6 +6,7 @@ import { AdminAuditLogSection } from "@/features/admin/components/AdminAuditLogS
 import { AdminContractsSection } from "@/features/admin/components/AdminContractsSection";
 import { AdminConversationsSection } from "@/features/admin/components/AdminConversationsSection";
 import { AdminDocumentsSection } from "@/features/admin/components/AdminDocumentsSection";
+import { AdminVerificationSection } from "@/features/admin/components/AdminVerificationSection";
 import { AdminFeesSection } from "@/features/admin/components/AdminFeesSection";
 import { AdminReferralsSection } from "@/features/admin/components/AdminReferralsSection";
 import { AdminFiltersModal } from "@/features/admin/components/AdminFiltersModal";
@@ -143,6 +144,8 @@ export default function Admin() {
         );
       case "documentos":
         return <AdminDocumentsSection documents={dashboard.documents} />;
+      case "verificacao":
+        return <AdminVerificationSection />;
       case "taxas":
         return <AdminFeesSection />;
       case "indicacoes":
