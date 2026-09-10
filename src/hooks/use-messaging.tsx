@@ -145,6 +145,23 @@ export function useMessaging(initialPartnerId?: string | null) {
     },
   });
 
+  /**
+   * Ler a conversa apaga o "nova mensagem" NA HORA.
+   *
+   * O servidor ja marcava lida: `GET /message/conversation/:id` faz isso como efeito
+   * colateral. Faltava o cliente saber. A lista de conversas — que alimenta o badge de
+   * nao lidas — so era invalidada ao ENVIAR mensagem, nunca ao ler, entao o contador
+   * ficava aceso ate o proprio ciclo dela (15s). Quem abria e voltava rapido via o badge
+   * de uma conversa que acabou de ler.
+   *
+   * Depende do numero de mensagens, e nao so do id: mensagem que chega com a conversa
+   * ABERTA tambem nasce lida, e sem isso o badge subiria para algo que esta na tela.
+   */
+  useEffect(() => {
+    if (!currentConversation?.id || loadingMessages) return;
+    queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
+  }, [currentConversation?.id, messages.length, loadingMessages, queryClient, user?.id]);
+
   const sendMessageMutation = useMutation({
     mutationFn: async (data: CreateMessageRequest) => {
       const response = await apiRequest("POST", "/message", {
