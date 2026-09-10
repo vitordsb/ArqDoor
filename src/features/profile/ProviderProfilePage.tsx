@@ -292,8 +292,17 @@ export default function ProviderProfilePage() {
   const isVerified = (user as any)?.is_verified === true;
   const hasDocuments = isVerified;
   const hasProfession = !!provider?.profession?.trim();
-  const baseTotal = 3;
-  const baseCompleted = Number(hasAbout) + Number(hasDocuments) + Number(hasProfession);
+  /**
+   * A foto entra na conta (decisao do Vitor, 10/09/2026).
+   *
+   * Ela deixou de ser obrigatoria para usar a plataforma, e passou a ser o que separa um
+   * perfil de 100% de um perfil quase completo. Sem ela aqui, um prestador sem foto
+   * marcava 100% de confianca — que e justamente o oposto do que a barra deveria dizer.
+   */
+  const hasPhoto = !!(user as any)?.perfil;
+  const baseTotal = 4;
+  const baseCompleted =
+    Number(hasAbout) + Number(hasDocuments) + Number(hasProfession) + Number(hasPhoto);
   const trustPercent = Math.round((baseCompleted / baseTotal) * 100);
   const hasPortfolio = portfolio.length > 0;
   const hasServices = services.length > 0;
@@ -344,6 +353,10 @@ export default function ProviderProfilePage() {
                 </div>
                 <Progress value={trustPercent} />
                 <div className="space-y-1 text-sm text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={hasPhoto ? "default" : "secondary"}>Foto</Badge>
+                    <span>{hasPhoto ? "Publicada" : "Opcional, mas necessária para 100%"}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={hasAbout ? "default" : "secondary"}>Sobre mim</Badge>
                     <span>{hasAbout ? "Preenchido" : "Pendente"}</span>

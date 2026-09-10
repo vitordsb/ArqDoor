@@ -852,12 +852,16 @@ export default function ProfilePage() {
   const hasPortfolio = portfolio.length > 0;
   const hasServices = services.length > 0;
   const hasAddress = !!locationInfo?.cep;
-  const baseTotal = 4;
+  // Foto entra na base: sem ela o perfil nao chega a 100% (Vitor, 10/09/2026). Ela nao
+  // bloqueia nada — so deixa de somar.
+  const hasPhoto = !!(user as any)?.perfil;
+  const baseTotal = 5;
   const baseCompleted =
     Number(hasAbout) +
     Number(hasCpf) +
     Number(hasProfession) +
-    Number(hasAddress);
+    Number(hasAddress) +
+    Number(hasPhoto);
   const baseScore = (baseCompleted / baseTotal) * 90;
   const extraScore = (hasPortfolio ? 5 : 0) + (hasServices ? 5 : 0);
   const trustPercentRaw = Math.round(baseScore + extraScore);
@@ -894,6 +898,10 @@ export default function ProfilePage() {
                     </div>
                     <Progress value={trustPercent} />
                     <div className="space-y-1 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={hasPhoto ? "default" : "secondary"}>Foto</Badge>
+                        <span>{hasPhoto ? "Publicada" : "Opcional, mas necessária para 100%"}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={hasAbout ? "default" : "secondary"}>Sobre mim</Badge>
                         <span>{hasAbout ? "Preenchido" : "Pendente"}</span>
