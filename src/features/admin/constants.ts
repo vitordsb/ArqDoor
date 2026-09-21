@@ -11,23 +11,27 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  UserCog,
 } from "lucide-react";
 
 export const TABS: AdminTabConfig[] = [
-  { key: "dashboard", label: "Dashboard", icon: Sparkles },
-  { key: "usuarios", label: "Usuários", icon: Users },
-  { key: "contratos", label: "Contratos", icon: BriefcaseBusiness },
-  { key: "pagamentos", label: "Pagamentos", icon: BadgeDollarSign },
-  { key: "transferencias", label: "Transferências", icon: Landmark },
-  { key: "documentos", label: "Documentos", icon: FileSignature },
+  { key: "dashboard", label: "Dashboard", icon: Sparkles, papeis: ["owner", "reviewer"] },
+  { key: "usuarios", label: "Usuários", icon: Users, papeis: ["owner"] },
+  { key: "contratos", label: "Contratos", icon: BriefcaseBusiness, papeis: ["owner"] },
+  { key: "pagamentos", label: "Pagamentos", icon: BadgeDollarSign, papeis: ["owner"] },
+  { key: "transferencias", label: "Transferências", icon: Landmark, papeis: ["owner"] },
+  { key: "documentos", label: "Documentos", icon: FileSignature, papeis: ["owner"] },
   // Separada de "Documentos", que e sobre PDF de CONTRATO. Esta e identidade: RG, CNH,
   // contrato social e comprovante de endereco. Juntar as duas numa aba so misturaria
   // conferir um contrato com conferir o RG de alguem.
-  { key: "verificacao", label: "Verificação", icon: ShieldCheck },
-  { key: "taxas", label: "Taxas", icon: Percent },
-  { key: "indicacoes", label: "Indicações", icon: Gift },
-  { key: "conversas", label: "Conversas", icon: MessageSquareText },
-  { key: "auditoria", label: "Auditoria", icon: ScrollText },
+  { key: "verificacao", label: "Verificação", icon: ShieldCheck, papeis: ["owner", "reviewer"] },
+  { key: "taxas", label: "Taxas", icon: Percent, papeis: ["owner"] },
+  { key: "indicacoes", label: "Indicações", icon: Gift, papeis: ["owner"] },
+  { key: "conversas", label: "Conversas", icon: MessageSquareText, papeis: ["owner"] },
+  { key: "auditoria", label: "Auditoria", icon: ScrollText, papeis: ["owner"] },
+  // Gestao do proprio time administrativo. So owner, porque e onde se concede e
+  // revoga acesso ao painel.
+  { key: "equipe", label: "Equipe", icon: UserCog, papeis: ["owner"] },
 ];
 
 export const EMPTY_FILTERS: FilterState = {
@@ -59,6 +63,7 @@ export const INITIAL_PAGES: Record<AdminTab, number> = {
   indicacoes: 1,
   conversas: 1,
   auditoria: 1,
+  equipe: 1,
 };
 
 export const PAGE_SIZE_BY_TAB: Record<AdminTab, number> = {
@@ -74,6 +79,7 @@ export const PAGE_SIZE_BY_TAB: Record<AdminTab, number> = {
   indicacoes: 10,
   conversas: 10,
   auditoria: 50,
+  equipe: 25,
 };
 
 export const CLIENT_PAGE_SIZE = 5;
