@@ -10,11 +10,12 @@
  *   - o backend impede rebaixar ou desativar o último owner. A tela também esconde a
  *     opção, mas a trava que vale é a do servidor.
  *
- * Break-glass aparece como o que é: exceção. Ligar a flag não define senha nenhuma; isso
- * é um passo explícito no servidor, via scripts/set-admin-password.js (ADR-001).
+ * Quem entra usa e-mail e senha da própria conta do ArqDoor, e em dispositivo novo recebe
+ * um código por e-mail (ADR-002). Definir a senha de alguém é um passo explícito no
+ * servidor, via scripts/set-admin-password.js.
  */
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, KeyRound, Loader2, RefreshCcw, ShieldCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCcw, ShieldCheck, UserPlus } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,6 @@ type MembroDoAdmin = {
   user_id: number;
   role: PapelAdmin;
   active: boolean;
-  break_glass_enabled: boolean;
   locked_until: string | null;
   last_login_at: string | null;
   created_at?: string;
@@ -235,9 +235,6 @@ export function AdminTeamSection() {
                         label={membro.active ? "Ativo" : "Desativado"}
                         tone={membro.active ? "emerald" : "rose"}
                       />
-                      {membro.break_glass_enabled ? (
-                        <StatusBadge label="Break-glass" tone="amber" />
-                      ) : null}
                       {travado ? <StatusBadge label="Travado" tone="rose" /> : null}
                     </div>
                   </div>
@@ -295,20 +292,6 @@ export function AdminTeamSection() {
                       </>
                     )}
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={salvando}
-                      onClick={() =>
-                        void atualizar(membro, {
-                          break_glass_enabled: !membro.break_glass_enabled,
-                        })
-                      }
-                    >
-                      <KeyRound className="mr-2 h-3.5 w-3.5" />
-                      {membro.break_glass_enabled ? "Tirar break-glass" : "Dar break-glass"}
-                    </Button>
-
                     {travado ? (
                       <Button
                         variant="outline"
@@ -336,8 +319,8 @@ export function AdminTeamSection() {
         )}
 
         <p className="mt-4 text-xs leading-5 text-slate-500">
-          Break-glass só habilita a entrada por senha. Definir a senha em si é um passo
-          separado no servidor, de propósito.
+          A pessoa entra com o e-mail e a senha da conta dela no ArqDoor. Em um dispositivo
+          novo, um código de 6 dígitos chega por e-mail antes de a sessão abrir.
         </p>
       </SectionCard>
     </div>
