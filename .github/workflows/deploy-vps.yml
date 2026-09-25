@@ -52,6 +52,10 @@ jobs:
         if: steps.deploy_guard.outputs.enabled == 'true'
         run: npm ci
 
+      - name: Unit tests
+        if: steps.deploy_guard.outputs.enabled == 'true'
+        run: npm test
+
       - name: Build
         if: steps.deploy_guard.outputs.enabled == 'true'
         run: npm run build
