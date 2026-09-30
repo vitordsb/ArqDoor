@@ -1,0 +1,105 @@
+name: Deploy staging (Coolify)
+
+# Publica o site de staging (staging.arqdoor.com, usado com o app ArqDoor Teste) a partir da
+# `develop`. Roda em todo push na `develop` e sob demanda.
+#
+# Existe porque o staging nao tinha automacao nenhuma e ficou parado em 11/08/2026: telas
+# testadas em staging nao eram as de producao. Spec: specs/features/2026-09-deploy-um-comando.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-staging-web
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Testes unitarios
+        run: npx vitest run
+      - name: Tipos
+        run: npx tsc --noEmit
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: So a develop publica staging
+        if: github.ref != 'refs/heads/develop'
+        run: |
+          echo "::error::Staging so e publicado a partir da develop (ref atual: ${GITHUB_REF})."
+          exit 1
+
+      # Falha em vez de pular. O workflow de producao do site pulava o deploy com um aviso
+      # quando faltava secret e terminava "success": o site de producao nunca foi publicado
+      # pelo CI e ninguem percebeu.
+      - name: Valida secrets do deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_STAGING_WEB_UUID: ${{ secrets.COOLIFY_STAGING_WEB_UUID }}
+        run: |
+          faltam=""
+          for nome in VPS_HOST VPS_USER VPS_SSH_KEY COOLIFY_API_TOKEN COOLIFY_STAGING_WEB_UUID; do
+            [ -n "${!nome}" ] || faltam="$faltam $nome"
+          done
+          if [ -n "$faltam" ]; then
+            echo "::error::Faltam secrets no repositorio:$faltam"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Confia na chave da VPS
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Marca o inicio
+        id: inicio
+        run: echo "epoch=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+
+      # A API do Coolify so aceita chamada de dentro da VPS (allowlist de IP). O porque de o
+      # curl rodar dentro do container esta no cabecalho do script.
+      - name: Dispara o deploy no Coolify e acompanha
+        env:
+          TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          scp -o BatchMode=yes scripts/deploy-coolify.sh \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/deploy-coolify-web.sh"
+          printf '%s\n' "$TOKEN" | ssh -o BatchMode=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "bash /tmp/deploy-coolify-web.sh ${{ secrets.COOLIFY_STAGING_WEB_UUID }}; rc=\$?; rm -f /tmp/deploy-coolify-web.sh; exit \$rc"
+
+      - name: Confere que staging.arqdoor.com serve o build novo
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 12); do
+            LM=$(curl -sI -H "Connection: close" https://staging.arqdoor.com/ | tr -d '\r' | sed -n 's/^[Ll]ast-[Mm]odified: //p')
+            if [ -n "$LM" ] && [ "$(date -u -d "$LM" +%s)" -ge "${{ steps.inicio.outputs.epoch }}" ]; then
+              echo "Site novo no ar (Last-Modified: $LM)."
+              exit 0
+            fi
+            echo "aguardando o site novo... ($i/12, Last-Modified: ${LM:-nenhum})"
+            sleep 10
+          done
+          echo "::error::staging.arqdoor.com continua servindo um build anterior a este deploy."
+          exit 1
