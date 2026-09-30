@@ -70,6 +70,14 @@ echo "==> deployment ${DEP}"
 
 for i in $(seq 1 "${TENTATIVAS}"); do
   RESP_ST=$(api "/api/v1/deployments/${DEP}")
+  # Resposta sem nenhum "status" e erro da API, nao deploy em andamento. Medido em
+  # 2026-09-30: um token so com "deploy" e "write" dispara o deploy mas nao pode LER o
+  # status; o script esperava 10 minutos achando que o build nao acabava, com o site ja no ar.
+  if ! printf '%s' "${RESP_ST}" | grep -q '"status"'; then
+    echo "ERRO: a consulta do deployment nao devolveu status: $(printf '%s' "${RESP_ST}" | head -c 300)"
+    echo "O token precisa das permissoes 'deploy' E 'read' no Coolify (Keys & Tokens)."
+    exit 1
+  fi
   if tem_status "${RESP_ST}" "finished"; then
     echo "[${i}/${TENTATIVAS}] finished"
     echo "==> Deploy concluido."
