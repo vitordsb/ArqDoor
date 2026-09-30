@@ -89,17 +89,25 @@ jobs:
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             "bash /tmp/deploy-coolify-web.sh ${{ secrets.COOLIFY_STAGING_WEB_UUID }}; rc=\$?; rm -f /tmp/deploy-coolify-web.sh; exit \$rc"
 
-      - name: Confere que staging.arqdoor.com serve o build novo
+      # O Coolify ja confirmou que o deploy DESTE commit terminou (passo anterior). Aqui so se
+      # confere que o site responde e que o bundle que o index aponta carrega.
+      #
+      # A data (Last-Modified) nao serve de prova: quando o commit nao muda o site, o build gera
+      # os mesmos arquivos e o Docker reaproveita a camada anterior, com a data antiga. Medido em
+      # 2026-09-30 no commit e271c6c, que so mexia no script de deploy.
+      - name: Confere que staging.arqdoor.com responde com o build publicado
         run: |
           set -uo pipefail
           for i in $(seq 1 12); do
-            LM=$(curl -sI -H "Connection: close" https://staging.arqdoor.com/ | tr -d '\r' | sed -n 's/^[Ll]ast-[Mm]odified: //p')
-            if [ -n "$LM" ] && [ "$(date -u -d "$LM" +%s)" -ge "${{ steps.inicio.outputs.epoch }}" ]; then
-              echo "Site novo no ar (Last-Modified: $LM)."
+            HTML=$(curl -sf -H "Connection: close" https://staging.arqdoor.com/ || true)
+            JS=$(printf '%s' "$HTML" | grep -oE 'assets/index-[^"]+\.js' | head -1)
+            if [ -n "$JS" ] && curl -sf -o /dev/null -H "Connection: close" "https://staging.arqdoor.com/$JS"; then
+              LM=$(curl -sI -H "Connection: close" https://staging.arqdoor.com/ | tr -d '\r' | sed -n 's/^[Ll]ast-[Mm]odified: //p')
+              echo "Site no ar com $JS (Last-Modified: $LM)."
               exit 0
             fi
-            echo "aguardando o site novo... ($i/12, Last-Modified: ${LM:-nenhum})"
+            echo "aguardando o site responder... ($i/12)"
             sleep 10
           done
-          echo "::error::staging.arqdoor.com continua servindo um build anterior a este deploy."
+          echo "::error::staging.arqdoor.com nao respondeu com um bundle que carrega."
           exit 1
